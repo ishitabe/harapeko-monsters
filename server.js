@@ -56,7 +56,12 @@ io.on("connection", (socket) => {
     if (!room || playerId === null || playerId === undefined) return reply?.({ ok: false, message: "部屋に参加していません。" });
     if (!room.started) return reply?.({ ok: false, message: "相手の参加待ちです。" });
     const result = applyAction(room.game, playerId, payload);
-    reply?.({ ok: result.ok, message: result.message || room.game.lastMessage });
+    reply?.({
+      ok: result.ok,
+      message: result.message || room.game.lastMessage,
+      drawnCards: filterDrawnCards(result.drawnCards, playerId),
+      discardedDrawCards: filterDrawnCards(result.discardedDrawCards, playerId),
+    });
     broadcastRoom(room);
   });
 
@@ -78,6 +83,10 @@ function createRoom() {
   };
   rooms.set(id, room);
   return room;
+}
+
+function filterDrawnCards(drawnCards, playerId) {
+  return playerId === undefined || playerId === null ? [] : (drawnCards || []);
 }
 
 function joinRoom(socket, room, playerId) {
@@ -126,10 +135,14 @@ function applyAction(game, playerId, payload) {
       return engine.resolvePendingQuickReplay(game, playerId, payload.payload || {});
     case "doubleCheck":
       return engine.resolvePendingOpponentHandCheck(game, playerId, payload.opponentHandIndex);
+    case "discardSelection":
+      return engine.resolvePendingDiscardSelection(game, playerId, payload.handIndexes);
     case "attackLife":
       return engine.attackLife(game, playerId, payload.attackerId);
     case "attackMonster":
       return engine.attackMonster(game, playerId, payload.attackerId, payload.defenderId);
+    case "unitAbility":
+      return engine.useUnitAbility(game, playerId, payload);
     case "gainLife":
       return engine.gainLifeWithUnit(game, playerId, payload.unitId);
     case "endTurn":
@@ -163,14 +176,16 @@ function createWaitingView(room, viewerId) {
     doubleNextAction: null,
     pendingQuickReplay: null,
     pendingOpponentHandCheck: null,
-    maxFieldSize: 2,
+    pendingDiscardSelection: null,
+    maxFieldSize: 3,
+    maxHandSize: 10,
     lastMessage: "相手の参加待ちです。2人そろうとバトルスタートして初期手札を配ります。",
     log: [`部屋ID: ${room.id}`],
     discard: [],
     piles: PILE_DEFINITIONS.map((pile) => ({ id: pile.id, name: pile.name, count: 0, topCardId: null })),
     players: [0, 1].map((playerId) => ({
       name: playerId === viewerId ? `あなた プレイヤー${playerId + 1}` : `相手 プレイヤー${playerId + 1}`,
-      life: 7,
+      life: 12,
       actions: 0,
       hasDrawnThisTurn: false,
       handCount: 0,

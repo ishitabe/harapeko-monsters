@@ -4,16 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>はらぺこモンスターズ</title>
-    <link rel="stylesheet" href="styles.css?v=21">
+    <link rel="stylesheet" href="styles.css?v=32">
     <script>
       window.addEventListener("error", (event) => {
         const message = document.querySelector("#messageText");
         if (message) message.textContent = `読み込みエラー: ${event.message}`;
       });
     </script>
-    <script src="cards.js?v=21" defer></script>
-    <script src="gameEngine.js?v=21" defer></script>
-    <script src="app.js?v=21" defer></script>
+    <script src="cards.js?v=32" defer></script>
+    <script src="gameEngine.js?v=32" defer></script>
+    <script src="app.js?v=32" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -23,6 +23,19 @@
         <div class="title-actions">
           <button class="title-button primary" id="startCpuButton" type="button">CPU対戦</button>
           <button class="title-button" id="startMultiButton" type="button">マルチ対戦</button>
+          <button class="title-button rules-button" id="showRulesButton" type="button">ルール</button>
+        </div>
+        <div class="title-rules hidden" id="titleRules" aria-label="ルール説明">
+          <div class="rules-head">
+            <span id="rulesPageLabel">RULE 1 / 1</span>
+            <button class="small-button" id="rulesCloseButton" type="button">閉じる</button>
+          </div>
+          <h2 id="rulesTitle">ルール</h2>
+          <div class="rules-body" id="rulesBody"></div>
+          <div class="rules-nav">
+            <button class="title-button" id="rulesPrevButton" type="button">前へ</button>
+            <button class="title-button primary" id="rulesNextButton" type="button">次へ</button>
+          </div>
         </div>
         <div class="title-lobby hidden" id="titleLobby">
           <strong id="titleLobbyStatus">マルチ対戦</strong>
@@ -77,7 +90,7 @@
         <section class="opponent-row" aria-label="相手情報">
           <div class="opponent-hand" id="opponentHand"></div>
           <div class="life-box opponent">
-            <span>CPU</span>
+            <span id="p1Name">相手</span>
             <strong id="p1Life">7</strong>
             <div class="action-lamps" id="p1Actions"></div>
             <small id="p1HandCount">手札 6</small>
@@ -97,7 +110,7 @@
             <button class="end-button" id="endTurnButton" type="button">ターン終了</button>
             <div class="action-lamps own" id="p0Actions"></div>
             <div class="life-box player">
-              <span>プレイヤー1</span>
+              <span id="p0Name">プレイヤー1</span>
               <strong id="p0Life">7</strong>
               <small id="p0HandCount">手札 5</small>
             </div>

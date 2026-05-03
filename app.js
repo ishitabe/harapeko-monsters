@@ -19,11 +19,76 @@ let lastOnlineStarted = false;
 let titleActive = true;
 let optionsOpen = false;
 let titleLobbyOpen = false;
+let titleRulesOpen = false;
+let rulesPageIndex = 0;
 let selectedKey = null;
 let detailKey = null;
 let detailData = null;
 let previousView = null;
+let animationLock = false;
 const pendingFx = new Map();
+const RULE_PAGES = [
+  {
+    title: "まずは勝ち方",
+    lead: "相手のライフを0にしたプレイヤーの勝ちです。",
+    items: [
+      "モンスターを場に出して、相手モンスターや相手ライフを攻撃します。",
+      "持ち物でモンスターを強化し、アクションカードで盤面を動かします。"
+    ]
+  },
+  {
+    title: "ターンの流れ",
+    lead: "ターン開始時は、中央に表示される案内どおり山札を1つ選んで1枚ドローします。",
+    items: [
+      "ドローはアクション権を消費しません。",
+      "1ターンのアクション権は基本2つです。",
+      "召喚とアクションカード使用にはアクション権を1つ使います。",
+      "攻撃はアクション権を消費せず、行動可能なモンスターごとに1回できます。",
+      "ターン終了時、自分の場のモンスターは全回復します。"
+    ]
+  },
+  {
+    title: "山札と手札",
+    lead: "山札は共通3山で、各山の一番上のカードは常に公開されています。",
+    items: [
+      "カードは3山にランダムに分配されます。",
+      "捨札は共通で全公開です。クリックすると一覧を確認できます。",
+      "2つの山札が空になったら、山札と捨札をすべてシャッフルして3山に配り直します。",
+      "手札上限は10枚です。10枚を超えるドローは失敗し、そのカードは捨札へ行きます。"
+    ]
+  },
+  {
+    title: "場と戦闘",
+    lead: "場にはモンスターを最大3体まで出せます。",
+    items: [
+      "攻撃すると、自分のパワーの値だけ相手にダメージを与えます。",
+      "モンスター同士の戦闘では必ず反撃が発生し、お互いのパワー分のダメージを同時に受けます。",
+      "HPが0になったモンスターは捨札へ送られます。",
+      "モンスターが3体いるとウォールが発生し、モンスターの攻撃ではライフを攻撃できません。"
+    ]
+  },
+  {
+    title: "カードの種類",
+    lead: "カードはモンスター、持ち物、アクションの3種類です。",
+    items: [
+      "モンスター: 召喚にアクション権を1消費します。召喚したターンは基本的に行動できません。",
+      "持ち物: 召喚済みの自分のモンスターに装備します。アクション権は消費しません。",
+      "持ち物は裏向きで装備され、発動タイミングで公開されます。相手にはカード右上のアイコンだけ見えます。",
+      "アクション: 手札から使用し、アクション権を1消費します。使用後は捨札へ行きます。"
+    ]
+  },
+  {
+    title: "詳しい仕様",
+    lead: "現在の基本仕様です。カード効果の細部はカード本文が優先です。",
+    items: [
+      "初期ライフは12です。",
+      "先攻・後攻はCPU対戦、マルチ対戦ともランダムです。",
+      "初期手札は先攻5枚、後攻6枚です。",
+      "先攻1ターン目のアクション権は1、それ以外は基本2です。",
+      "オンライン対戦では、手札、山札順、裏向き持ち物は相手に見えません。"
+    ]
+  }
+];
 
 const elements = {
   turnLabel: document.querySelector("#turnLabel"),
@@ -46,6 +111,14 @@ const elements = {
   titleScreen: document.querySelector("#titleScreen"),
   startCpuButton: document.querySelector("#startCpuButton"),
   startMultiButton: document.querySelector("#startMultiButton"),
+  showRulesButton: document.querySelector("#showRulesButton"),
+  titleRules: document.querySelector("#titleRules"),
+  rulesPageLabel: document.querySelector("#rulesPageLabel"),
+  rulesTitle: document.querySelector("#rulesTitle"),
+  rulesBody: document.querySelector("#rulesBody"),
+  rulesPrevButton: document.querySelector("#rulesPrevButton"),
+  rulesNextButton: document.querySelector("#rulesNextButton"),
+  rulesCloseButton: document.querySelector("#rulesCloseButton"),
   titleLobby: document.querySelector("#titleLobby"),
   titleLobbyStatus: document.querySelector("#titleLobbyStatus"),
   titleLobbyNote: document.querySelector("#titleLobbyNote"),
@@ -64,6 +137,7 @@ const elements = {
   detailContent: document.querySelector("#detailContent"),
   closeDetailButton: document.querySelector("#closeDetailButton"),
   life: [document.querySelector("#p0Life"), document.querySelector("#p1Life")],
+  playerName: [document.querySelector("#p0Name"), document.querySelector("#p1Name")],
   handCount: [document.querySelector("#p0HandCount"), document.querySelector("#p1HandCount")],
   actions: [document.querySelector("#p0Actions"), document.querySelector("#p1Actions")],
   fields: [document.querySelector("#p0Field"), document.querySelector("#p1Field")],
@@ -77,7 +151,8 @@ function render() {
   const activePlayer = view.players[view.activePlayer];
   const lockedForCpu = !onlineMode && isCpuTurn(view);
   const lockedForOnline = onlineMode && (!onlineState?.started || view.activePlayer !== selfId);
-  const locked = lockedForCpu || lockedForOnline;
+  const locked = lockedForCpu || lockedForOnline || animationLock;
+  renderBattleEvents(view);
 
   elements.turnLabel.textContent = view.winner === null
     ? `${activePlayer.name}のターン ${view.turn}`
@@ -85,17 +160,23 @@ function render() {
   elements.actionLabel.textContent = activePlayer.hasDrawnThisTurn
     ? `アクション ${activePlayer.actions}/2`
     : "山札を選んでドロー";
-  elements.activeHandLabel.textContent = "自分の手札";
+  elements.activeHandLabel.textContent = "手札";
   elements.messageText.textContent = view.lastMessage;
-  elements.endTurnButton.disabled = view.winner !== null || locked;
+  const canEndTurn = view.winner === null && !titleActive && !animationLock && (onlineMode
+    ? Boolean(onlineState?.started) && view.activePlayer === selfId
+    : !isCpuTurn(view));
+  elements.endTurnButton.disabled = !canEndTurn;
   document.body.classList.toggle("title-active", titleActive);
   document.body.classList.toggle("title-lobby-active", titleLobbyOpen);
+  document.body.classList.toggle("title-rules-active", titleRulesOpen);
   elements.titleLobby?.classList.toggle("hidden", !titleLobbyOpen);
+  elements.titleRules?.classList.toggle("hidden", !titleRulesOpen);
   elements.optionsPanel?.classList.toggle("hidden", !optionsOpen);
   updateOptionsVisibility();
 
   renderOnlineStatus();
   renderTitleLobby();
+  renderRules();
   renderPlayerInfo(view);
   renderOpponentHand(view.players[opponentId].handCount);
   renderDecks(view.piles, activePlayer, view.winner, locked);
@@ -107,6 +188,9 @@ function render() {
   renderDetail();
   renderPendingDoubleCheck();
   renderPendingQuickReplay();
+  renderPendingDiscardSelection();
+  updateDrawPrompt(view, locked);
+  renderWinnerOverlay(view);
   flushFx();
   previousView = view;
   if (!onlineMode) scheduleCpuTurn();
@@ -132,13 +216,15 @@ function renderPlayerInfo(view) {
   const slots = [getSelfId(), getOpponentId()];
   slots.forEach((playerId, slotId) => {
     const player = view.players[playerId];
+    elements.playerName[slotId].textContent = player.name;
     elements.life[slotId].textContent = `HP ${player.life}`;
     const previousLife = previousView?.players[playerId]?.life;
     elements.life[slotId].classList.remove("life-damage", "life-heal");
     if (previousLife !== undefined && previousLife !== player.life) {
       const className = player.life < previousLife ? "life-damage" : "life-heal";
       elements.life[slotId].classList.add(className);
-      showFloat(`${player.life > previousLife ? "+" : ""}${player.life - previousLife}`, player.life < previousLife ? "damage" : "heal");
+      const amount = Math.abs(player.life - previousLife);
+      showFloat(player.life < previousLife ? `${player.name}に${amount}ダメージ！` : `${player.name}が${amount}回復！`, player.life < previousLife ? "damage" : "heal");
       setTimeout(() => elements.life[slotId].classList.remove(className), 820);
       playSound(player.life < previousLife ? "damage" : "heal");
     }
@@ -197,6 +283,31 @@ function renderTitleLobby() {
   elements.titleShareLink.textContent = "";
 }
 
+function renderRules() {
+  if (!elements.titleRules || !titleRulesOpen) return;
+  const page = RULE_PAGES[rulesPageIndex] || RULE_PAGES[0];
+  elements.rulesPageLabel.textContent = `RULE ${rulesPageIndex + 1} / ${RULE_PAGES.length}`;
+  elements.rulesTitle.textContent = page.title;
+  elements.rulesBody.replaceChildren();
+
+  const lead = document.createElement("p");
+  lead.className = "rules-lead";
+  lead.textContent = page.lead;
+  elements.rulesBody.append(lead);
+
+  const list = document.createElement("ul");
+  list.className = "rules-list";
+  page.items.forEach((item) => {
+    const li = document.createElement("li");
+    li.textContent = item;
+    list.append(li);
+  });
+  elements.rulesBody.append(list);
+
+  elements.rulesPrevButton.disabled = rulesPageIndex === 0;
+  elements.rulesNextButton.textContent = rulesPageIndex === RULE_PAGES.length - 1 ? "最初へ" : "次へ";
+}
+
 function makeRoomUrl(roomId) {
   if (!roomId) return "";
   const url = new URL(window.location.href);
@@ -208,9 +319,10 @@ function renderActionLamps(container, actions, previousActions) {
   container.replaceChildren();
   const label = document.createElement("span");
   label.className = "action-label";
-  label.textContent = "アクション権";
+  label.textContent = `アクション権 ${actions}`;
   container.append(label);
-  for (let index = 0; index < 2; index += 1) {
+  const lampCount = Math.max(2, Math.min(5, actions));
+  for (let index = 0; index < lampCount; index += 1) {
     const lamp = document.createElement("span");
     const changedOn = previousActions !== undefined && index < actions && index >= previousActions;
     const changedOff = previousActions !== undefined && index >= actions && index < previousActions;
@@ -240,11 +352,10 @@ function renderDecks(piles, activePlayer, winner, lockedForCpu) {
     button.type = "button";
     button.disabled = !pile.topCardId;
     button.innerHTML = `
-      <div class="deck-thumb">${topCard ? compactCardMarkup(topCard) : ""}</div>
+      <div class="deck-thumb ${topCard ? topCard.type : ""}">${topCard ? typeBadge(topCard.type) : ""}</div>
       <div>
-        <div class="deck-name">${pile.name}</div>
+        <div class="deck-meta"><span class="deck-name">${pile.name}</span><small>残り ${pile.count} 枚</small></div>
         ${topCard ? `<div class="card-name">${topCard.name}</div><p class="card-text">${topCard.text}</p>` : "<p class=\"empty-note\">空</p>"}
-        <small>残り ${pile.count} 枚</small>
       </div>
     `;
     button.addEventListener("click", () => {
@@ -253,8 +364,7 @@ function renderDecks(piles, activePlayer, winner, lockedForCpu) {
       if (winner === null && !lockedForCpu && !activePlayer.hasDrawnThisTurn) {
         addFx(key, "fx-draw");
         playSound("draw");
-        runGameAction("draw", { pileId: pile.id }, () => engine.drawFromPile(game, game.activePlayer, pile.id));
-        showFloat("DRAW", "draw");
+        runGameAction("draw", { pileId: pile.id }, () => engine.drawFromPile(game, game.activePlayer, pile.id), showDrawnCards);
       }
       if (!onlineMode) render();
     });
@@ -310,7 +420,8 @@ function renderField(container, field, maxFieldSize, view, playerId) {
     const key = unit ? `field:${playerId}:${unit.id}` : `field-empty:${playerId}:${index}`;
     slot.dataset.key = key;
     const showExhausted = playerId === view.activePlayer && unit && !unit.canAct;
-    slot.className = `field-slot ${unit ? `filled ${CARD_DEFINITIONS[unit.cardId].type}` : "empty"} ${showExhausted ? "exhausted" : ""} ${unit && unit.summonedTurn === view.turn ? "fresh" : ""} ${selectedKey === key ? "selected" : ""} ${fxClassFor(key)}`;
+    const isNewUnit = Boolean(unit && previousView && !previousView.players[playerId]?.field.some((oldUnit) => oldUnit.id === unit.id));
+    slot.className = `field-slot ${unit ? `filled ${CARD_DEFINITIONS[unit.cardId].type}` : "empty"} ${showExhausted ? "exhausted" : ""} ${unit && unit.summonedTurn === view.turn ? "fresh" : ""} ${isNewUnit ? "fx-summon" : ""} ${selectedKey === key ? "selected" : ""} ${fxClassFor(key)}`;
 
     if (!unit) {
       slot.innerHTML = `<span>${playerId === getSelfId() ? "自分" : "相手"} 空き枠 ${index + 1}</span>`;
@@ -326,7 +437,7 @@ function renderField(container, field, maxFieldSize, view, playerId) {
         <span class="stat-pill hp">HP ${unit.hp}/${unit.maxHp}</span>
         <span class="stat-pill pow">PW ${unit.power}</span>
       </div>
-      ${unit.item && unit.item.hasItem ? `<span class="item-badge">${unit.item.visibleCardId ? CARD_DEFINITIONS[unit.item.visibleCardId].name : "持ち物あり"}</span>` : ""}
+      ${unit.item && unit.item.hasItem ? itemBadgeMarkup(unit.item) : ""}
       <span class="state-badge ${unit.canAct ? "" : "exhausted"}">${unit.canAct ? "行動可" : unit.summonedTurn === view.turn ? "召喚酔い" : "行動済み"}</span>
       <p class="card-text">${card.text}</p>
     `;
@@ -433,7 +544,7 @@ function renderDetail() {
           <span class="stat-pill pow">パワー ${unit ? unit.power : card.power}</span>
         </div>
       ` : ""}
-      ${unit && unit.item && unit.item.hasItem ? `<span class="item-badge">${unit.item.visibleCardId ? CARD_DEFINITIONS[unit.item.visibleCardId].name : "持ち物あり"}</span>` : ""}
+      ${unit && unit.item && unit.item.hasItem ? itemBadgeMarkup(unit.item) : ""}
       <p class="card-text">${card.text}</p>
       <div class="detail-actions" id="detailActions"></div>
     </div>
@@ -462,12 +573,22 @@ function renderPendingQuickReplay() {
   renderDetail();
 }
 
+function renderPendingDiscardSelection() {
+  const view = getView();
+  const pending = view.pendingDiscardSelection;
+  if (!pending || pending.playerId !== getSelfId() || isCpuTurn()) return;
+  selectedKey = "pending:discardSelection";
+  detailKey = "pending:discardSelection";
+  detailData = { source: "pendingDiscardSelection", zone: "アクロバット", count: pending.count, card: CARD_DEFINITIONS.acrobat };
+  renderDetail();
+}
+
 function renderDetailActions(container, data) {
   if (!container) return;
   const view = getView();
   const activePlayer = view.players[view.activePlayer];
   const lockedForTurn = !isMyTurn(view) || isCpuTurn(view);
-  const disabled = view.winner !== null || lockedForTurn || !activePlayer.hasDrawnThisTurn;
+  const disabled = view.winner !== null || lockedForTurn || animationLock || !activePlayer.hasDrawnThisTurn;
   if (data.locked) {
     const note = document.createElement("p");
     note.className = "empty-note";
@@ -479,7 +600,7 @@ function renderDetailActions(container, data) {
   if (data.source === "pendingDoubleCheck") {
     const opponent = view.players[view.activePlayer === 0 ? 1 : 0];
     opponent.hand.forEach((cardId, index) => {
-      container.append(createSmallButton(`${CARD_DEFINITIONS[cardId].name}を捨てる`, false, () => {
+      container.append(createSmallButton(`${CARD_DEFINITIONS[cardId].name}を加える`, false, () => {
         runGameAction("doubleCheck", { opponentHandIndex: index }, () => engine.resolvePendingOpponentHandCheck(game, game.activePlayer, index));
         clearSelection();
         if (!onlineMode) render();
@@ -493,13 +614,18 @@ function renderDetailActions(container, data) {
     return;
   }
 
+  if (data.source === "pendingDiscardSelection") {
+    renderDiscardSelectionControls(container, data.count, view);
+    return;
+  }
+
   if (data.source === "hand") {
     if (data.card.type === "unit") {
       container.append(createSmallButton("このモンスターを召喚", disabled || activePlayer.actions <= 0 || activePlayer.field.length >= view.maxFieldSize, () => {
         addFx(`hand:${data.handIndex}`, "fx-summon");
         playSound("summon");
         runGameAction("summon", { handIndex: data.handIndex }, () => engine.summonFromHand(game, game.activePlayer, data.handIndex));
-        showFloat("SUMMON", "summon");
+    showFloat(`${data.card.name}を召喚！`, "summon");
         clearSelection();
         if (!onlineMode) render();
       }));
@@ -516,7 +642,7 @@ function renderDetailActions(container, data) {
           addFx(`field:${view.activePlayer}:${unit.id}`, "fx-item");
           playSound("select");
           runGameAction("equip", { handIndex: data.handIndex, unitId: unit.id }, () => engine.equipItemFromHand(game, game.activePlayer, data.handIndex, unit.id));
-          showFloat("ITEM", "item");
+          showFloat(`${CARD_DEFINITIONS[unit.cardId].name}に装備！`, "item");
           clearSelection();
           if (!onlineMode) render();
         }));
@@ -532,31 +658,63 @@ function renderDetailActions(container, data) {
       const unit = activePlayer.field.find((candidate) => candidate.id === data.unitId);
       if (!unit) return;
       const opponentHasWall = view.players[view.activePlayer === 0 ? 1 : 0].field.length >= view.maxFieldSize;
-      container.append(createSmallButton(opponentHasWall ? "壁でライフ攻撃不可" : "ライフを攻撃", disabled || !unit.canAct || opponentHasWall, () => {
-        addFx(`field:${data.ownerId}:${unit.id}`, "fx-attack");
+      const opponentHasSnorlax = view.players[view.activePlayer === 0 ? 1 : 0].field.some((target) => CARD_DEFINITIONS[target.cardId].effectKey === "mustBeAttacked");
+      container.append(createSmallButton(opponentHasSnorlax ? "カビゴンでライフ攻撃不可" : opponentHasWall ? "壁でライフ攻撃不可" : "ライフを攻撃", disabled || !unit.canAct || opponentHasWall || opponentHasSnorlax, async () => {
+        await playAttackSequence(`field:${data.ownerId}:${unit.id}`, null, getOpponentId());
         playSound("attack");
         runGameAction("attackLife", { attackerId: unit.id }, () => engine.attackLife(game, game.activePlayer, unit.id));
-        showFloat("ATTACK", "damage");
+        showFloat(`${activePlayer.name}がライフ攻撃！`, "damage");
         clearSelection();
         if (!onlineMode) render();
       }));
       if (CARD_DEFINITIONS[unit.cardId].effectKey === "attackOrGainLife") {
-        container.append(createSmallButton("ライフ+2を選ぶ", disabled || !unit.canAct, () => {
+        container.append(createSmallButton("ライフ+3を選ぶ", disabled || !unit.canAct, () => {
           playSound("heal");
           runGameAction("gainLife", { unitId: unit.id }, () => engine.gainLifeWithUnit(game, game.activePlayer, unit.id));
-          showFloat("+2", "heal");
+          showFloat(`${CARD_DEFINITIONS[unit.cardId].name}: ライフ+3！`, "heal");
           clearSelection();
           if (!onlineMode) render();
         }));
       }
-    } else {
-      activePlayer.field.forEach((attacker) => {
-        container.append(createSmallButton(`${CARD_DEFINITIONS[attacker.cardId].name}で攻撃`, disabled || !attacker.canAct, () => {
-          addFx(`field:${view.activePlayer}:${attacker.id}`, "fx-attack");
-          addFx(`field:${data.ownerId}:${data.unitId}`, "fx-hit");
+      if (CARD_DEFINITIONS[unit.cardId].effectKey === "zeroPowerAndReturn") {
+        const opponentId = view.activePlayer === 0 ? 1 : 0;
+        view.players[opponentId].field.forEach((target) => {
+          container.append(createSmallButton(`${CARD_DEFINITIONS[target.cardId].name}を威嚇して戻る`, disabled || !unit.canAct, () => {
+            runGameAction("unitAbility", { ability: "zeroPowerAndReturn", unitId: unit.id, targetUnitId: target.id }, () => engine.useUnitAbility(game, game.activePlayer, { ability: "zeroPowerAndReturn", unitId: unit.id, targetUnitId: target.id }));
+            addFx(`field:${opponentId}:${target.id}`, "fx-stat-down");
+            clearSelection();
+            if (!onlineMode) render();
+          }));
+        });
+      }
+      if (CARD_DEFINITIONS[unit.cardId].effectKey === "doubleOwnPower") {
+        container.append(createSmallButton("自分のパワーを2倍", disabled || !unit.canAct, () => {
+          runGameAction("unitAbility", { ability: "doubleOwnPower", unitId: unit.id }, () => engine.useUnitAbility(game, game.activePlayer, { ability: "doubleOwnPower", unitId: unit.id }));
+          addFx(`field:${view.activePlayer}:${unit.id}`, "fx-stat-up");
+          clearSelection();
+          if (!onlineMode) render();
+        }));
+      }
+      const opponentId = view.activePlayer === 0 ? 1 : 0;
+      const defenders = filterAttackTargets(view.players[opponentId].field);
+      defenders.forEach((defender) => {
+        container.append(createSmallButton(`${CARD_DEFINITIONS[defender.cardId].name}を攻撃`, disabled || !unit.canAct, async () => {
+          await playAttackSequence(`field:${view.activePlayer}:${unit.id}`, `field:${opponentId}:${defender.id}`);
           playSound("attack");
-          runGameAction("attackMonster", { attackerId: attacker.id, defenderId: data.unitId }, () => engine.attackMonster(game, game.activePlayer, attacker.id, data.unitId));
-          showFloat("HIT", "damage");
+          runGameAction("attackMonster", { attackerId: unit.id, defenderId: defender.id }, () => engine.attackMonster(game, game.activePlayer, unit.id, defender.id), showDrawnCards);
+          showFloat(`${CARD_DEFINITIONS[defender.cardId].name}に攻撃！`, "damage");
+          clearSelection();
+          if (!onlineMode) render();
+        }));
+      });
+    } else {
+      const attackers = filterAttackTargets(activePlayer.field);
+      attackers.forEach((attacker) => {
+        container.append(createSmallButton(`${CARD_DEFINITIONS[attacker.cardId].name}で攻撃`, disabled || !attacker.canAct, async () => {
+          await playAttackSequence(`field:${view.activePlayer}:${attacker.id}`, `field:${data.ownerId}:${data.unitId}`);
+          playSound("attack");
+          runGameAction("attackMonster", { attackerId: attacker.id, defenderId: data.unitId }, () => engine.attackMonster(game, game.activePlayer, attacker.id, data.unitId), showDrawnCards);
+          showFloat(`${data.card.name}に攻撃！`, "damage");
           clearSelection();
           if (!onlineMode) render();
         }));
@@ -574,8 +732,8 @@ function renderActionControls(container, card, handIndex, view) {
     const payload = readActionPayload(controls);
     addFx(`hand:${handIndex}`, "fx-discard");
     playSound("select");
-    await animateActionPreview(card);
-    runGameAction("playAction", { handIndex, payload }, () => engine.playAction(game, game.activePlayer, handIndex, payload));
+    await showCardCast(card);
+    runGameAction("playAction", { handIndex, payload }, () => engine.playAction(game, game.activePlayer, handIndex, payload), showDrawnCards);
     showFloat(card.name, "action");
     clearSelection();
     if (!onlineMode && card.effectKey === "discardOpponentHand" && game.pendingOpponentHandCheck) {
@@ -601,8 +759,8 @@ function renderQuickReplayControls(container, card, view) {
   form.append(createSmallButton("もう一度使う", disabled, async () => {
     const payload = readActionPayload(controls);
     playSound("select");
-    await animateActionPreview(card);
-    runGameAction("quickReplay", { payload }, () => engine.resolvePendingQuickReplay(game, game.activePlayer, payload));
+    await showCardCast(card);
+    runGameAction("quickReplay", { payload }, () => engine.resolvePendingQuickReplay(game, game.activePlayer, payload), showDrawnCards);
     showFloat(`早業: ${card.name}`, "action");
     clearSelection();
     if (!onlineMode && card.effectKey === "discardOpponentHand" && game.pendingOpponentHandCheck) {
@@ -617,20 +775,34 @@ function renderQuickReplayControls(container, card, view) {
 
 function isActionUseDisabled(card, view) {
   const activePlayer = view.players[view.activePlayer];
-  if (view.winner !== null || isCpuTurn(view) || !isMyTurn(view) || !activePlayer.hasDrawnThisTurn || activePlayer.actions <= 0) return true;
+  if (view.winner !== null || animationLock || isCpuTurn(view) || !isMyTurn(view) || !activePlayer.hasDrawnThisTurn || activePlayer.actions <= 0) return true;
   if (card.effectKey === "reviveUnit" && activePlayer.field.length >= view.maxFieldSize) return true;
   return false;
 }
 
-async function animateActionPreview(card) {
-  const drawCounts = {
-    drawThreeDiscardTwo: 3,
-    drawTwoGainAction: 2,
-    drawOneEachDiscardOne: 3,
-  };
-  const count = drawCounts[card.effectKey] || 0;
-  for (let index = 0; index < count; index += 1) {
-    showFloat(`DRAW ${index + 1}`, "draw");
+function filterAttackTargets(field) {
+  const snorlax = field.filter((unit) => CARD_DEFINITIONS[unit.cardId].effectKey === "mustBeAttacked");
+  return snorlax.length > 0 ? snorlax : field;
+}
+
+async function showDrawnCards(result) {
+  const drawnCards = result?.drawnCards || [];
+  const discardedDrawCards = result?.discardedDrawCards || [];
+  if (drawnCards.length === 0) {
+    if (discardedDrawCards.length > 0) {
+      for (const cardId of discardedDrawCards) {
+        const card = CARD_DEFINITIONS[cardId];
+        showFloat(`手札上限: ${card ? card.name : cardId}は捨札へ`, "damage");
+        await delay(720);
+      }
+      return;
+    }
+    showFloat("ドローなし", "draw");
+    return;
+  }
+  for (let index = 0; index < drawnCards.length; index += 1) {
+    const card = CARD_DEFINITIONS[drawnCards[index]];
+    showFloat(`ドロー${index + 1}: ${card ? card.name : drawnCards[index]}`, "draw");
     playSound("draw");
     await delay(720);
   }
@@ -650,21 +822,23 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
   const active = view.players[view.activePlayer];
   const opponent = view.players[view.activePlayer === 0 ? 1 : 0];
 
-  if (["drawThreeDiscardTwo", "drawTwoGainAction"].includes(card.effectKey)) {
+  if (["drawTwoGainAction", "drawPileDiscardTwo"].includes(card.effectKey)) {
     controls.pile = appendSelect(form, "山札", view.piles.map((pile) => [pile.id, `${pile.name} (${pile.count})`]));
   }
-  if (card.effectKey === "discardUnit") {
-    controls.target = appendSelect(form, "対象", units.map((entry) => [entry.unit.id, `${entry.ownerName}: ${CARD_DEFINITIONS[entry.unit.cardId].name}`]));
+  if (["discardUnit", "sacrifice"].includes(card.effectKey)) {
+    controls.target = appendSelect(form, "対象", orderedUnitOptions(view));
   }
   if (card.effectKey === "dealTwoToUnitOrLife") {
     controls.target = appendSelect(form, "対象", [
       ["life", "相手ライフ"],
-      ...units.map((entry) => [entry.unit.id, `${entry.ownerName}: ${CARD_DEFINITIONS[entry.unit.cardId].name}`]),
+      ...orderedUnitOptions(view),
     ]);
   }
   if (card.effectKey === "swapUnits") {
-    controls.ownUnit = appendSelect(form, "自分", active.field.map((unit) => [unit.id, CARD_DEFINITIONS[unit.cardId].name]));
-    controls.opponentUnit = appendSelect(form, "相手", opponent.field.map((unit) => [unit.id, CARD_DEFINITIONS[unit.cardId].name]));
+    const note = document.createElement("p");
+    note.className = "empty-note";
+    note.textContent = "自分と相手の場のモンスターを、持ち物ごとすべて入れ替えます。";
+    form.append(note);
   }
   if (card.effectKey === "reviveUnit") {
     controls.discard = appendSelect(form, "捨札", view.discard
@@ -672,17 +846,36 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
       .filter((entry) => entry[2] === "unit")
       .map(([value, label]) => [value, label]));
   }
-  if (card.effectKey === "takeDiscardToHand") {
+  if (card.effectKey === "takeDiscardToHandGainAction") {
     controls.discard = appendSelect(form, "捨札", view.discard.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]));
   }
-  if (["drawThreeDiscardTwo", "drawOneEachDiscardOne"].includes(card.effectKey)) {
-    const count = card.effectKey === "drawThreeDiscardTwo" ? 2 : 1;
+  if (["drawOneEachDiscardOne"].includes(card.effectKey)) {
+    const count = 1;
     const choices = active.hand
       .map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name])
       .filter(([value]) => Number(value) !== actionHandIndex);
-    controls.discards = appendMultiSelect(form, "捨てる手札", choices, count);
+    controls.discards = appendClickMultiPicker(form, "捨てる手札", choices, count);
   }
   return controls;
+}
+
+function renderDiscardSelectionControls(container, count, view) {
+  const form = document.createElement("div");
+  form.className = "action-form";
+  const note = document.createElement("p");
+  note.className = "empty-note";
+  note.textContent = `アクロバットでドローしました。捨てる手札を${count}枚選んでください。`;
+  form.append(note);
+  const hand = view.players[getSelfId()].hand;
+  const choices = hand.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]);
+  const picker = appendClickMultiPicker(form, "捨てる手札", choices, count);
+  form.append(createSmallButton(`${count}枚捨てる`, hand.length < count, () => {
+    const handIndexes = picker.getSelectedValues();
+    runGameAction("discardSelection", { handIndexes }, () => engine.resolvePendingDiscardSelection(game, game.activePlayer, handIndexes));
+    clearSelection();
+    if (!onlineMode) render();
+  }));
+  container.append(form);
 }
 
 function readActionPayload(controls) {
@@ -694,7 +887,9 @@ function readActionPayload(controls) {
   if (controls.opponentUnit) payload.opponentUnitId = controls.opponentUnit.value;
   if (controls.discard) payload.discardIndex = controls.discard.value;
   if (controls.opponentHand) payload.opponentHandIndex = controls.opponentHand.value;
-  if (controls.discards) payload.discardHandIndexes = Array.from(controls.discards.selectedOptions).map((option) => option.value);
+  if (controls.discards) payload.discardHandIndexes = controls.discards.getSelectedValues
+    ? controls.discards.getSelectedValues()
+    : Array.from(controls.discards.selectedOptions).map((option) => option.value);
   return payload;
 }
 
@@ -714,6 +909,65 @@ function clearSelection() {
   detailData = null;
 }
 
+function updateDrawPrompt(view, locked) {
+  let node = document.querySelector("#drawPrompt");
+  const shouldShow = !titleActive
+    && view.winner === null
+    && !locked
+    && isMyTurn(view)
+    && !view.players[view.activePlayer].hasDrawnThisTurn;
+  if (!shouldShow) {
+    node?.remove();
+    return;
+  }
+  if (!node) {
+    node = document.createElement("div");
+    node.id = "drawPrompt";
+    node.className = "draw-prompt";
+    node.textContent = "山を選んで1枚ドロー";
+    document.body.append(node);
+  }
+}
+
+function renderWinnerOverlay(view) {
+  let node = document.querySelector("#winnerOverlay");
+  if (view.winner === null) {
+    node?.remove();
+    return;
+  }
+  if (node) return;
+  const winner = view.players[view.winner];
+  node = document.createElement("div");
+  node.id = "winnerOverlay";
+  node.className = "winner-overlay";
+  node.innerHTML = `
+    <div class="winner-card">
+      <p>決着</p>
+      <h2>${winner.name}の勝ち！</h2>
+      <div class="winner-actions">
+        <button type="button" id="winnerRematch">もう一度戦う</button>
+        <button type="button" id="winnerTitle">タイトルへ</button>
+      </div>
+    </div>
+  `;
+  document.body.append(node);
+  playSound("turn");
+  setAnimationLock(900);
+  node.querySelector("#winnerRematch").addEventListener("click", () => {
+    node.remove();
+    if (onlineMode) {
+      showFloat("オンラインはタイトルから再作成してください", "cpu");
+      backToTitle();
+      return;
+    }
+    startCpuGame();
+  });
+  node.querySelector("#winnerTitle").addEventListener("click", () => {
+    node.remove();
+    backToTitle();
+  });
+}
+
 function cardMarkup(card) {
   return `
     ${typeBadge(card.type)}
@@ -725,6 +979,17 @@ function cardMarkup(card) {
       </div>
     ` : ""}
     <p class="card-text">${card.text}</p>
+  `;
+}
+
+function itemBadgeMarkup(item) {
+  if (!item.visibleCardId) return `<span class="item-badge item-icon" title="持ち物あり">◆</span>`;
+  const card = CARD_DEFINITIONS[item.visibleCardId];
+  return `
+    <span class="item-badge item-icon" title="${card.name}">
+      ◆
+      <span class="item-preview ${card.type}">${cardMarkup(card)}</span>
+    </span>
   `;
 }
 
@@ -765,6 +1030,38 @@ function appendMultiSelect(form, label, options, size) {
   return select;
 }
 
+function appendClickMultiPicker(form, label, options, maxCount) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "click-picker-wrap";
+  const title = document.createElement("span");
+  title.textContent = label;
+  const grid = document.createElement("div");
+  grid.className = "click-picker";
+  const selected = new Set();
+  const getSelectedValues = () => Array.from(selected);
+  const update = () => {
+    grid.querySelectorAll("button").forEach((button) => {
+      button.classList.toggle("selected", selected.has(button.value));
+    });
+  };
+  options.forEach(([value, text]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.value = value;
+    button.textContent = text;
+    button.addEventListener("click", () => {
+      if (selected.has(value)) selected.delete(value);
+      else if (selected.size < maxCount) selected.add(value);
+      playSound("select");
+      update();
+    });
+    grid.append(button);
+  });
+  wrapper.append(title, grid);
+  form.append(wrapper);
+  return { getSelectedValues };
+}
+
 function replaceOptions(select, options) {
   select.replaceChildren();
   options.forEach(([value, label]) => {
@@ -779,6 +1076,49 @@ function getAllUnits(view) {
   return view.players.flatMap((player, ownerId) => player.field.map((unit) => ({ unit, ownerId, ownerName: player.name })));
 }
 
+function orderedUnitOptions(view) {
+  const opponentId = view.activePlayer === 0 ? 1 : 0;
+  return [opponentId, view.activePlayer].flatMap((ownerId) => view.players[ownerId].field
+    .map((unit) => [unit.id, `${ownerId === opponentId ? "相手" : "自分"}: ${CARD_DEFINITIONS[unit.cardId].name}`]));
+}
+
+function renderBattleEvents(view) {
+  if (!previousView) return;
+  const removedNames = [];
+  view.players.forEach((player, playerId) => {
+    const oldField = previousView.players[playerId]?.field || [];
+    oldField.forEach((oldUnit) => {
+      if (!player.field.some((unit) => unit.id === oldUnit.id)) removedNames.push(CARD_DEFINITIONS[oldUnit.cardId]?.name || "モンスター");
+    });
+  });
+  if (removedNames.length > 0) {
+    showFloat(`${removedNames.join("、")}は倒れた！`, "damage");
+    playSound("damage");
+    document.body.classList.add("screen-shake");
+    setTimeout(() => document.body.classList.remove("screen-shake"), 760);
+  }
+  showStatChangeEvents(view);
+}
+
+function showStatChangeEvents(view) {
+  view.players.forEach((player, playerId) => {
+    const oldField = previousView.players[playerId]?.field || [];
+    player.field.forEach((unit) => {
+      const oldUnit = oldField.find((candidate) => candidate.id === unit.id);
+      if (!oldUnit) return;
+      const name = CARD_DEFINITIONS[unit.cardId]?.name || "モンスター";
+      const key = `field:${playerId}:${unit.id}`;
+      if (unit.power > oldUnit.power) {
+        addFx(key, "fx-stat-up");
+      } else if (unit.power < oldUnit.power) {
+        addFx(key, "fx-stat-down");
+      }
+      if (unit.maxHp > oldUnit.maxHp) addFx(key, "fx-stat-up");
+      else if (unit.maxHp < oldUnit.maxHp) addFx(key, "fx-stat-down");
+    });
+  });
+}
+
 function createSmallButton(label, disabled, onClick) {
   const button = document.createElement("button");
   button.className = "small-button";
@@ -789,19 +1129,26 @@ function createSmallButton(label, disabled, onClick) {
   return button;
 }
 
-function runGameAction(type, payload, localAction) {
+function runGameAction(type, payload, localAction, afterResult = null) {
+  if (animationLock) {
+    showFloat("演出中です", "cpu");
+    return null;
+  }
   if (!onlineMode) {
     const result = localAction();
     if (result && result.ok === false) showFloat(result.message || "操作できません", "damage");
-    return;
+    else if (afterResult) afterResult(result);
+    return result;
   }
   if (!socket || !socket.connected) {
     showFloat("サーバー未接続", "damage");
-    return;
+    return null;
   }
   socket.emit("game:action", { type, ...payload }, (result) => {
     if (result && result.ok === false) showFloat(result.message || "操作できません", "damage");
+    else if (afterResult) afterResult(result);
   });
+  return null;
 }
 
 function startCpuGame() {
@@ -813,8 +1160,10 @@ function startCpuGame() {
   cpuEnabled = true;
   cpuThinking = false;
   game = engine.createGame();
+  game.players[1].name = "CPU";
   titleActive = false;
   titleLobbyOpen = false;
+  titleRulesOpen = false;
   optionsOpen = false;
   clearSelection();
   previousView = null;
@@ -832,6 +1181,7 @@ function startMultiSetup() {
   cpuThinking = false;
   titleActive = true;
   titleLobbyOpen = true;
+  titleRulesOpen = false;
   optionsOpen = false;
   clearSelection();
   previousView = null;
@@ -848,6 +1198,7 @@ function backToTitle() {
   optionsOpen = false;
   titleActive = true;
   titleLobbyOpen = false;
+  titleRulesOpen = false;
   clearSelection();
   render();
 }
@@ -860,8 +1211,27 @@ elements.endTurnButton.addEventListener("click", () => {
 
 elements.startCpuButton?.addEventListener("click", startCpuGame);
 elements.startMultiButton?.addEventListener("click", startMultiSetup);
+elements.showRulesButton?.addEventListener("click", () => {
+  titleRulesOpen = true;
+  titleLobbyOpen = false;
+  rulesPageIndex = 0;
+  render();
+});
+elements.rulesCloseButton?.addEventListener("click", () => {
+  titleRulesOpen = false;
+  render();
+});
+elements.rulesPrevButton?.addEventListener("click", () => {
+  rulesPageIndex = Math.max(0, rulesPageIndex - 1);
+  render();
+});
+elements.rulesNextButton?.addEventListener("click", () => {
+  rulesPageIndex = rulesPageIndex === RULE_PAGES.length - 1 ? 0 : rulesPageIndex + 1;
+  render();
+});
 elements.titleBackButton?.addEventListener("click", () => {
   titleLobbyOpen = false;
+  titleRulesOpen = false;
   onlineMode = false;
   onlineState = null;
   render();
@@ -889,6 +1259,7 @@ elements.resetButton.addEventListener("click", () => {
     return;
   }
   game = engine.createGame();
+  game.players[1].name = "CPU";
   cpuThinking = false;
   clearSelection();
   render();
@@ -919,6 +1290,7 @@ async function createOnlineRoom({ fromTitle }) {
     onlinePlayerId = result.playerId;
     titleActive = fromTitle;
     titleLobbyOpen = fromTitle;
+    titleRulesOpen = false;
     optionsOpen = false;
     elements.roomIdInput.value = result.roomId;
     if (elements.titleRoomIdInput) elements.titleRoomIdInput.value = result.roomId;
@@ -942,6 +1314,7 @@ async function joinOnlineRoom(roomId, { fromTitle }) {
     onlinePlayerId = result.playerId;
     titleActive = fromTitle;
     titleLobbyOpen = fromTitle;
+    titleRulesOpen = false;
     optionsOpen = false;
     elements.roomIdInput.value = result.roomId;
     if (elements.titleRoomIdInput) elements.titleRoomIdInput.value = result.roomId;
@@ -992,6 +1365,7 @@ async function ensureSocket() {
     if (state.started && !lastOnlineStarted) {
       titleActive = false;
       titleLobbyOpen = false;
+      titleRulesOpen = false;
       showTurnBanner("BATTLE START");
     }
     lastOnlineStarted = Boolean(state.started);
@@ -1039,11 +1413,46 @@ function flushFx() {
   if (pendingFx.size === 0) return;
   const schedule = window.requestAnimationFrame || ((callback) => setTimeout(callback, 16));
   schedule(() => {
-    document.querySelectorAll(".fx-draw, .fx-summon, .fx-discard, .fx-attack, .fx-hit, .fx-item").forEach((node) => {
+    document.querySelectorAll(".fx-draw, .fx-summon, .fx-discard, .fx-attack, .fx-attack-charge, .fx-hit, .fx-item, .fx-stat-up, .fx-stat-down").forEach((node) => {
       node.addEventListener("animationend", () => {
-        node.classList.remove("fx-draw", "fx-summon", "fx-discard", "fx-attack", "fx-hit", "fx-item");
+        node.classList.remove("fx-draw", "fx-summon", "fx-discard", "fx-attack", "fx-attack-charge", "fx-hit", "fx-item", "fx-stat-up", "fx-stat-down");
       }, { once: true });
     });
+  });
+}
+
+async function playAttackSequence(attackerKey, targetKey = null, targetLifePlayerId = null) {
+  setAnimationLock(1700);
+  addFx(attackerKey, "fx-attack-charge", 1300);
+  render();
+  await delay(620);
+  addFx(attackerKey, "fx-attack");
+  if (targetKey) addFx(targetKey, "fx-hit");
+  if (targetLifePlayerId !== null) {
+    const slot = targetLifePlayerId === getSelfId() ? 0 : 1;
+    elements.life[slot].classList.add("life-damage");
+    setTimeout(() => elements.life[slot].classList.remove("life-damage"), 900);
+  }
+  render();
+  await delay(520);
+  animationLock = false;
+  document.body.classList.remove("animation-lock");
+}
+
+function showCardCast(card) {
+  return new Promise((resolve) => {
+    const node = document.createElement("div");
+    node.className = `card-cast ${card.type}`;
+    node.innerHTML = cardMarkup(card);
+    document.body.append(node);
+    playSound("select");
+    setTimeout(() => {
+      node.classList.add("leaving");
+      setTimeout(() => {
+        node.remove();
+        resolve();
+      }, 260);
+    }, 980);
   });
 }
 
@@ -1052,6 +1461,7 @@ function showFloat(text, type = "") {
   node.className = `fx-float ${type}`;
   node.textContent = text;
   document.body.append(node);
+  if (type !== "cpu") setAnimationLock(700);
   node.addEventListener("animationend", () => node.remove(), { once: true });
 }
 
@@ -1060,7 +1470,19 @@ function showTurnBanner(text) {
   node.className = "turn-banner";
   node.textContent = text;
   document.body.append(node);
+  setAnimationLock(900);
   node.addEventListener("animationend", () => node.remove(), { once: true });
+}
+
+function setAnimationLock(ms) {
+  animationLock = true;
+  document.body.classList.add("animation-lock");
+  clearTimeout(setAnimationLock.timer);
+  setAnimationLock.timer = setTimeout(() => {
+    animationLock = false;
+    document.body.classList.remove("animation-lock");
+    render();
+  }, ms);
 }
 
 let audioContext = null;
@@ -1113,6 +1535,7 @@ async function runCpuTurn() {
   if (game.winner !== null || game.activePlayer !== 1) return;
   await runCpuOpeningDraw();
   await runCpuSummon();
+  await runCpuActions();
   await runCpuAttacks();
   if (game.winner === null && game.activePlayer === 1) {
     await cpuStep("ターン終了", () => engine.endTurn(game, 1), "turn");
@@ -1134,7 +1557,7 @@ async function runCpuOpeningDraw() {
 
 async function runCpuSummon() {
   const player = game.players[1];
-  while (game.winner === null && player.actions > 0 && player.field.length < 2) {
+  while (game.winner === null && player.actions > 0 && player.field.length < engine.getPublicState(game, 0).maxFieldSize) {
     const unitIndex = player.hand.findIndex((cardId) => CARD_DEFINITIONS[cardId].type === "unit");
     if (unitIndex === -1) break;
     const result = await cpuStep("CPU 召喚", () => engine.summonFromHand(game, 1, unitIndex), "summon");
@@ -1148,15 +1571,100 @@ async function runCpuEquipItems() {
   let equipped = true;
   while (equipped) {
     equipped = false;
-    const itemIndex = player.hand.findIndex((cardId) => CARD_DEFINITIONS[cardId].type === "item");
-    const target = player.field.find((unit) => !unit.item);
-    if (itemIndex === -1 || !target) return;
+    const choice = chooseCpuItemEquip();
+    if (!choice) return;
     const result = await cpuStep("CPU 装備", () => {
-      addFx(`field:1:${target.id}`, "fx-item");
-      return engine.equipItemFromHand(game, 1, itemIndex, target.id);
+      addFx(`field:1:${choice.unit.id}`, "fx-item");
+      return engine.equipItemFromHand(game, 1, choice.handIndex, choice.unit.id);
     }, "select");
     equipped = result.ok;
   }
+}
+
+function chooseCpuItemEquip() {
+  const player = game.players[1];
+  const items = player.hand
+    .map((cardId, handIndex) => ({ cardId, handIndex, card: CARD_DEFINITIONS[cardId] }))
+    .filter((entry) => entry.card.type === "item");
+  for (const entry of items) {
+    const candidates = player.field.filter((unit) => !unit.item);
+    if (candidates.length === 0) return null;
+    if (entry.cardId === "lightBall") {
+      const pikachu = candidates.find((unit) => unit.cardId === "pikachu");
+      if (pikachu) return { handIndex: entry.handIndex, unit: pikachu };
+      continue;
+    }
+    if (entry.cardId === "choiceScarf") {
+      const fresh = candidates.find((unit) => !unit.canAct);
+      if (fresh) return { handIndex: entry.handIndex, unit: fresh };
+    }
+    const best = [...candidates].sort((a, b) => (b.power + b.hp) - (a.power + a.hp))[0];
+    return { handIndex: entry.handIndex, unit: best };
+  }
+  return null;
+}
+
+async function runCpuActions() {
+  let used = true;
+  while (game.winner === null && used && game.players[1].actions > 0) {
+    used = false;
+    const choice = chooseCpuAction();
+    if (!choice) return;
+    const card = CARD_DEFINITIONS[game.players[1].hand[choice.handIndex]];
+    const result = await cpuStep(`CPU ${card.name}`, () => engine.playAction(game, 1, choice.handIndex, choice.payload), "select");
+    used = result.ok;
+    if (game.pendingDiscardSelection?.playerId === 1) {
+      const indexes = game.players[1].hand.map((_, index) => index).slice(0, game.pendingDiscardSelection.count);
+      await cpuStep("CPU 捨てる", () => engine.resolvePendingDiscardSelection(game, 1, indexes), "select");
+    }
+  }
+}
+
+function chooseCpuAction() {
+  const player = game.players[1];
+  const opponent = game.players[0];
+  const findAction = (effectKey) => player.hand.findIndex((cardId) => CARD_DEFINITIONS[cardId].effectKey === effectKey);
+  const strength = (unit) => unit.power + unit.hp;
+  const strongestEnemy = [...opponent.field].sort((a, b) => strength(b) - strength(a))[0];
+
+  let index = findAction("healLifeThree");
+  if (index !== -1 && player.life <= 7) return { handIndex: index, payload: {} };
+
+  index = findAction("loseLifeGainThreeActions");
+  if (index !== -1 && player.life >= 5 && player.actions <= 1) return { handIndex: index, payload: {} };
+
+  index = findAction("dealTwoToUnitOrLife");
+  if (index !== -1) {
+    if (opponent.life <= 3) return { handIndex: index, payload: { targetType: "life" } };
+    const target = opponent.field.find((unit) => unit.hp <= 3) || strongestEnemy;
+    if (target) return { handIndex: index, payload: { unitId: target.id } };
+  }
+
+  index = findAction("discardUnit");
+  if (index !== -1 && strongestEnemy && strength(strongestEnemy) >= 5) return { handIndex: index, payload: { unitId: strongestEnemy.id } };
+
+  index = findAction("shockWave");
+  if (index !== -1 && opponent.field.length >= 2) return { handIndex: index, payload: {} };
+
+  index = findAction("reviveUnit");
+  if (index !== -1 && player.field.length < engine.getPublicState(game, 0).maxFieldSize) {
+    const discardIndex = game.discard.findIndex((cardId) => CARD_DEFINITIONS[cardId]?.type === "unit");
+    if (discardIndex !== -1) return { handIndex: index, payload: { discardIndex } };
+  }
+
+  index = findAction("drawTwoGainAction");
+  if (index !== -1 && player.hand.length <= 8) {
+    const pile = [...game.piles].filter((candidate) => candidate.deck.length > 0).sort((a, b) => b.deck.length - a.deck.length)[0];
+    if (pile) return { handIndex: index, payload: { pileId: pile.id } };
+  }
+
+  index = findAction("discardOpponentHand");
+  if (index !== -1 && opponent.hand.length >= 4) return { handIndex: index, payload: { opponentHandIndex: Math.floor(Math.random() * opponent.hand.length) } };
+
+  index = findAction("redCard");
+  if (index !== -1 && opponent.hand.length >= 5) return { handIndex: index, payload: {} };
+
+  return null;
 }
 
 async function runCpuAttacks() {
@@ -1173,7 +1681,7 @@ async function runCpuAttacks() {
       acted = true;
       continue;
     }
-    const defender = game.players[0].field[0];
+    const defender = chooseCpuAttackTarget(attacker);
     if (!defender) return;
     const monsterResult = await cpuStep("CPU 戦闘", () => {
       addFx(`field:1:${attacker.id}`, "fx-attack");
@@ -1184,10 +1692,22 @@ async function runCpuAttacks() {
   }
 }
 
+function chooseCpuAttackTarget(attacker) {
+  const targets = filterAttackTargets(game.players[0].field);
+  if (targets.length === 0) return null;
+  return [...targets].sort((a, b) => {
+    const damage = engine.getEffectivePower(game, attacker, a, "attack");
+    const aKill = a.hp <= damage ? 1 : 0;
+    const bKill = b.hp <= damage ? 1 : 0;
+    if (aKill !== bKill) return bKill - aKill;
+    return (a.hp + a.power) - (b.hp + b.power);
+  })[0];
+}
+
 async function cpuStep(label, action, sound) {
   showFloat(label, "cpu");
   playSound(sound);
-  const result = action();
+  const result = await action();
   render();
   await delay(1450);
   return result;
@@ -1202,6 +1722,7 @@ function initializeFromUrl() {
   if (!roomId) return;
   titleActive = true;
   titleLobbyOpen = true;
+  titleRulesOpen = false;
   cpuEnabled = false;
   if (elements.roomIdInput) elements.roomIdInput.value = roomId.toUpperCase();
   if (elements.titleRoomIdInput) elements.titleRoomIdInput.value = roomId.toUpperCase();
