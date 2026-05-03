@@ -1371,7 +1371,8 @@ body:not(.title-active) .title-screen {
 }
 
 body.title-lobby-active .title-actions,
-body.title-rules-active .title-actions {
+body.title-rules-active .title-actions,
+body.title-cards-active .title-actions {
   display: none;
 }
 
@@ -1400,6 +1401,12 @@ body.title-rules-active .title-actions {
   border-color: rgba(152, 255, 204, 0.34);
 }
 
+.title-button.cards-button {
+  background: linear-gradient(180deg, #8fd0ff, #397fb8);
+  color: #06111a;
+  border-color: rgba(170, 224, 255, 0.38);
+}
+
 .title-button:hover {
   transform: translateY(-8px) scale(1.04);
   box-shadow: 0 28px 58px rgba(0,0,0,0.46), 0 0 28px rgba(103, 183, 255, 0.18);
@@ -1412,7 +1419,8 @@ body.title-rules-active .title-actions {
 }
 
 body.title-lobby-active .title-note,
-body.title-rules-active .title-note {
+body.title-rules-active .title-note,
+body.title-cards-active .title-note {
   display: none;
 }
 
@@ -1437,6 +1445,17 @@ body.title-rules-active .title-note {
   display: none;
 }
 
+.title-cards {
+  display: grid;
+  gap: 18px;
+  margin-top: 28px;
+  text-align: left;
+}
+
+.title-cards.hidden {
+  display: none;
+}
+
 .rules-head {
   display: flex;
   align-items: center;
@@ -1456,6 +1475,14 @@ body.title-rules-active .title-note {
   font-size: 2.1rem;
   text-align: center;
   text-shadow: 0 0 22px rgba(242, 189, 92, 0.2);
+}
+
+.title-cards h2 {
+  margin: 0;
+  color: #fff6df;
+  font-size: 2.1rem;
+  text-align: center;
+  text-shadow: 0 0 22px rgba(103, 183, 255, 0.24);
 }
 
 .rules-body {
@@ -1492,6 +1519,101 @@ body.title-rules-active .title-note {
 
 .rules-list li::marker {
   color: var(--accent);
+}
+
+.card-list-body {
+  display: grid;
+  gap: 20px;
+  max-height: min(56vh, 560px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid rgba(103, 183, 255, 0.2);
+  border-radius: 14px;
+  background:
+    linear-gradient(145deg, rgba(16, 28, 42, 0.86), rgba(8, 13, 20, 0.9)),
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 8px);
+  box-shadow: inset 0 0 40px rgba(103, 183, 255, 0.06);
+}
+
+.card-list-section {
+  display: grid;
+  gap: 12px;
+}
+
+.card-list-section h3 {
+  margin: 0;
+  color: #f8ead0;
+  font-size: 1.1rem;
+}
+
+.card-list-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.card-list-entry {
+  display: grid;
+  gap: 8px;
+  min-height: 118px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #273242, #171f2a);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.card-list-entry.unit {
+  border-color: rgba(240, 122, 69, 0.7);
+  background:
+    linear-gradient(160deg, rgba(240, 122, 69, 0.2), transparent 42%),
+    linear-gradient(180deg, #2f2b30, #171f2a);
+}
+
+.card-list-entry.item {
+  border-color: rgba(82, 168, 255, 0.72);
+  background:
+    linear-gradient(160deg, rgba(82, 168, 255, 0.2), transparent 42%),
+    linear-gradient(180deg, #243247, #161f2d);
+}
+
+.card-list-entry.action {
+  border-color: rgba(114, 214, 107, 0.7);
+  background:
+    linear-gradient(160deg, rgba(114, 214, 107, 0.18), transparent 42%),
+    linear-gradient(180deg, #24352d, #151f1b);
+}
+
+.card-list-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-list-entry-head strong {
+  color: #fff6df;
+  font-size: 1.02rem;
+}
+
+.card-list-stats {
+  display: flex;
+  gap: 8px;
+}
+
+.card-list-stats span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  color: #dce8f4;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.card-list-entry p {
+  color: #dce8f4;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .rules-nav {
@@ -1923,9 +2045,26 @@ body.title-rules-active .title-note {
     font-size: 1.55rem;
   }
 
+  .title-cards h2 {
+    font-size: 1.55rem;
+  }
+
   .rules-body {
     min-height: 0;
     padding: 18px;
+  }
+
+  .card-list-body {
+    max-height: 58dvh;
+    padding: 14px;
+  }
+
+  .card-list-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card-list-entry {
+    min-height: 0;
   }
 
   .rules-lead {

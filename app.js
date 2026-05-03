@@ -20,6 +20,7 @@ let titleActive = true;
 let optionsOpen = false;
 let titleLobbyOpen = false;
 let titleRulesOpen = false;
+let titleCardsOpen = false;
 let rulesPageIndex = 0;
 let selectedKey = null;
 let detailKey = null;
@@ -112,6 +113,7 @@ const elements = {
   startCpuButton: document.querySelector("#startCpuButton"),
   startMultiButton: document.querySelector("#startMultiButton"),
   showRulesButton: document.querySelector("#showRulesButton"),
+  showCardsButton: document.querySelector("#showCardsButton"),
   titleRules: document.querySelector("#titleRules"),
   rulesPageLabel: document.querySelector("#rulesPageLabel"),
   rulesTitle: document.querySelector("#rulesTitle"),
@@ -119,6 +121,10 @@ const elements = {
   rulesPrevButton: document.querySelector("#rulesPrevButton"),
   rulesNextButton: document.querySelector("#rulesNextButton"),
   rulesCloseButton: document.querySelector("#rulesCloseButton"),
+  titleCards: document.querySelector("#titleCards"),
+  cardListSummary: document.querySelector("#cardListSummary"),
+  cardListBody: document.querySelector("#cardListBody"),
+  cardsCloseButton: document.querySelector("#cardsCloseButton"),
   titleLobby: document.querySelector("#titleLobby"),
   titleLobbyStatus: document.querySelector("#titleLobbyStatus"),
   titleLobbyNote: document.querySelector("#titleLobbyNote"),
@@ -169,14 +175,17 @@ function render() {
   document.body.classList.toggle("title-active", titleActive);
   document.body.classList.toggle("title-lobby-active", titleLobbyOpen);
   document.body.classList.toggle("title-rules-active", titleRulesOpen);
+  document.body.classList.toggle("title-cards-active", titleCardsOpen);
   elements.titleLobby?.classList.toggle("hidden", !titleLobbyOpen);
   elements.titleRules?.classList.toggle("hidden", !titleRulesOpen);
+  elements.titleCards?.classList.toggle("hidden", !titleCardsOpen);
   elements.optionsPanel?.classList.toggle("hidden", !optionsOpen);
   updateOptionsVisibility();
 
   renderOnlineStatus();
   renderTitleLobby();
   renderRules();
+  renderCardList();
   renderPlayerInfo(view);
   renderOpponentHand(view.players[opponentId].handCount);
   renderDecks(view.piles, activePlayer, view.winner, locked);
@@ -306,6 +315,47 @@ function renderRules() {
 
   elements.rulesPrevButton.disabled = rulesPageIndex === 0;
   elements.rulesNextButton.textContent = rulesPageIndex === RULE_PAGES.length - 1 ? "最初へ" : "次へ";
+}
+
+function renderCardList() {
+  if (!elements.titleCards || !titleCardsOpen) return;
+  const typeLabels = { unit: "モンスター", item: "持ち物", action: "アクション" };
+  const cardsByType = { unit: [], item: [], action: [] };
+  CARD_POOL.forEach((cardId) => {
+    const card = CARD_DEFINITIONS[cardId];
+    if (card && cardsByType[card.type]) cardsByType[card.type].push(card);
+  });
+  const total = Object.values(cardsByType).reduce((sum, cards) => sum + cards.length, 0);
+  elements.cardListSummary.textContent = `全${total}枚 / モンスター${cardsByType.unit.length}枚 / 持ち物${cardsByType.item.length}枚 / アクション${cardsByType.action.length}枚`;
+  elements.cardListBody.replaceChildren();
+
+  ["unit", "item", "action"].forEach((type) => {
+    const section = document.createElement("section");
+    section.className = `card-list-section ${type}`;
+
+    const heading = document.createElement("h3");
+    heading.textContent = `${typeLabels[type]} ${cardsByType[type].length}枚`;
+    section.append(heading);
+
+    const grid = document.createElement("div");
+    grid.className = "card-list-grid";
+    cardsByType[type].forEach((card) => {
+      const article = document.createElement("article");
+      article.className = `card-list-entry ${card.type}`;
+      const stats = card.type === "unit" ? `<div class="card-list-stats"><span>HP ${card.hp}</span><span>PW ${card.power}</span></div>` : "";
+      article.innerHTML = `
+        <div class="card-list-entry-head">
+          <span class="card-type ${card.type}">${typeLabels[card.type]}</span>
+          <strong>${card.name}</strong>
+        </div>
+        ${stats}
+        <p>${card.text}</p>
+      `;
+      grid.append(article);
+    });
+    section.append(grid);
+    elements.cardListBody.append(section);
+  });
 }
 
 function makeRoomUrl(roomId) {
@@ -1162,6 +1212,7 @@ function startCpuGame() {
   titleActive = false;
   titleLobbyOpen = false;
   titleRulesOpen = false;
+  titleCardsOpen = false;
   optionsOpen = false;
   clearSelection();
   previousView = null;
@@ -1180,6 +1231,7 @@ function startMultiSetup() {
   titleActive = true;
   titleLobbyOpen = true;
   titleRulesOpen = false;
+  titleCardsOpen = false;
   optionsOpen = false;
   clearSelection();
   previousView = null;
@@ -1197,6 +1249,7 @@ function backToTitle() {
   titleActive = true;
   titleLobbyOpen = false;
   titleRulesOpen = false;
+  titleCardsOpen = false;
   clearSelection();
   render();
 }
@@ -1211,8 +1264,19 @@ elements.startCpuButton?.addEventListener("click", startCpuGame);
 elements.startMultiButton?.addEventListener("click", startMultiSetup);
 elements.showRulesButton?.addEventListener("click", () => {
   titleRulesOpen = true;
+  titleCardsOpen = false;
   titleLobbyOpen = false;
   rulesPageIndex = 0;
+  render();
+});
+elements.showCardsButton?.addEventListener("click", () => {
+  titleCardsOpen = true;
+  titleRulesOpen = false;
+  titleLobbyOpen = false;
+  render();
+});
+elements.cardsCloseButton?.addEventListener("click", () => {
+  titleCardsOpen = false;
   render();
 });
 elements.rulesCloseButton?.addEventListener("click", () => {
@@ -1230,6 +1294,7 @@ elements.rulesNextButton?.addEventListener("click", () => {
 elements.titleBackButton?.addEventListener("click", () => {
   titleLobbyOpen = false;
   titleRulesOpen = false;
+  titleCardsOpen = false;
   onlineMode = false;
   onlineState = null;
   render();
@@ -1289,6 +1354,7 @@ async function createOnlineRoom({ fromTitle }) {
     titleActive = fromTitle;
     titleLobbyOpen = fromTitle;
     titleRulesOpen = false;
+    titleCardsOpen = false;
     optionsOpen = false;
     elements.roomIdInput.value = result.roomId;
     if (elements.titleRoomIdInput) elements.titleRoomIdInput.value = result.roomId;
@@ -1313,6 +1379,7 @@ async function joinOnlineRoom(roomId, { fromTitle }) {
     titleActive = fromTitle;
     titleLobbyOpen = fromTitle;
     titleRulesOpen = false;
+    titleCardsOpen = false;
     optionsOpen = false;
     elements.roomIdInput.value = result.roomId;
     if (elements.titleRoomIdInput) elements.titleRoomIdInput.value = result.roomId;
@@ -1364,6 +1431,7 @@ async function ensureSocket() {
       titleActive = false;
       titleLobbyOpen = false;
       titleRulesOpen = false;
+      titleCardsOpen = false;
       showTurnBanner("BATTLE START");
     }
     lastOnlineStarted = Boolean(state.started);
@@ -1721,6 +1789,7 @@ function initializeFromUrl() {
   titleActive = true;
   titleLobbyOpen = true;
   titleRulesOpen = false;
+  titleCardsOpen = false;
   cpuEnabled = false;
   if (elements.roomIdInput) elements.roomIdInput.value = roomId.toUpperCase();
   if (elements.titleRoomIdInput) elements.titleRoomIdInput.value = roomId.toUpperCase();
