@@ -622,7 +622,6 @@ function renderDetailActions(container, data) {
   if (data.source === "hand") {
     if (data.card.type === "unit") {
       container.append(createSmallButton("このモンスターを召喚", disabled || activePlayer.actions <= 0 || activePlayer.field.length >= view.maxFieldSize, () => {
-        addFx(`hand:${data.handIndex}`, "fx-summon");
         playSound("summon");
         runGameAction("summon", { handIndex: data.handIndex }, () => engine.summonFromHand(game, game.activePlayer, data.handIndex));
     showFloat(`${data.card.name}を召喚！`, "summon");
@@ -730,7 +729,6 @@ function renderActionControls(container, card, handIndex, view) {
 
   form.append(createSmallButton("使用する", isActionUseDisabled(card, view), async () => {
     const payload = readActionPayload(controls);
-    addFx(`hand:${handIndex}`, "fx-discard");
     playSound("select");
     await showCardCast(card);
     runGameAction("playAction", { handIndex, payload }, () => engine.playAction(game, game.activePlayer, handIndex, payload), showDrawnCards);

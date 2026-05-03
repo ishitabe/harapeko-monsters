@@ -947,8 +947,7 @@ p {
   animation: statIconDown 980ms ease-out;
 }
 
-.screen-shake .battle-table,
-.screen-shake .field-slot {
+.screen-shake .arena {
   animation: screenShake 720ms ease-out;
 }
 
@@ -1644,8 +1643,11 @@ body.title-rules-active .title-note {
   }
 
   .player-row {
-    grid-template-columns: 96px minmax(0, 1fr);
-    align-items: end;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "hand"
+      "controls";
+    align-items: stretch;
     gap: 8px;
   }
 
@@ -1748,17 +1750,43 @@ body.title-rules-active .title-note {
   }
 
   .player-controls {
+    grid-area: controls;
+    display: grid;
+    grid-template-columns: minmax(88px, 1fr) minmax(92px, 1fr) minmax(104px, 1.25fr);
+    grid-template-areas: "life actions end";
+    align-items: stretch;
+    gap: 8px;
     align-self: stretch;
     justify-items: stretch;
     align-content: end;
   }
 
   .end-button {
+    grid-area: end;
     width: 100%;
-    min-height: 48px;
+    min-height: 58px;
+  }
+
+  .player-controls .life-box {
+    grid-area: life;
+  }
+
+  .player-controls .action-lamps {
+    grid-area: actions;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    min-height: 58px;
+    padding: 6px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    background: rgba(21, 27, 36, 0.82);
+    box-shadow: var(--shadow);
   }
 
   .hand-wrap {
+    grid-area: hand;
+    width: 100%;
     min-height: 178px;
     padding-left: 24px;
     overflow: visible;
@@ -1804,6 +1832,7 @@ body.title-rules-active .title-note {
     grid-template-rows: none;
     gap: 7px;
     overflow: visible;
+    width: 100%;
   }
 
   .deck-card {
@@ -1830,6 +1859,7 @@ body.title-rules-active .title-note {
     min-height: 38px;
     justify-content: center;
     padding-block: 4px;
+    width: 100%;
   }
 
   .discard-list {
