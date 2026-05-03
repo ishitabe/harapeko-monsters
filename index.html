@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>はらぺこモンスターズ</title>
+    <link rel="stylesheet" href="styles.css?v=20">
+    <script>
+      window.addEventListener("error", (event) => {
+        const message = document.querySelector("#messageText");
+        if (message) message.textContent = `読み込みエラー: ${event.message}`;
+      });
+    </script>
+    <script src="cards.js?v=20" defer></script>
+    <script src="gameEngine.js?v=20" defer></script>
+    <script src="app.js?v=20" defer></script>
+  </head>
+  <body class="title-active">
+    <section class="title-screen" id="titleScreen">
+      <div class="title-content">
+        <p class="eyebrow">CARD BATTLE</p>
+        <h1>はらぺこモンスターズ</h1>
+        <div class="title-actions">
+          <button class="title-button primary" id="startCpuButton" type="button">CPU対戦</button>
+          <button class="title-button" id="startMultiButton" type="button">マルチ対戦</button>
+        </div>
+        <div class="title-lobby hidden" id="titleLobby">
+          <strong id="titleLobbyStatus">マルチ対戦</strong>
+          <p id="titleLobbyNote">部屋を作るか、共有された部屋IDで参加してください。</p>
+          <div class="title-lobby-row">
+            <button class="title-button primary" id="titleCreateRoomButton" type="button">部屋作成</button>
+            <input id="titleRoomIdInput" type="text" maxlength="8" placeholder="部屋ID">
+            <button class="title-button" id="titleJoinRoomButton" type="button">参加</button>
+          </div>
+          <p class="share-link" id="titleShareLink"></p>
+          <button class="small-button" id="titleBackButton" type="button">戻る</button>
+        </div>
+        <p class="title-note">山札を選び、モンスターを出して、相手のHPを0にしよう。</p>
+      </div>
+    </section>
+    <main class="battle-shell">
+      <section class="left-rail" aria-label="山札と捨札">
+        <div class="rail-title">
+          <p class="eyebrow">共有エリア</p>
+          <h1>共通山札</h1>
+        </div>
+        <div class="deck-stack" id="deckGrid"></div>
+        <button class="discard-pile" id="discardPileButton" type="button">
+          <span>捨札</span>
+          <strong id="discardCount">0枚</strong>
+        </button>
+        <div class="discard-list" id="discardList"></div>
+      </section>
+
+      <section class="battlefield" aria-label="盤面">
+        <header class="battle-top">
+          <div class="turn-status">
+            <span id="turnLabel">プレイヤー1のターン</span>
+            <strong id="actionLabel">ドローを選択</strong>
+          </div>
+          <button class="options-button" id="optionsButton" type="button">オプション</button>
+        </header>
+        <section class="options-panel hidden" id="optionsPanel" aria-label="オプション">
+          <div>
+            <strong id="onlineStatus">ローカル対戦</strong>
+            <small id="onlineRoomLabel">Socket.IO未接続</small>
+          </div>
+          <button class="small-button" id="cpuModeButton" type="button">CPU ON</button>
+          <button class="small-button" id="resetButton" type="button">リセット</button>
+          <button class="small-button" id="createRoomButton" type="button">部屋作成</button>
+          <input id="roomIdInput" type="text" maxlength="8" placeholder="部屋ID">
+          <button class="small-button" id="joinRoomButton" type="button">参加</button>
+          <button class="small-button" id="leaveRoomButton" type="button">退出</button>
+          <button class="small-button" id="backTitleButton" type="button">タイトルへ</button>
+          <button class="small-button" id="closeOptionsButton" type="button">閉じる</button>
+        </section>
+
+        <section class="opponent-row" aria-label="相手情報">
+          <div class="opponent-hand" id="opponentHand"></div>
+          <div class="life-box opponent">
+            <span>CPU</span>
+            <strong id="p1Life">7</strong>
+            <div class="action-lamps" id="p1Actions"></div>
+            <small id="p1HandCount">手札 6</small>
+          </div>
+        </section>
+
+        <section class="arena">
+          <div class="field-line opponent-field" id="p1Field"></div>
+          <div class="center-line">
+            <div class="message" id="messageText"></div>
+          </div>
+          <div class="field-line player-field" id="p0Field"></div>
+        </section>
+
+        <section class="player-row" aria-label="自分情報">
+          <div class="player-controls">
+            <button class="end-button" id="endTurnButton" type="button">ターン終了</button>
+            <div class="action-lamps own" id="p0Actions"></div>
+            <div class="life-box player">
+              <span>プレイヤー1</span>
+              <strong id="p0Life">7</strong>
+              <small id="p0HandCount">手札 5</small>
+            </div>
+          </div>
+          <div class="hand-wrap">
+            <h2 id="activeHandLabel">自分の手札</h2>
+            <div class="hand-grid" id="handGrid"></div>
+          </div>
+        </section>
+      </section>
+
+      <aside class="right-rail" aria-label="詳細とログ">
+        <section class="detail-panel hidden" id="detailPanel">
+          <button class="close-detail" id="closeDetailButton" type="button">閉じる</button>
+          <div id="detailContent"></div>
+        </section>
+        <section class="log-panel">
+          <p class="eyebrow">ログ</p>
+          <ol id="logList"></ol>
+        </section>
+      </aside>
+    </main>
+  </body>
+</html>
