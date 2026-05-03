@@ -39,7 +39,6 @@ const elements = {
   logList: document.querySelector("#logList"),
   endTurnButton: document.querySelector("#endTurnButton"),
   resetButton: document.querySelector("#resetButton"),
-  cpuModeButton: document.querySelector("#cpuModeButton"),
   optionsButton: document.querySelector("#optionsButton"),
   optionsPanel: document.querySelector("#optionsPanel"),
   closeOptionsButton: document.querySelector("#closeOptionsButton"),
@@ -93,8 +92,7 @@ function render() {
   document.body.classList.toggle("title-lobby-active", titleLobbyOpen);
   elements.titleLobby?.classList.toggle("hidden", !titleLobbyOpen);
   elements.optionsPanel?.classList.toggle("hidden", !optionsOpen);
-  elements.cpuModeButton.textContent = onlineMode ? "ONLINE" : (cpuEnabled ? "CPU ON" : "CPU OFF");
-  elements.cpuModeButton.disabled = onlineMode;
+  updateOptionsVisibility();
 
   renderOnlineStatus();
   renderTitleLobby();
@@ -160,6 +158,20 @@ function renderOnlineStatus() {
   elements.onlineStatus.textContent = onlineState?.started ? "オンライン対戦中" : "相手待ち";
   elements.onlineRoomLabel.textContent = `部屋 ${onlineState?.roomId || "-"} / あなたはプレイヤー${onlinePlayerId + 1}`;
   elements.leaveRoomButton.disabled = false;
+}
+
+function updateOptionsVisibility() {
+  const roomControls = [
+    elements.createRoomButton,
+    elements.roomIdInput,
+    elements.joinRoomButton,
+  ];
+  const showRoomControls = !cpuEnabled && (!onlineMode || !onlineState?.started);
+  roomControls.forEach((node) => {
+    if (node) node.classList.toggle("hidden", !showRoomControls);
+  });
+  if (elements.leaveRoomButton) elements.leaveRoomButton.classList.toggle("hidden", !onlineMode);
+  if (elements.resetButton) elements.resetButton.classList.toggle("hidden", onlineMode || !cpuEnabled);
 }
 
 function renderTitleLobby() {
@@ -879,12 +891,6 @@ elements.resetButton.addEventListener("click", () => {
   game = engine.createGame();
   cpuThinking = false;
   clearSelection();
-  render();
-});
-
-elements.cpuModeButton.addEventListener("click", () => {
-  if (onlineMode) return;
-  cpuEnabled = !cpuEnabled;
   render();
 });
 

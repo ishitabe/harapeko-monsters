@@ -4,16 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>はらぺこモンスターズ</title>
-    <link rel="stylesheet" href="styles.css?v=20">
+    <link rel="stylesheet" href="styles.css?v=21">
     <script>
       window.addEventListener("error", (event) => {
         const message = document.querySelector("#messageText");
         if (message) message.textContent = `読み込みエラー: ${event.message}`;
       });
     </script>
-    <script src="cards.js?v=20" defer></script>
-    <script src="gameEngine.js?v=20" defer></script>
-    <script src="app.js?v=20" defer></script>
+    <script src="cards.js?v=21" defer></script>
+    <script src="gameEngine.js?v=21" defer></script>
+    <script src="app.js?v=21" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -65,7 +65,6 @@
             <strong id="onlineStatus">ローカル対戦</strong>
             <small id="onlineRoomLabel">Socket.IO未接続</small>
           </div>
-          <button class="small-button" id="cpuModeButton" type="button">CPU ON</button>
           <button class="small-button" id="resetButton" type="button">リセット</button>
           <button class="small-button" id="createRoomButton" type="button">部屋作成</button>
           <input id="roomIdInput" type="text" maxlength="8" placeholder="部屋ID">

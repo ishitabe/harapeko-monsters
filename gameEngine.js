@@ -5,9 +5,10 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   let nextUnitId = 1;
 
   function createGame() {
+    const firstPlayer = Math.random() < 0.5 ? 0 : 1;
     const game = {
-      firstPlayer: 0,
-      activePlayer: 0,
+      firstPlayer,
+      activePlayer: firstPlayer,
       turn: 1,
       winner: null,
       players: [createPlayer("プレイヤー1"), createPlayer("プレイヤー2")],
@@ -22,7 +23,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
     distributeCardsAcrossDecks(game, shuffle([...cardPool]));
     dealOpeningHands(game);
-    game.players[0].actions = 1;
+    game.players[firstPlayer].actions = 1;
     return game;
   }
 
@@ -38,7 +39,8 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   }
 
   function dealOpeningHands(game) {
-    const order = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
+    const secondPlayer = opponentOf(game.firstPlayer);
+    const order = [secondPlayer, game.firstPlayer, secondPlayer, game.firstPlayer, secondPlayer, game.firstPlayer, secondPlayer, game.firstPlayer, secondPlayer, game.firstPlayer, secondPlayer];
     order.forEach((playerId, index) => drawCard(game, playerId, game.piles[index % 3].id, { silent: true, skipRebalance: true }));
     addLog(game, "初期手札を配りました。先攻5枚、後攻6枚です。");
   }
