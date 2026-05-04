@@ -137,6 +137,8 @@ function applyAction(game, playerId, payload) {
       return engine.resolvePendingOpponentHandCheck(game, playerId, payload.opponentHandIndex);
     case "discardSelection":
       return engine.resolvePendingDiscardSelection(game, playerId, payload.handIndexes);
+    case "pileSearch":
+      return engine.resolvePendingPileSearch(game, playerId, payload.pileIndexes);
     case "attackLife":
       return engine.attackLife(game, playerId, payload.attackerId);
     case "attackMonster":
@@ -177,6 +179,8 @@ function createWaitingView(room, viewerId) {
     pendingQuickReplay: null,
     pendingOpponentHandCheck: null,
     pendingDiscardSelection: null,
+    pendingPileSearch: null,
+    lastPlayedAction: null,
     maxFieldSize: 3,
     maxHandSize: 10,
     lastMessage: "相手の参加待ちです。2人そろうとバトルスタートして初期手札を配ります。",

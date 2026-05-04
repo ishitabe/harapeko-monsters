@@ -198,6 +198,7 @@ function render() {
   renderPendingDoubleCheck();
   renderPendingQuickReplay();
   renderPendingDiscardSelection();
+  renderPendingPileSearch();
   updateDrawPrompt(view, locked);
   renderWinnerOverlay(view);
   flushFx();
@@ -633,6 +634,16 @@ function renderPendingDiscardSelection() {
   renderDetail();
 }
 
+function renderPendingPileSearch() {
+  const view = getView();
+  const pending = view.pendingPileSearch;
+  if (!pending || pending.playerId !== getSelfId() || isCpuTurn()) return;
+  selectedKey = "pending:pileSearch";
+  detailKey = "pending:pileSearch";
+  detailData = { source: "pendingPileSearch", zone: "下準備", count: pending.count, cards: pending.cards, card: CARD_DEFINITIONS.preparation };
+  renderDetail();
+}
+
 function renderDetailActions(container, data) {
   if (!container) return;
   const view = getView();
@@ -666,6 +677,11 @@ function renderDetailActions(container, data) {
 
   if (data.source === "pendingDiscardSelection") {
     renderDiscardSelectionControls(container, data.count, view);
+    return;
+  }
+
+  if (data.source === "pendingPileSearch") {
+    renderPileSearchControls(container, data);
     return;
   }
 
@@ -782,7 +798,6 @@ function renderActionControls(container, card, handIndex, view) {
     playSound("select");
     await showCardCast(card);
     runGameAction("playAction", { handIndex, payload }, () => engine.playAction(game, game.activePlayer, handIndex, payload), showDrawnCards);
-    showFloat(card.name, "action");
     clearSelection();
     if (!onlineMode && card.effectKey === "discardOpponentHand" && game.pendingOpponentHandCheck) {
       selectedKey = "pending:doubleCheck";
@@ -870,11 +885,14 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
   const active = view.players[view.activePlayer];
   const opponent = view.players[view.activePlayer === 0 ? 1 : 0];
 
-  if (["drawTwoGainAction", "drawPileDiscardTwo"].includes(card.effectKey)) {
+  if (["drawTwoGainAction", "drawPileDiscardTwo", "searchTwoFromPile", "drawOneBuffOwnField"].includes(card.effectKey)) {
     controls.pile = appendSelect(form, "山札", view.piles.map((pile) => [pile.id, `${pile.name} (${pile.count})`]));
   }
-  if (["discardUnit", "sacrifice"].includes(card.effectKey)) {
+  if (["discardUnit"].includes(card.effectKey)) {
     controls.target = appendSelect(form, "対象", orderedUnitOptions(view));
+  }
+  if (card.effectKey === "sacrifice") {
+    controls.target = appendSelect(form, "対象", ownUnitOptions(view));
   }
   if (card.effectKey === "dealTwoToUnitOrLife") {
     controls.target = appendSelect(form, "対象", [
@@ -897,13 +915,6 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
   if (card.effectKey === "takeDiscardToHandGainAction") {
     controls.discard = appendSelect(form, "捨札", view.discard.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]));
   }
-  if (["drawOneEachDiscardOne"].includes(card.effectKey)) {
-    const count = 1;
-    const choices = active.hand
-      .map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name])
-      .filter(([value]) => Number(value) !== actionHandIndex);
-    controls.discards = appendClickMultiPicker(form, "捨てる手札", choices, count);
-  }
   return controls;
 }
 
@@ -915,11 +926,39 @@ function renderDiscardSelectionControls(container, count, view) {
   note.textContent = `アクロバットでドローしました。捨てる手札を${count}枚選んでください。`;
   form.append(note);
   const hand = view.players[getSelfId()].hand;
+  if (hand.length <= count) {
+    form.append(createSmallButton(`手札をすべて捨てる`, false, () => {
+      const handIndexes = hand.map((_, index) => String(index));
+      runGameAction("discardSelection", { handIndexes }, () => engine.resolvePendingDiscardSelection(game, game.activePlayer, handIndexes));
+      clearSelection();
+      if (!onlineMode) render();
+    }));
+    container.append(form);
+    return;
+  }
   const choices = hand.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]);
   const picker = appendClickMultiPicker(form, "捨てる手札", choices, count);
   form.append(createSmallButton(`${count}枚捨てる`, hand.length < count, () => {
     const handIndexes = picker.getSelectedValues();
     runGameAction("discardSelection", { handIndexes }, () => engine.resolvePendingDiscardSelection(game, game.activePlayer, handIndexes));
+    clearSelection();
+    if (!onlineMode) render();
+  }));
+  container.append(form);
+}
+
+function renderPileSearchControls(container, data) {
+  const form = document.createElement("div");
+  form.className = "action-form";
+  const note = document.createElement("p");
+  note.className = "empty-note";
+  note.textContent = `山札から手札に加えるカードを${data.count}枚まで選んでください。`;
+  form.append(note);
+  const choices = (data.cards || []).map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]);
+  const picker = appendClickMultiPicker(form, "山札の中身", choices, data.count);
+  form.append(createSmallButton("手札に加える", choices.length === 0, () => {
+    const pileIndexes = picker.getSelectedValues();
+    runGameAction("pileSearch", { pileIndexes }, () => engine.resolvePendingPileSearch(game, game.activePlayer, pileIndexes), showDrawnCards);
     clearSelection();
     if (!onlineMode) render();
   }));
@@ -1130,13 +1169,24 @@ function orderedUnitOptions(view) {
     .map((unit) => [unit.id, `${ownerId === opponentId ? "相手" : "自分"}: ${CARD_DEFINITIONS[unit.cardId].name}`]));
 }
 
+function ownUnitOptions(view) {
+  return view.players[view.activePlayer].field
+    .map((unit) => [unit.id, `自分: ${CARD_DEFINITIONS[unit.cardId].name}`]);
+}
+
 function renderBattleEvents(view) {
   if (!previousView) return;
+  if (onlineMode && view.lastPlayedAction && view.lastPlayedAction.playerId !== getSelfId()
+    && view.lastPlayedAction.serial !== previousView.lastPlayedAction?.serial) {
+    const card = CARD_DEFINITIONS[view.lastPlayedAction.cardId];
+    if (card) showCardCast(card);
+  }
   const removedNames = [];
   view.players.forEach((player, playerId) => {
     const oldField = previousView.players[playerId]?.field || [];
     oldField.forEach((oldUnit) => {
-      if (!player.field.some((unit) => unit.id === oldUnit.id)) removedNames.push(CARD_DEFINITIONS[oldUnit.cardId]?.name || "モンスター");
+      const stillInPlay = view.players.some((candidate) => candidate.field.some((unit) => unit.id === oldUnit.id));
+      if (!stillInPlay) removedNames.push(CARD_DEFINITIONS[oldUnit.cardId]?.name || "モンスター");
     });
   });
   if (removedNames.length > 0) {
@@ -1677,11 +1727,20 @@ async function runCpuActions() {
     const choice = chooseCpuAction();
     if (!choice) return;
     const card = CARD_DEFINITIONS[game.players[1].hand[choice.handIndex]];
+    await showCardCast(card);
     const result = await cpuStep(`CPU ${card.name}`, () => engine.playAction(game, 1, choice.handIndex, choice.payload), "select");
     used = result.ok;
     if (game.pendingDiscardSelection?.playerId === 1) {
       const indexes = game.players[1].hand.map((_, index) => index).slice(0, game.pendingDiscardSelection.count);
       await cpuStep("CPU 捨てる", () => engine.resolvePendingDiscardSelection(game, 1, indexes), "select");
+    }
+    if (game.pendingPileSearch?.playerId === 1) {
+      const indexes = game.piles.find((pile) => pile.id === game.pendingPileSearch.pileId)?.deck
+        .map((cardId, index) => ({ cardId, index, card: CARD_DEFINITIONS[cardId] }))
+        .sort((a, b) => cardScore(b.card) - cardScore(a.card))
+        .slice(0, game.pendingPileSearch.count)
+        .map((entry) => entry.index) || [];
+      await cpuStep("CPU 下準備", () => engine.resolvePendingPileSearch(game, 1, indexes), "draw");
     }
   }
 }
@@ -1695,9 +1754,6 @@ function chooseCpuAction() {
 
   let index = findAction("healLifeThree");
   if (index !== -1 && player.life <= 7) return { handIndex: index, payload: {} };
-
-  index = findAction("loseLifeGainThreeActions");
-  if (index !== -1 && player.life >= 5 && player.actions <= 1) return { handIndex: index, payload: {} };
 
   index = findAction("dealTwoToUnitOrLife");
   if (index !== -1) {
@@ -1724,6 +1780,18 @@ function chooseCpuAction() {
     if (pile) return { handIndex: index, payload: { pileId: pile.id } };
   }
 
+  index = findAction("searchTwoFromPile");
+  if (index !== -1 && player.hand.length <= 8) {
+    const pile = [...game.piles].filter((candidate) => candidate.deck.length > 0).sort((a, b) => b.deck.length - a.deck.length)[0];
+    if (pile) return { handIndex: index, payload: { pileId: pile.id } };
+  }
+
+  index = findAction("drawOneBuffOwnField");
+  if (index !== -1 && player.field.length > 0) {
+    const pile = [...game.piles].find((candidate) => candidate.deck.length > 0);
+    if (pile) return { handIndex: index, payload: { pileId: pile.id } };
+  }
+
   index = findAction("discardOpponentHand");
   if (index !== -1 && opponent.hand.length >= 4) return { handIndex: index, payload: { opponentHandIndex: Math.floor(Math.random() * opponent.hand.length) } };
 
@@ -1731,6 +1799,14 @@ function chooseCpuAction() {
   if (index !== -1 && opponent.hand.length >= 5) return { handIndex: index, payload: {} };
 
   return null;
+}
+
+function cardScore(card) {
+  if (!card) return 0;
+  if (card.type === "unit") return 30 + card.hp + card.power * 2;
+  if (card.type === "action") return 22;
+  if (card.type === "item") return 18;
+  return 0;
 }
 
 async function runCpuAttacks() {

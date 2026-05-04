@@ -18,7 +18,7 @@ const CARD_DEFINITIONS = {
   mimikyu: { id: "mimikyu", name: "ミミッキュ", type: "unit", hp: 2, power: 2, effectKey: "doubleOwnPower", text: "攻撃の代わりに自分のパワーを2倍にできる。" },
 
   focusSash: { id: "focusSash", name: "気合いのタスキ", type: "item", effectKey: "surviveLethalAtOne", text: "致死ダメージ時、HP1で耐える。発動後捨札。" },
-  choiceBand: { id: "choiceBand", name: "拘り鉢巻", type: "item", effectKey: "attackPowerPlusTwo", text: "攻撃時パワー+2。" },
+  choiceBand: { id: "choiceBand", name: "拘り鉢巻", type: "item", effectKey: "attackPowerPlusTwo", text: "パワー+2。" },
   assaultVest: { id: "assaultVest", name: "突撃チョッキ", type: "item", effectKey: "maxHpPlusTwo", text: "HP+2。外れたら効果も消える。" },
   destinyCloak: { id: "destinyCloak", name: "道連れマント", type: "item", effectKey: "destroyOpponentOnDeath", text: "モンスターが倒れた時、相手も破壊する。" },
   lightBall: { id: "lightBall", name: "でんきだま", type: "item", effectKey: "pikachuPowerPlusSix", text: "ピカチュウが持つとHP+6、パワー+6。" },
@@ -31,7 +31,7 @@ const CARD_DEFINITIONS = {
   endingBell: { id: "endingBell", name: "終わりの鐘", type: "action", effectKey: "setAllMaxHpToOne", text: "相手の場の全てのモンスターの最大HPを1にする。" },
   erase: { id: "erase", name: "消し去る", type: "action", effectKey: "discardUnit", text: "モンスター1体を捨札に送る。" },
   courtChange: { id: "courtChange", name: "コートチェンジ", type: "action", effectKey: "swapUnits", text: "自分と相手の場のモンスターすべてを、持ち物ごと入れ替える。" },
-  storm: { id: "storm", name: "嵐", type: "action", effectKey: "drawOneEachDiscardOne", text: "好きなカードを1枚捨て、各山から1枚ずつドロー。" },
+  storm: { id: "storm", name: "嵐", type: "action", effectKey: "drawOneEachDiscardOne", text: "各山から1枚ずつドロー。" },
   reviveCrystal: { id: "reviveCrystal", name: "元気の塊", type: "action", effectKey: "reviveUnit", text: "捨札からモンスター1体を自分の場に出す。" },
   laboratory: { id: "laboratory", name: "研究室", type: "action", effectKey: "drawTwoGainAction", text: "1山から2枚ドローし、アクション権+1。" },
   excavation: { id: "excavation", name: "発掘", type: "action", effectKey: "takeDiscardToHandGainAction", text: "捨札からカード1枚を手札に加え、アクション権+1。" },
@@ -39,13 +39,13 @@ const CARD_DEFINITIONS = {
   stoneThrow: { id: "stoneThrow", name: "石投げ", type: "action", effectKey: "dealTwoToUnitOrLife", text: "モンスター1体、または相手ライフに3ダメージ。" },
   mysticGuard: { id: "mysticGuard", name: "神秘の守り", type: "action", effectKey: "mysticGuard", text: "次の自分のターンまで、場のモンスターは相手のアクションや持ち物の効果を受けない。" },
   redCard: { id: "redCard", name: "レッドカード", type: "action", effectKey: "redCard", text: "相手は手札をすべて捨て、3山から1枚ずつドローする。" },
-  sacrifice: { id: "sacrifice", name: "生贄", type: "action", effectKey: "sacrifice", text: "手札からアクションカードを全て捨てる。好きな場のモンスターのパワー+2。" },
+  sacrifice: { id: "sacrifice", name: "生贄", type: "action", effectKey: "sacrifice", text: "好きな自分の場のモンスターのパワー+3。" },
   shockWave: { id: "shockWave", name: "衝撃波", type: "action", effectKey: "shockWave", text: "相手モンスター全体のHPとパワーを-1。" },
   acrobat: { id: "acrobat", name: "アクロバット", type: "action", effectKey: "drawPileDiscardTwo", text: "好きな山のカードを全てドローする。その後手札を4枚捨てる。" },
-  tactician: { id: "tactician", name: "策士", type: "action", effectKey: "gainActionWhenDiscarded", text: "このカードを捨てた時、アクション権+1。" },
   protectivePads: { id: "protectivePads", name: "防護パッド", type: "action", effectKey: "noCounterThisTurn", text: "このターン、相手モンスターから反撃を受けない。" },
-  darkJob: { id: "darkJob", name: "闇バイト", type: "action", effectKey: "loseLifeGainThreeActions", text: "自分のライフ-1。アクション権+3。" },
   healingWater: { id: "healingWater", name: "癒し水", type: "action", effectKey: "healLifeThree", text: "自分のライフ+3。" },
+  preparation: { id: "preparation", name: "下準備", type: "action", effectKey: "searchTwoFromPile", text: "好きな山を見て好きなカード2枚を手札に加える。" },
+  battleDrum: { id: "battleDrum", name: "バトルドラム", type: "action", effectKey: "drawOneBuffOwnField", text: "山札から1枚ドロー。自分の場のモンスターのパワー+2。" },
 };
 
 const CARD_POOL = Object.keys(CARD_DEFINITIONS);

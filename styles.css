@@ -759,15 +759,16 @@ p {
 .card-actions,
 .action-form {
   display: grid;
-  gap: 6px;
+  gap: 10px;
 }
 
 .small-button,
 .card-button {
   width: 100%;
-  min-height: 30px;
-  padding: 0 8px;
-  font-size: 0.76rem;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 0.95rem;
 }
 
 .small-button {
@@ -777,21 +778,23 @@ p {
 
 .action-form label {
   display: grid;
-  gap: 3px;
+  gap: 6px;
   color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 800;
+  font-size: 0.82rem;
+  font-weight: 900;
 }
 
 .action-form select {
   width: 100%;
-  min-height: 28px;
+  min-height: 46px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 10px;
   background: #101620;
   color: var(--ink);
   font: inherit;
-  font-size: 0.76rem;
+  padding: 0 12px;
+  font-size: 0.96rem;
+  font-weight: 850;
 }
 
 .click-picker-wrap {
@@ -808,27 +811,28 @@ p {
 .click-picker {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-  max-height: 220px;
+  gap: 8px;
+  max-height: 300px;
   overflow: auto;
 }
 
 .click-picker button {
-  min-height: 34px;
-  padding: 6px 8px;
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 8px;
-  background: rgba(255,255,255,0.06);
-  color: var(--ink);
-  font-size: 0.82rem;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid rgba(103, 183, 255, 0.25);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(33, 48, 66, 0.96), rgba(17, 25, 36, 0.96));
+  color: #e7f5ff;
+  font-size: 0.9rem;
   font-weight: 900;
   text-align: left;
 }
 
 .click-picker button.selected {
   border-color: var(--gold);
-  background: rgba(242, 189, 92, 0.22);
-  box-shadow: 0 0 18px rgba(242, 189, 92, 0.25);
+  background: linear-gradient(180deg, rgba(242, 189, 92, 0.38), rgba(93, 63, 24, 0.96));
+  color: #fff6df;
+  box-shadow: 0 0 0 2px rgba(242, 189, 92, 0.18), 0 0 24px rgba(242, 189, 92, 0.2);
 }
 
 .detail-panel {
@@ -1986,6 +1990,27 @@ body.title-cards-active .title-note {
 
   .discard-list {
     display: none;
+  }
+
+  .detail-panel .discard-list {
+    display: grid;
+    gap: 8px;
+    max-height: 46dvh;
+    overflow: auto;
+    padding: 0;
+  }
+
+  .click-picker {
+    grid-template-columns: 1fr;
+    max-height: 42dvh;
+  }
+
+  .click-picker button,
+  .action-form select,
+  .small-button,
+  .card-button {
+    min-height: 48px;
+    font-size: 0.98rem;
   }
 
   .log-panel {
