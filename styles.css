@@ -1376,7 +1376,8 @@ body:not(.title-active) .title-screen {
 
 body.title-lobby-active .title-actions,
 body.title-rules-active .title-actions,
-body.title-cards-active .title-actions {
+body.title-cards-active .title-actions,
+body.title-cpu-active .title-actions:not(.cpu-actions) {
   display: none;
 }
 
@@ -1424,7 +1425,8 @@ body.title-cards-active .title-actions {
 
 body.title-lobby-active .title-note,
 body.title-rules-active .title-note,
-body.title-cards-active .title-note {
+body.title-cards-active .title-note,
+body.title-cpu-active .title-note {
   display: none;
 }
 
@@ -1458,6 +1460,23 @@ body.title-cards-active .title-note {
 
 .title-cards.hidden {
   display: none;
+}
+
+.title-cpu {
+  display: grid;
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.title-cpu.hidden {
+  display: none;
+}
+
+.title-cpu h2 {
+  margin: 0;
+  color: #fff6df;
+  font-size: 2.1rem;
+  text-align: center;
 }
 
 .rules-head {

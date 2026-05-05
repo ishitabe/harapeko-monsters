@@ -21,6 +21,8 @@ let optionsOpen = false;
 let titleLobbyOpen = false;
 let titleRulesOpen = false;
 let titleCardsOpen = false;
+let titleCpuOpen = false;
+let cpuDifficulty = "normal";
 let rulesPageIndex = 0;
 let selectedKey = null;
 let detailKey = null;
@@ -114,6 +116,10 @@ const elements = {
   startMultiButton: document.querySelector("#startMultiButton"),
   showRulesButton: document.querySelector("#showRulesButton"),
   showCardsButton: document.querySelector("#showCardsButton"),
+  titleCpu: document.querySelector("#titleCpu"),
+  cpuNormalButton: document.querySelector("#cpuNormalButton"),
+  cpuHardButton: document.querySelector("#cpuHardButton"),
+  cpuBackButton: document.querySelector("#cpuBackButton"),
   titleRules: document.querySelector("#titleRules"),
   rulesPageLabel: document.querySelector("#rulesPageLabel"),
   rulesTitle: document.querySelector("#rulesTitle"),
@@ -176,9 +182,11 @@ function render() {
   document.body.classList.toggle("title-lobby-active", titleLobbyOpen);
   document.body.classList.toggle("title-rules-active", titleRulesOpen);
   document.body.classList.toggle("title-cards-active", titleCardsOpen);
+  document.body.classList.toggle("title-cpu-active", titleCpuOpen);
   elements.titleLobby?.classList.toggle("hidden", !titleLobbyOpen);
   elements.titleRules?.classList.toggle("hidden", !titleRulesOpen);
   elements.titleCards?.classList.toggle("hidden", !titleCardsOpen);
+  elements.titleCpu?.classList.toggle("hidden", !titleCpuOpen);
   elements.optionsPanel?.classList.toggle("hidden", !optionsOpen);
   updateOptionsVisibility();
 
@@ -608,7 +616,7 @@ function renderPendingDoubleCheck() {
   if (!view.pendingOpponentHandCheck || view.pendingOpponentHandCheck.playerId !== getSelfId() || isCpuTurn()) return;
   selectedKey = "pending:doubleCheck";
   detailKey = "pending:doubleCheck";
-  detailData = { source: "pendingDoubleCheck", zone: "二重チェック", card: CARD_DEFINITIONS.doubleCheck };
+  detailData = { source: "pendingDoubleCheck", zone: "二重チェック", count: view.pendingOpponentHandCheck.count || 1, card: CARD_DEFINITIONS.doubleCheck };
   renderDetail();
 }
 
@@ -640,7 +648,7 @@ function renderPendingPileSearch() {
   if (!pending || pending.playerId !== getSelfId() || isCpuTurn()) return;
   selectedKey = "pending:pileSearch";
   detailKey = "pending:pileSearch";
-  detailData = { source: "pendingPileSearch", zone: "下準備", count: pending.count, cards: pending.cards, card: CARD_DEFINITIONS.preparation };
+  detailData = { source: "pendingPileSearch", zone: pending.allPiles ? "ザ・サーチ" : "下準備", count: pending.count, cards: pending.cards, entries: pending.entries, card: pending.allPiles ? CARD_DEFINITIONS.theSearch : CARD_DEFINITIONS.preparation };
   renderDetail();
 }
 
@@ -660,13 +668,14 @@ function renderDetailActions(container, data) {
 
   if (data.source === "pendingDoubleCheck") {
     const opponent = view.players[view.activePlayer === 0 ? 1 : 0];
-    opponent.hand.forEach((cardId, index) => {
-      container.append(createSmallButton(`${CARD_DEFINITIONS[cardId].name}を加える`, false, () => {
-        runGameAction("doubleCheck", { opponentHandIndex: index }, () => engine.resolvePendingOpponentHandCheck(game, game.activePlayer, index));
-        clearSelection();
-        if (!onlineMode) render();
-      }));
-    });
+    const choices = opponent.hand.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]);
+    const picker = appendClickMultiPicker(container, "加える手札", choices, data.count || 1);
+    container.append(createSmallButton("手札に加える", choices.length === 0, () => {
+      const opponentHandIndex = picker.getSelectedValues();
+      runGameAction("doubleCheck", { opponentHandIndex }, () => engine.resolvePendingOpponentHandCheck(game, game.activePlayer, opponentHandIndex));
+      clearSelection();
+      if (!onlineMode) render();
+    }));
     return;
   }
 
@@ -756,6 +765,13 @@ function renderDetailActions(container, data) {
         container.append(createSmallButton("自分のパワーを2倍", disabled || !unit.canAct, () => {
           runGameAction("unitAbility", { ability: "doubleOwnPower", unitId: unit.id }, () => engine.useUnitAbility(game, game.activePlayer, { ability: "doubleOwnPower", unitId: unit.id }));
           addFx(`field:${view.activePlayer}:${unit.id}`, "fx-stat-up");
+          clearSelection();
+          if (!onlineMode) render();
+        }));
+      }
+      if (CARD_DEFINITIONS[unit.cardId].effectKey === "reduceNextOpponentAction") {
+        container.append(createSmallButton("相手の次アクション-1", disabled || !unit.canAct, () => {
+          runGameAction("unitAbility", { ability: "reduceNextOpponentAction", unitId: unit.id }, () => engine.useUnitAbility(game, game.activePlayer, { ability: "reduceNextOpponentAction", unitId: unit.id }));
           clearSelection();
           if (!onlineMode) render();
         }));
@@ -894,6 +910,12 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
   if (card.effectKey === "sacrifice") {
     controls.target = appendSelect(form, "対象", ownUnitOptions(view));
   }
+  if (card.effectKey === "discardAnyGainActions") {
+    const choices = active.hand
+      .map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name])
+      .filter(([value]) => Number(value) !== actionHandIndex);
+    controls.discards = appendClickMultiPicker(form, "捨てる手札", choices, choices.length);
+  }
   if (card.effectKey === "dealTwoToUnitOrLife") {
     controls.target = appendSelect(form, "対象", [
       ["life", "相手ライフ"],
@@ -954,7 +976,9 @@ function renderPileSearchControls(container, data) {
   note.className = "empty-note";
   note.textContent = `山札から手札に加えるカードを${data.count}枚まで選んでください。`;
   form.append(note);
-  const choices = (data.cards || []).map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]);
+  const choices = data.entries
+    ? data.entries.map((entry) => [entry.value, entry.label])
+    : (data.cards || []).map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]);
   const picker = appendClickMultiPicker(form, "山札の中身", choices, data.count);
   form.append(createSmallButton("手札に加える", choices.length === 0, () => {
     const pileIndexes = picker.getSelectedValues();
@@ -1047,7 +1071,7 @@ function renderWinnerOverlay(view) {
       backToTitle();
       return;
     }
-    startCpuGame();
+    startCpuGame(cpuDifficulty);
   });
   node.querySelector("#winnerTitle").addEventListener("click", () => {
     node.remove();
@@ -1249,8 +1273,17 @@ function runGameAction(type, payload, localAction, afterResult = null) {
   return null;
 }
 
-function startCpuGame() {
+function startCpuSetup() {
+  titleCpuOpen = true;
+  titleLobbyOpen = false;
+  titleRulesOpen = false;
+  titleCardsOpen = false;
+  render();
+}
+
+function startCpuGame(difficulty = "normal") {
   if (socket) socket.emit("room:leave");
+  cpuDifficulty = difficulty;
   onlineMode = false;
   onlineState = null;
   onlinePlayerId = 0;
@@ -1263,10 +1296,11 @@ function startCpuGame() {
   titleLobbyOpen = false;
   titleRulesOpen = false;
   titleCardsOpen = false;
+  titleCpuOpen = false;
   optionsOpen = false;
   clearSelection();
   previousView = null;
-  showTurnBanner("CPU対戦");
+  showTurnBanner(difficulty === "hard" ? "CPU対戦 強い" : "CPU対戦 普通");
   render();
 }
 
@@ -1282,6 +1316,7 @@ function startMultiSetup() {
   titleLobbyOpen = true;
   titleRulesOpen = false;
   titleCardsOpen = false;
+  titleCpuOpen = false;
   optionsOpen = false;
   clearSelection();
   previousView = null;
@@ -1300,6 +1335,7 @@ function backToTitle() {
   titleLobbyOpen = false;
   titleRulesOpen = false;
   titleCardsOpen = false;
+  titleCpuOpen = false;
   clearSelection();
   render();
 }
@@ -1310,11 +1346,18 @@ elements.endTurnButton.addEventListener("click", () => {
   if (!onlineMode) render();
 });
 
-elements.startCpuButton?.addEventListener("click", startCpuGame);
+elements.startCpuButton?.addEventListener("click", startCpuSetup);
+elements.cpuNormalButton?.addEventListener("click", () => startCpuGame("normal"));
+elements.cpuHardButton?.addEventListener("click", () => startCpuGame("hard"));
+elements.cpuBackButton?.addEventListener("click", () => {
+  titleCpuOpen = false;
+  render();
+});
 elements.startMultiButton?.addEventListener("click", startMultiSetup);
 elements.showRulesButton?.addEventListener("click", () => {
   titleRulesOpen = true;
   titleCardsOpen = false;
+  titleCpuOpen = false;
   titleLobbyOpen = false;
   rulesPageIndex = 0;
   render();
@@ -1322,6 +1365,7 @@ elements.showRulesButton?.addEventListener("click", () => {
 elements.showCardsButton?.addEventListener("click", () => {
   titleCardsOpen = true;
   titleRulesOpen = false;
+  titleCpuOpen = false;
   titleLobbyOpen = false;
   render();
 });
@@ -1345,6 +1389,7 @@ elements.titleBackButton?.addEventListener("click", () => {
   titleLobbyOpen = false;
   titleRulesOpen = false;
   titleCardsOpen = false;
+  titleCpuOpen = false;
   onlineMode = false;
   onlineState = null;
   render();
@@ -1735,11 +1780,17 @@ async function runCpuActions() {
       await cpuStep("CPU 捨てる", () => engine.resolvePendingDiscardSelection(game, 1, indexes), "select");
     }
     if (game.pendingPileSearch?.playerId === 1) {
-      const indexes = game.piles.find((pile) => pile.id === game.pendingPileSearch.pileId)?.deck
-        .map((cardId, index) => ({ cardId, index, card: CARD_DEFINITIONS[cardId] }))
-        .sort((a, b) => cardScore(b.card) - cardScore(a.card))
-        .slice(0, game.pendingPileSearch.count)
-        .map((entry) => entry.index) || [];
+      const indexes = game.pendingPileSearch.allPiles
+        ? game.piles.flatMap((pile) => pile.deck
+          .map((cardId, index) => ({ value: `${pile.id}:${index}`, card: CARD_DEFINITIONS[cardId] }))
+          .sort((a, b) => cardScore(b.card) - cardScore(a.card))
+          .slice(0, 1)
+          .map((entry) => entry.value))
+        : game.piles.find((pile) => pile.id === game.pendingPileSearch.pileId)?.deck
+          .map((cardId, index) => ({ cardId, index, card: CARD_DEFINITIONS[cardId] }))
+          .sort((a, b) => cardScore(b.card) - cardScore(a.card))
+          .slice(0, game.pendingPileSearch.count)
+          .map((entry) => entry.index) || [];
       await cpuStep("CPU 下準備", () => engine.resolvePendingPileSearch(game, 1, indexes), "draw");
     }
   }
@@ -1768,6 +1819,12 @@ function chooseCpuAction() {
   index = findAction("shockWave");
   if (index !== -1 && opponent.field.length >= 2) return { handIndex: index, payload: {} };
 
+  index = findAction("buffHpByEnemyCount");
+  if (index !== -1 && opponent.field.length > 0 && player.field.length > 0) return { handIndex: index, payload: {} };
+
+  index = findAction("damageMinusOneUntilNextTurn");
+  if (index !== -1 && opponent.field.some((unit) => unit.canAct)) return { handIndex: index, payload: {} };
+
   index = findAction("reviveUnit");
   if (index !== -1 && player.field.length < engine.getPublicState(game, 0).maxFieldSize) {
     const discardIndex = game.discard.findIndex((cardId) => CARD_DEFINITIONS[cardId]?.type === "unit");
@@ -1785,6 +1842,9 @@ function chooseCpuAction() {
     const pile = [...game.piles].filter((candidate) => candidate.deck.length > 0).sort((a, b) => b.deck.length - a.deck.length)[0];
     if (pile) return { handIndex: index, payload: { pileId: pile.id } };
   }
+
+  index = findAction("searchOneFromEachPile");
+  if (index !== -1 && player.hand.length <= 7) return { handIndex: index, payload: {} };
 
   index = findAction("drawOneBuffOwnField");
   if (index !== -1 && player.field.length > 0) {
@@ -1815,6 +1875,18 @@ async function runCpuAttacks() {
     acted = false;
     const attacker = game.players[1].field.find((unit) => unit.canAct);
     if (!attacker) return;
+    if (cpuDifficulty === "hard") {
+      const easyKill = chooseCpuOneSidedKill(attacker);
+      if (easyKill) {
+        const monsterResult = await cpuStep("CPU 戦闘", () => {
+          addFx(`field:1:${attacker.id}`, "fx-attack");
+          addFx(`field:0:${easyKill.id}`, "fx-hit");
+          return engine.attackMonster(game, 1, attacker.id, easyKill.id);
+        }, "attack");
+        acted = monsterResult.ok;
+        continue;
+      }
+    }
     const lifeResult = await cpuStep("CPU 攻撃", () => {
       addFx(`field:1:${attacker.id}`, "fx-attack");
       return engine.attackLife(game, 1, attacker.id);
@@ -1832,6 +1904,15 @@ async function runCpuAttacks() {
     }, "attack");
     acted = monsterResult.ok;
   }
+}
+
+function chooseCpuOneSidedKill(attacker) {
+  const targets = filterAttackTargets(game.players[0].field);
+  return targets.find((target) => {
+    const damage = engine.getEffectivePower(game, attacker, target, "attack");
+    const counter = game.players[1].noCounterThisTurn ? 0 : engine.getEffectivePower(game, target, attacker, "counter");
+    return target.hp <= damage && attacker.hp > counter;
+  });
 }
 
 function chooseCpuAttackTarget(attacker) {

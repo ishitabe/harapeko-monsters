@@ -4,16 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>はらぺこモンスターズ</title>
-    <link rel="stylesheet" href="styles.css?v=36">
+    <link rel="stylesheet" href="styles.css?v=37">
     <script>
       window.addEventListener("error", (event) => {
         const message = document.querySelector("#messageText");
         if (message) message.textContent = `読み込みエラー: ${event.message}`;
       });
     </script>
-    <script src="cards.js?v=36" defer></script>
-    <script src="gameEngine.js?v=36" defer></script>
-    <script src="app.js?v=36" defer></script>
+    <script src="cards.js?v=37" defer></script>
+    <script src="gameEngine.js?v=37" defer></script>
+    <script src="app.js?v=37" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -45,6 +45,17 @@
           </div>
           <h2>カード一覧</h2>
           <div class="card-list-body" id="cardListBody"></div>
+        </div>
+        <div class="title-cpu hidden" id="titleCpu" aria-label="CPU対戦">
+          <div class="rules-head">
+            <span>CPU対戦</span>
+            <button class="small-button" id="cpuBackButton" type="button">戻る</button>
+          </div>
+          <h2>CPUの強さを選ぶ</h2>
+          <div class="title-actions cpu-actions">
+            <button class="title-button" id="cpuNormalButton" type="button">普通</button>
+            <button class="title-button primary" id="cpuHardButton" type="button">強い</button>
+          </div>
         </div>
         <div class="title-lobby hidden" id="titleLobby">
           <strong id="titleLobbyStatus">マルチ対戦</strong>
