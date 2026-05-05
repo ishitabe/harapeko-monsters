@@ -1694,6 +1694,10 @@ function scheduleCpuTurn() {
 
 async function runCpuTurn() {
   if (game.winner !== null || game.activePlayer !== 1) return;
+  if (cpuDifficulty === "hard") {
+    await runHardCpuTurn();
+    return;
+  }
   await runCpuOpeningDraw();
   await runCpuSummon();
   await runCpuActions();
@@ -1704,10 +1708,33 @@ async function runCpuTurn() {
   }
 }
 
+async function runHardCpuTurn() {
+  await runCpuOpeningDraw();
+  await runCpuEquipItems();
+  let guard = 0;
+  while (game.winner === null && game.activePlayer === 1 && game.players[1].actions > 0 && guard < 8) {
+    guard += 1;
+    const choice = chooseHardCpuMainAction();
+    if (!choice || choice.score < 90) break;
+    const result = await executeHardCpuChoice(choice);
+    if (!result?.ok) break;
+    await runCpuEquipItems();
+  }
+  await runHardCpuUnitAbilities();
+  await runCpuEquipItems();
+  await runHardCpuAttacks();
+  if (game.winner === null && game.activePlayer === 1) {
+    await cpuStep("CPU ターン終了", () => engine.endTurn(game, 1), "turn");
+    showTurnBanner("YOUR TURN");
+  }
+}
+
 async function runCpuOpeningDraw() {
   const view = engine.getPublicState(game, 0);
   if (view.players[1].hasDrawnThisTurn) return;
-  const pile = [...game.piles].filter((candidate) => candidate.deck.length > 0).sort((a, b) => b.deck.length - a.deck.length)[0];
+  const pile = cpuDifficulty === "hard"
+    ? chooseBestCpuPile()
+    : [...game.piles].filter((candidate) => candidate.deck.length > 0).sort((a, b) => b.deck.length - a.deck.length)[0];
   if (pile) {
     await cpuStep("CPU ドロー", () => {
       addFx(`deck:${pile.id}`, "fx-draw");
@@ -1732,7 +1759,7 @@ async function runCpuEquipItems() {
   let equipped = true;
   while (equipped) {
     equipped = false;
-    const choice = chooseCpuItemEquip();
+    const choice = cpuDifficulty === "hard" ? chooseHardCpuItemEquip() : chooseCpuItemEquip();
     if (!choice) return;
     const result = await cpuStep("CPU 装備", () => {
       addFx(`field:1:${choice.unit.id}`, "fx-item");
@@ -1765,6 +1792,37 @@ function chooseCpuItemEquip() {
   return null;
 }
 
+function chooseHardCpuItemEquip() {
+  const player = game.players[1];
+  const candidates = player.field.filter((unit) => !unit.item);
+  if (candidates.length === 0) return null;
+  return player.hand
+    .map((cardId, handIndex) => ({ cardId, handIndex, card: CARD_DEFINITIONS[cardId] }))
+    .filter((entry) => entry.card.type === "item")
+    .flatMap((entry) => candidates.map((unit) => ({
+      handIndex: entry.handIndex,
+      unit,
+      score: scoreItemOnUnit(entry.cardId, unit),
+    })))
+    .filter((choice) => choice.score > 0)
+    .sort((a, b) => b.score - a.score)[0] || null;
+}
+
+function scoreItemOnUnit(itemId, unit) {
+  const card = CARD_DEFINITIONS[unit.cardId];
+  const base = unitThreat(unit);
+  if (itemId === "lightBall") return unit.cardId === "pikachu" ? 900 : -1000;
+  if (itemId === "choiceScarf") return unit.canAct ? 40 : 420 + hardUnitCardScore(card);
+  if (itemId === "lifePower") return Math.max(80, unit.hp * 90 - Math.max(0, unit.power) * 35);
+  if (itemId === "choiceBand") return 260 + Math.max(0, unit.hp - 1) * 25 + base * 0.15;
+  if (itemId === "assaultVest") return 220 + (card.effectKey === "mustBeAttacked" ? 180 : 0) + base * 0.12;
+  if (itemId === "focusSash") return unit.maxHp <= 2 ? 310 : 180;
+  if (itemId === "destinyCloak") return unit.hp <= 2 ? 280 : 170;
+  if (itemId === "boomerang") return unit.power >= 2 ? 300 + game.players[0].field.length * 70 : 70;
+  if (itemId === "contraryMask") return 90;
+  return 80;
+}
+
 async function runCpuActions() {
   let used = true;
   while (game.winner === null && used && game.players[1].actions > 0) {
@@ -1794,6 +1852,341 @@ async function runCpuActions() {
       await cpuStep("CPU 下準備", () => engine.resolvePendingPileSearch(game, 1, indexes), "draw");
     }
   }
+}
+
+function chooseHardCpuMainAction() {
+  const player = game.players[1];
+  const choices = [
+    ...hardActionChoices(),
+    ...hardSummonChoices(),
+  ];
+  return choices.sort((a, b) => b.score - a.score)[0] || null;
+}
+
+async function executeHardCpuChoice(choice) {
+  if (choice.type === "summon") {
+    return cpuStep("CPU 召喚", () => engine.summonFromHand(game, 1, choice.handIndex), "summon");
+  }
+  if (choice.type === "action") {
+    const card = CARD_DEFINITIONS[game.players[1].hand[choice.handIndex]];
+    await showCardCast(card);
+    const result = await cpuStep(`CPU ${card.name}`, () => engine.playAction(game, 1, choice.handIndex, choice.payload || {}), "select");
+    await resolveCpuPendingChoices();
+    return result;
+  }
+  return { ok: false };
+}
+
+async function resolveCpuPendingChoices() {
+  if (game.pendingOpponentHandCheck?.playerId === 1) {
+    const indexes = game.players[0].hand
+      .map((cardId, index) => ({ index, score: hardCardIdScore(cardId) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, game.pendingOpponentHandCheck.count || 1)
+      .map((entry) => entry.index);
+    await cpuStep("CPU 二重チェック", () => engine.resolvePendingOpponentHandCheck(game, 1, indexes), "select");
+  }
+  if (game.pendingDiscardSelection?.playerId === 1) {
+    const indexes = chooseHardCpuDiscardIndexes(game.pendingDiscardSelection.count);
+    await cpuStep("CPU 捨てる", () => engine.resolvePendingDiscardSelection(game, 1, indexes), "select");
+  }
+  if (game.pendingPileSearch?.playerId === 1) {
+    const indexes = chooseHardCpuPileSearchIndexes();
+    await cpuStep("CPU サーチ", () => engine.resolvePendingPileSearch(game, 1, indexes), "draw");
+  }
+}
+
+function hardSummonChoices() {
+  const player = game.players[1];
+  if (player.field.length >= engine.getPublicState(game, 0).maxFieldSize) return [];
+  return player.hand
+    .map((cardId, handIndex) => ({ cardId, handIndex, card: CARD_DEFINITIONS[cardId] }))
+    .filter((entry) => entry.card.type === "unit")
+    .map((entry) => {
+      let score = 120 + hardUnitCardScore(entry.card);
+      if (player.field.length === 0) score += 180;
+      if (player.field.length === 2) score += 160;
+      if (entry.cardId === "pikachu" && player.hand.includes("lightBall")) score += 520;
+      if (entry.card.effectKey === "mustBeAttacked") score += game.players[0].field.length * 85;
+      if (entry.card.effectKey === "ignoreWallLifeAttack" && game.players[0].field.length >= 3) score += 300;
+      if (entry.card.effectKey === "powerPlusIfLifeTen" && player.life >= 10) score += 260;
+      if (entry.card.effectKey === "healLifeOnTurnEnd" && player.life <= 10) score += 150;
+      return { type: "summon", handIndex: entry.handIndex, score };
+    });
+}
+
+function hardActionChoices() {
+  const player = game.players[1];
+  return player.hand
+    .map((cardId, handIndex) => ({ cardId, handIndex, card: CARD_DEFINITIONS[cardId] }))
+    .filter((entry) => entry.card.type === "action")
+    .flatMap((entry) => hardActionCandidates(entry.handIndex, entry.cardId));
+}
+
+function hardActionCandidates(handIndex, cardId) {
+  const player = game.players[1];
+  const opponent = game.players[0];
+  const card = CARD_DEFINITIONS[cardId];
+  const choices = [];
+  const add = (score, payload = {}) => choices.push({ type: "action", handIndex, payload, score });
+  const enemyTargets = filterAttackTargets(opponent.field);
+  const strongestEnemy = [...opponent.field].sort((a, b) => unitThreat(b) - unitThreat(a))[0];
+  const bestOwn = [...player.field].sort((a, b) => unitThreat(b) - unitThreat(a))[0];
+  const bestPile = chooseBestCpuPile();
+
+  switch (card.effectKey) {
+    case "dealTwoToUnitOrLife":
+      if (opponent.life <= 3) add(12000, { targetType: "life" });
+      enemyTargets.forEach((unit) => {
+        const kill = unit.hp <= 3;
+        add((kill ? 560 + unitThreat(unit) : 120 + unitThreat(unit) * 0.4), { unitId: unit.id });
+      });
+      if (opponent.life <= 8) add(260 + (8 - opponent.life) * 30, { targetType: "life" });
+      break;
+    case "discardUnit":
+      opponent.field.forEach((unit) => {
+        add(260 + unitThreat(unit) + (unit.cardId === "snorlax" ? 250 : 0), { unitId: unit.id });
+      });
+      break;
+    case "setAllMaxHpToOne":
+      if (opponent.field.length > 0) {
+        const value = opponent.field.reduce((sum, unit) => sum + Math.max(0, unit.maxHp - 1) * 90 + unitThreat(unit) * 0.2, 0);
+        add(value);
+      }
+      break;
+    case "shockWave": {
+      const kills = opponent.field.filter((unit) => unit.hp <= 1).length;
+      if (opponent.field.length > 0) add(150 + opponent.field.length * 90 + kills * 430);
+      break;
+    }
+    case "redCard":
+      if (opponent.hand.length >= 4) add(230 + opponent.hand.length * 45);
+      break;
+    case "discardOpponentHand":
+      if (opponent.hand.length > 0 && player.hand.length <= 8) add(260 + Math.min(2, opponent.hand.length) * 120);
+      break;
+    case "healLifeThree":
+      if (player.life <= 10) add(170 + (12 - player.life) * 55);
+      break;
+    case "damageMinusOneUntilNextTurn":
+      if (opponent.field.some((unit) => unit.canAct)) add(250 + opponent.field.reduce((sum, unit) => sum + Math.max(0, unit.power) * 20, 0));
+      break;
+    case "mysticGuard":
+      if (player.field.length > 0 && opponent.hand.length >= 3) add(220 + player.field.length * 55);
+      break;
+    case "noCounterThisTurn":
+      if (player.field.some((unit) => unit.canAct) && opponent.field.length > 0) add(260 + opponent.field.length * 45);
+      break;
+    case "buffHpByEnemyCount":
+      if (player.field.length > 0 && opponent.field.length > 0) add(130 + player.field.length * opponent.field.length * 75);
+      break;
+    case "drawOneBuffOwnField":
+      if (player.field.length > 0 && bestPile) add(260 + player.field.length * 120 + pileTopScore(bestPile) * 0.2, { pileId: bestPile.id });
+      break;
+    case "drawTwoGainAction":
+      if (bestPile && player.hand.length <= 8) add(280 + pileTopScore(bestPile) * 0.3, { pileId: bestPile.id });
+      break;
+    case "searchTwoFromPile":
+      if (bestPile && player.hand.length <= 7) add(360 + bestKnownPileScore(bestPile, 3) * 0.25, { pileId: bestPile.id });
+      break;
+    case "searchOneFromEachPile":
+      if (player.hand.length <= 7 && game.piles.some((pile) => pile.deck.length > 0)) add(420);
+      break;
+    case "drawPileDiscardTwo":
+      if (bestPile && player.hand.length <= 5) add(330 + bestKnownPileScore(bestPile, 6) * 0.12, { pileId: bestPile.id });
+      break;
+    case "takeDiscardToHandGainAction": {
+      const best = bestDiscardCardIndex();
+      if (best) add(220 + best.score, { discardIndex: best.index });
+      break;
+    }
+    case "reviveUnit": {
+      if (player.field.length < engine.getPublicState(game, 0).maxFieldSize) {
+        const best = bestDiscardUnitIndex();
+        if (best) add(260 + best.score, { discardIndex: best.index });
+      }
+      break;
+    }
+    case "sacrifice":
+      if (bestOwn) {
+        const otherActionCount = player.hand.filter((id, index) => index !== handIndex && CARD_DEFINITIONS[id]?.type === "action").length;
+        if (otherActionCount <= 1) add(210 + unitThreat(bestOwn) * 0.2, { unitId: bestOwn.id });
+      }
+      break;
+    case "discardAnyGainActions": {
+      const discards = chooseRestockDiscardIndexes(handIndex);
+      if (discards.length >= 2) add(160 + discards.length * 85, { discardHandIndexes: discards });
+      break;
+    }
+    case "stealOpponentItems": {
+      const itemCount = opponent.field.filter((unit) => unit.item).length;
+      if (itemCount > 0) add(250 + itemCount * 180);
+      break;
+    }
+    case "swapUnits":
+      if (opponent.field.length > player.field.length || (strongestEnemy && unitThreat(strongestEnemy) > unitThreat(bestOwn || { hp: 0, power: 0 }))) add(220);
+      break;
+    default:
+      break;
+  }
+  return choices;
+}
+
+function chooseBestCpuPile() {
+  return [...game.piles]
+    .filter((pile) => pile.deck.length > 0)
+    .sort((a, b) => bestKnownPileScore(b, 3) - bestKnownPileScore(a, 3))[0] || null;
+}
+
+function pileTopScore(pile) {
+  return hardCardIdScore(pile.deck[0]);
+}
+
+function bestKnownPileScore(pile, count) {
+  return pile.deck
+    .map((cardId) => hardCardIdScore(cardId))
+    .sort((a, b) => b - a)
+    .slice(0, count)
+    .reduce((sum, score) => sum + score, 0);
+}
+
+function bestDiscardUnitIndex() {
+  return game.discard
+    .map((cardId, index) => ({ index, cardId, score: hardCardIdScore(cardId) }))
+    .filter((entry) => CARD_DEFINITIONS[entry.cardId]?.type === "unit")
+    .sort((a, b) => b.score - a.score)[0] || null;
+}
+
+function bestDiscardCardIndex() {
+  return game.discard
+    .map((cardId, index) => ({ index, cardId, score: hardCardIdScore(cardId) }))
+    .sort((a, b) => b.score - a.score)[0] || null;
+}
+
+function chooseHardCpuDiscardIndexes(count) {
+  return game.players[1].hand
+    .map((cardId, index) => ({ index, score: hardCardIdScore(cardId) + keepComboBonus(cardId) }))
+    .sort((a, b) => a.score - b.score)
+    .slice(0, count)
+    .map((entry) => entry.index);
+}
+
+function chooseHardCpuPileSearchIndexes() {
+  const pending = game.pendingPileSearch;
+  if (!pending) return [];
+  if (pending.allPiles) {
+    return game.piles.flatMap((pile) => pile.deck
+      .map((cardId, index) => ({ value: `${pile.id}:${index}`, score: hardCardIdScore(cardId) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 1)
+      .map((entry) => entry.value));
+  }
+  const pile = game.piles.find((candidate) => candidate.id === pending.pileId);
+  if (!pile) return [];
+  return pile.deck
+    .map((cardId, index) => ({ index, score: hardCardIdScore(cardId) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, pending.count)
+    .map((entry) => entry.index);
+}
+
+function chooseRestockDiscardIndexes(actionHandIndex) {
+  return game.players[1].hand
+    .map((cardId, index) => ({ cardId, index, score: hardCardIdScore(cardId) + keepComboBonus(cardId) }))
+    .filter((entry) => entry.index !== actionHandIndex && entry.score < 150)
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 3)
+    .map((entry) => entry.index);
+}
+
+function keepComboBonus(cardId) {
+  const player = game.players[1];
+  if (cardId === "lightBall" && (player.hand.includes("pikachu") || player.field.some((unit) => unit.cardId === "pikachu"))) return 700;
+  if (cardId === "pikachu" && player.hand.includes("lightBall")) return 650;
+  if (cardId === "choiceScarf" && player.hand.some((id) => CARD_DEFINITIONS[id]?.type === "unit")) return 180;
+  if (cardId === "boomerang" && player.field.some((unit) => unit.power >= 3)) return 160;
+  return 0;
+}
+
+function hardCardIdScore(cardId) {
+  return hardCardScore(CARD_DEFINITIONS[cardId]);
+}
+
+function hardCardScore(card) {
+  if (!card) return 0;
+  if (card.type === "unit") return hardUnitCardScore(card);
+  if (card.type === "item") {
+    const values = {
+      lightBall: 520,
+      lifePower: 340,
+      choiceBand: 300,
+      boomerang: 280,
+      choiceScarf: 260,
+      assaultVest: 230,
+      focusSash: 220,
+      destinyCloak: 210,
+      contraryMask: 120,
+    };
+    return values[card.id] || 170;
+  }
+  if (card.type === "action") {
+    const values = {
+      stoneThrow: 360,
+      erase: 430,
+      doubleCheck: 380,
+      theSearch: 390,
+      preparation: 360,
+      laboratory: 350,
+      battleDrum: 340,
+      shockWave: 330,
+      endingBell: 310,
+      redCard: 300,
+      reviveCrystal: 290,
+      healingWater: 240,
+      auroraVeil: 240,
+      acrobat: 230,
+      excavation: 220,
+      protectivePads: 210,
+      readyStance: 210,
+      mysticGuard: 190,
+      restock: 170,
+      sacrifice: 160,
+      courtChange: 150,
+      storm: 140,
+      robbery: 130,
+    };
+    return values[card.id] || 180;
+  }
+  return 0;
+}
+
+function hardUnitCardScore(card) {
+  if (!card) return 0;
+  const effectBonus = {
+    attackPowerPlusFive: 240,
+    drawFromPileOnKill: 180,
+    attackOrGainLife: 190,
+    damageAllOthersTurnStart: 170,
+    useTargetPowerAsHp: 170,
+    ignorePowerIncreases: 140,
+    mustBeAttacked: 230,
+    healLifeOnTurnEnd: 160,
+    powerPlusIfLifeTen: 220,
+    maxHpPlusOneOnTurnEnd: 170,
+    enemyPowerMinusOneOnSummon: 200,
+    zeroPowerAndReturn: 170,
+    allyMonsterAttackPowerPlusTwo: 210,
+    attackAllEnemies: 240,
+    doubleOwnPower: 190,
+    ignoreWallLifeAttack: 260,
+    reduceNextOpponentAction: 190,
+  };
+  return 100 + (card.hp || 0) * 45 + (card.power || 0) * 70 + (effectBonus[card.effectKey] || 0);
+}
+
+function unitThreat(unit) {
+  const card = CARD_DEFINITIONS[unit.cardId] || {};
+  return Math.max(0, unit.hp) * 45 + Math.max(0, unit.power) * 80 + hardUnitCardScore(card) * 0.45 + (unit.item ? 100 : 0);
 }
 
 function chooseCpuAction() {
@@ -1867,6 +2260,120 @@ function cardScore(card) {
   if (card.type === "action") return 22;
   if (card.type === "item") return 18;
   return 0;
+}
+
+async function runHardCpuUnitAbilities() {
+  let acted = true;
+  let guard = 0;
+  while (game.winner === null && acted && guard < 6) {
+    guard += 1;
+    acted = false;
+    const choice = chooseHardCpuUnitAbility();
+    if (!choice || choice.score < 160) return;
+    const result = await cpuStep(choice.label, () => {
+      if (choice.targetId) addFx(`field:0:${choice.targetId}`, "fx-stat-down");
+      addFx(`field:1:${choice.unitId}`, choice.fx || "fx-stat-up");
+      return choice.kind === "gainLife"
+        ? engine.gainLifeWithUnit(game, 1, choice.unitId)
+        : engine.useUnitAbility(game, 1, choice.payload);
+    }, choice.sound || "select");
+    acted = result.ok;
+  }
+}
+
+function chooseHardCpuUnitAbility() {
+  const player = game.players[1];
+  const opponent = game.players[0];
+  const choices = [];
+  player.field.filter((unit) => unit.canAct).forEach((unit) => {
+    const card = CARD_DEFINITIONS[unit.cardId];
+    if (card.effectKey === "attackOrGainLife" && player.life <= 9) {
+      choices.push({ kind: "gainLife", unitId: unit.id, score: 180 + (12 - player.life) * 45, label: "CPU ライフ回復", sound: "heal" });
+    }
+    if (card.effectKey === "doubleOwnPower" && unit.power <= 5) {
+      choices.push({ unitId: unit.id, score: 220 + unit.power * 50, label: "CPU パワー倍化", payload: { ability: "doubleOwnPower", unitId: unit.id } });
+    }
+    if (card.effectKey === "reduceNextOpponentAction") {
+      choices.push({ unitId: unit.id, score: 230 + opponent.hand.length * 25, label: "CPU 妨害", payload: { ability: "reduceNextOpponentAction", unitId: unit.id }, fx: "fx-item" });
+    }
+    if (card.effectKey === "zeroPowerAndReturn") {
+      opponent.field.forEach((target) => {
+        if (target.power >= 2) {
+          choices.push({
+            unitId: unit.id,
+            targetId: target.id,
+            score: 210 + target.power * 90 + unitThreat(target) * 0.2,
+            label: "CPU 威嚇",
+            payload: { ability: "zeroPowerAndReturn", unitId: unit.id, targetUnitId: target.id },
+            fx: "fx-attack",
+          });
+        }
+      });
+    }
+  });
+  return choices.sort((a, b) => b.score - a.score)[0] || null;
+}
+
+async function runHardCpuAttacks() {
+  let acted = true;
+  let guard = 0;
+  while (game.winner === null && acted && guard < 8) {
+    guard += 1;
+    acted = false;
+    const choice = chooseHardCpuAttack();
+    if (!choice || choice.score < 80) return;
+    const result = await cpuStep(choice.label, () => {
+      addFx(`field:1:${choice.attackerId}`, "fx-attack");
+      if (choice.defenderId) addFx(`field:0:${choice.defenderId}`, "fx-hit");
+      return choice.defenderId
+        ? engine.attackMonster(game, 1, choice.attackerId, choice.defenderId)
+        : engine.attackLife(game, 1, choice.attackerId);
+    }, "attack");
+    acted = result.ok;
+  }
+}
+
+function chooseHardCpuAttack() {
+  const player = game.players[1];
+  const opponent = game.players[0];
+  const choices = [];
+  player.field.filter((unit) => unit.canAct).forEach((attacker) => {
+    const lifeDamage = engine.getEffectivePower(game, attacker, null, "lifeAttack");
+    const ignoresWall = CARD_DEFINITIONS[attacker.cardId]?.effectKey === "ignoreWallLifeAttack";
+    const canAttackLife = !hasCpuMustAttackTarget() && (opponent.field.length < 3 || ignoresWall);
+    if (canAttackLife) {
+      choices.push({
+        attackerId: attacker.id,
+        score: opponent.life <= lifeDamage ? 20000 : 180 + lifeDamage * 120 + (opponent.life <= 6 ? 260 : 0),
+        label: "CPU ライフ攻撃",
+      });
+    }
+    filterAttackTargets(opponent.field).forEach((target) => {
+      const damage = engine.getEffectivePower(game, attacker, target, "attack");
+      const counter = player.noCounterThisTurn ? 0 : engine.getEffectivePower(game, target, attacker, "counter");
+      const kills = target.hp <= damage;
+      const survives = attacker.hp > counter;
+      let score = damage * 45 - counter * 35 + unitThreat(target) * (kills ? 0.75 : 0.18);
+      if (kills) score += 520;
+      if (!survives) score -= 420 + unitThreat(attacker) * 0.25;
+      if (kills && !survives && unitThreat(target) > unitThreat(attacker) + 160) score += 260;
+      if (CARD_DEFINITIONS[attacker.cardId]?.effectKey === "attackAllEnemies" || attacker.item?.cardId === "boomerang") {
+        const allKills = opponent.field.filter((unit) => unit.hp <= damage).length;
+        score += opponent.field.length * 80 + allKills * 330;
+      }
+      choices.push({
+        attackerId: attacker.id,
+        defenderId: target.id,
+        score,
+        label: kills ? "CPU 撃破狙い" : "CPU 戦闘",
+      });
+    });
+  });
+  return choices.sort((a, b) => b.score - a.score)[0] || null;
+}
+
+function hasCpuMustAttackTarget() {
+  return game.players[0].field.some((unit) => CARD_DEFINITIONS[unit.cardId]?.effectKey === "mustBeAttacked");
 }
 
 async function runCpuAttacks() {
