@@ -2481,7 +2481,10 @@ function chooseHardCpuUnitAbility() {
       choices.push({ kind: "gainLife", unitId: unit.id, score: 180 + (12 - player.life) * 45, label: "CPU ライフ回復", sound: "heal" });
     }
     if (card.effectKey === "doubleOwnPower" && unit.power <= 5) {
-      choices.push({ unitId: unit.id, score: 220 + unit.power * 50, label: "CPU パワー倍化", payload: { ability: "doubleOwnPower", unitId: unit.id } });
+      const score = scoreDoublePowerAbility(unit);
+      if (score > 0) {
+        choices.push({ unitId: unit.id, score, label: "CPU パワー倍化", payload: { ability: "doubleOwnPower", unitId: unit.id } });
+      }
     }
     if (card.effectKey === "reduceNextOpponentAction") {
       choices.push({ unitId: unit.id, score: 230 + opponent.hand.length * 25, label: "CPU 妨害", payload: { ability: "reduceNextOpponentAction", unitId: unit.id }, fx: "fx-item" });
@@ -2502,6 +2505,39 @@ function chooseHardCpuUnitAbility() {
     }
   });
   return choices.sort((a, b) => b.score - a.score)[0] || null;
+}
+
+function scoreDoublePowerAbility(unit) {
+  const doubledPower = unit.power * 2;
+  const room = setupRoomForDoublePower(unit);
+  let score = 80 + unit.power * 35 + room * 180;
+  if (room < 0) score -= 1200;
+  if (room >= 2) score += 320;
+  if (game.players[1].field.length >= 3) score += 140;
+  if (game.players[1].damageReductionUntilTurn > game.turn) score += 180;
+  if (game.players[1].mysticGuardUntilTurn > game.turn) score += 180;
+  if (game.players[0].field.length === 0) score += 220;
+  if (doubledPower >= game.players[0].life && canCpuAttackLifeNow(unit)) score += 500;
+  return score;
+}
+
+function setupRoomForDoublePower(unit) {
+  const opponentReadyDamage = game.players[0].field
+    .filter((enemy) => enemy.canAct)
+    .map((enemy) => engine.getEffectivePower(game, enemy, unit, "attack"))
+    .sort((a, b) => b - a)[0] || 0;
+  const canBeKilledByBoard = opponentReadyDamage >= unit.hp;
+  const enemyCanRemoveByAction = game.players[0].hand.some((cardId) => ["stoneThrow", "erase", "endingBell", "shockWave"].includes(cardId));
+  const cpuHasWall = game.players[1].field.length >= 3 || game.players[1].field.some((ally) => ally.cardId === "snorlax");
+  const opponentLowActions = game.players[0].actions <= 1 || game.players[0].actionPenaltyNextTurn > 0;
+  let room = 0;
+  if (cpuHasWall) room += 1;
+  if (opponentLowActions) room += 1;
+  if (game.players[1].life > 6) room += 1;
+  if (canBeKilledByBoard) room -= 3;
+  if (enemyCanRemoveByAction) room -= 1;
+  if (game.players[0].field.some((enemy) => dangerScore(enemy) >= 700)) room -= 1;
+  return room;
 }
 
 async function runHardCpuAttacks() {
