@@ -776,6 +776,11 @@ p {
   color: #06111a;
 }
 
+.danger-button {
+  background: linear-gradient(180deg, #ff8d8d, #c84646);
+  color: #1b0505;
+}
+
 .action-form label {
   display: grid;
   gap: 6px;
@@ -1423,10 +1428,21 @@ body.title-cpu-active .title-actions:not(.cpu-actions) {
   font-weight: 700;
 }
 
+.version-label {
+  margin: 10px 0 0;
+  color: rgba(223, 235, 255, 0.46);
+  font-size: 0.76rem;
+  letter-spacing: 0;
+}
+
 body.title-lobby-active .title-note,
 body.title-rules-active .title-note,
 body.title-cards-active .title-note,
-body.title-cpu-active .title-note {
+body.title-cpu-active .title-note,
+body.title-lobby-active .version-label,
+body.title-rules-active .version-label,
+body.title-cards-active .version-label,
+body.title-cpu-active .version-label {
   display: none;
 }
 

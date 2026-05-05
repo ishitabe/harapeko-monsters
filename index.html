@@ -4,16 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>はらぺこモンスターズ</title>
-    <link rel="stylesheet" href="styles.css?v=37">
+    <link rel="stylesheet" href="styles.css?v=44">
     <script>
       window.addEventListener("error", (event) => {
         const message = document.querySelector("#messageText");
         if (message) message.textContent = `読み込みエラー: ${event.message}`;
       });
     </script>
-    <script src="cards.js?v=37" defer></script>
-    <script src="gameEngine.js?v=37" defer></script>
-    <script src="app.js?v=37" defer></script>
+    <script src="cards.js?v=44" defer></script>
+    <script src="gameEngine.js?v=44" defer></script>
+    <script src="app.js?v=44" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -69,6 +69,7 @@
           <button class="small-button" id="titleBackButton" type="button">戻る</button>
         </div>
         <p class="title-note">山札を選び、モンスターを出して、相手のHPを0にしよう。</p>
+        <p class="version-label">v0.42</p>
       </div>
     </section>
     <main class="battle-shell">
@@ -103,6 +104,7 @@
           <input id="roomIdInput" type="text" maxlength="8" placeholder="部屋ID">
           <button class="small-button" id="joinRoomButton" type="button">参加</button>
           <button class="small-button" id="leaveRoomButton" type="button">退出</button>
+          <button class="small-button danger-button" id="surrenderButton" type="button">降参</button>
           <button class="small-button" id="backTitleButton" type="button">タイトルへ</button>
           <button class="small-button" id="closeOptionsButton" type="button">閉じる</button>
         </section>

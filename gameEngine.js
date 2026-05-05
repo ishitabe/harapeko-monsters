@@ -601,6 +601,23 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     return ok(game);
   }
 
+  function surrender(game, playerId) {
+    if (game.winner !== null) return ok(game);
+    const winnerId = opponentOf(playerId);
+    game.players.forEach((player) => {
+      player.life = Math.max(0, player.life);
+    });
+    game.winner = winnerId;
+    game.doubleNextAction = null;
+    game.pendingQuickReplay = null;
+    game.pendingOpponentHandCheck = null;
+    game.pendingDiscardSelection = null;
+    game.pendingPileSearch = null;
+    game.lastMessage = `${game.players[playerId].name}が降参しました。${game.players[winnerId].name}の勝ちです。`;
+    addLog(game, game.lastMessage);
+    return ok(game);
+  }
+
   function startTurn(game, playerId) {
     const player = game.players[playerId];
     player.actions = Math.max(0, startingActions - (player.actionPenaltyNextTurn || 0));
@@ -731,9 +748,15 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     let attackerDamage = 0;
     [...game.players[defenderOwnerId].field].forEach((target) => {
       if (!canTargetDefender(game.players[defenderOwnerId], target)) return;
-      const result = resolveCombat(game, attackerOwnerId, attacker, defenderOwnerId, target);
-      totalDefenderDamage += result.defenderDamage;
-      attackerDamage += result.attackerDamage;
+      const defenderDamage = getEffectivePower(game, attacker, target, "attack");
+      const counterDamage = target.id === defender.id && !game.players[attackerOwnerId].noCounterThisTurn
+        ? getEffectivePower(game, target, attacker, "counter")
+        : 0;
+      applyDamage(game, defenderOwnerId, target, defenderDamage);
+      if (counterDamage > 0) applyDamage(game, attackerOwnerId, attacker, counterDamage);
+      resolveDestinyCloak(game, target, attacker);
+      totalDefenderDamage += defenderDamage;
+      attackerDamage += counterDamage;
     });
     return { defenderDamage: totalDefenderDamage, attackerDamage };
   }
@@ -1180,6 +1203,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     attackMonster,
     useUnitAbility,
     endTurn,
+    surrender,
     addToDiscard,
     resolvePendingOpponentHandCheck,
     resolvePendingDiscardSelection,

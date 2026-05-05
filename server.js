@@ -149,6 +149,8 @@ function applyAction(game, playerId, payload) {
       return engine.gainLifeWithUnit(game, playerId, payload.unitId);
     case "endTurn":
       return engine.endTurn(game, playerId);
+    case "surrender":
+      return engine.surrender(game, playerId);
     default:
       return { ok: false, message: "不明な操作です。" };
   }
