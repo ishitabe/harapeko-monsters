@@ -19,6 +19,7 @@ let lastOnlineStarted = false;
 let titleActive = true;
 let optionsOpen = false;
 let titleLobbyOpen = false;
+let titleLobbyMode = "menu";
 let titleRulesOpen = false;
 let titleCardsOpen = false;
 let titleCpuOpen = false;
@@ -283,19 +284,35 @@ function updateOptionsVisibility() {
 function renderTitleLobby() {
   if (!elements.titleLobby) return;
   if (!titleLobbyOpen) return;
+  const waiting = onlineMode && onlineState && !onlineState.started;
+  const createdRoom = waiting && onlinePlayerId === 0;
+  const joinedRoom = waiting && onlinePlayerId === 1;
+  elements.titleRoomIdInput?.classList.toggle("hidden", titleLobbyMode !== "join");
+  elements.titleCreateRoomButton?.classList.toggle("hidden", joinedRoom);
+  elements.titleJoinRoomButton?.classList.toggle("hidden", waiting);
   if (!onlineMode) {
-    elements.titleLobbyStatus.textContent = "マルチ対戦";
+    elements.titleLobbyStatus.textContent = titleLobbyMode === "join" ? "部屋に入る" : "マルチ対戦";
     elements.titleLobbyNote.textContent = window.location.protocol === "file:"
       ? "オンライン対戦は npm start で起動したURLから使えます。"
-      : "部屋を作るか、共有された部屋IDで参加してください。";
+      : titleLobbyMode === "join"
+        ? "部屋を作った人から教えてもらったパスワードを入力してください。"
+        : "まず部屋を作るか、部屋に入るを選んでください。";
+    if (elements.titleCreateRoomButton) elements.titleCreateRoomButton.textContent = titleLobbyMode === "join" ? "戻る" : "部屋を作る";
+    if (elements.titleJoinRoomButton) elements.titleJoinRoomButton.textContent = titleLobbyMode === "join" ? "入る" : "部屋に入る";
+    if (elements.titleRoomIdInput) elements.titleRoomIdInput.placeholder = "パスワード";
     elements.titleShareLink.textContent = "";
     return;
   }
   if (!onlineState?.started) {
     const link = makeRoomUrl(onlineState?.roomId || elements.titleRoomIdInput.value);
-    elements.titleLobbyStatus.textContent = "相手待ち";
-    elements.titleLobbyNote.textContent = "このURLを2人目に送ると、開いた時点で部屋IDが入力されます。";
-    elements.titleShareLink.textContent = link;
+    elements.titleLobbyStatus.textContent = createdRoom ? "相手待ち" : "入室しました";
+    elements.titleLobbyNote.textContent = createdRoom
+      ? "このパスワードかURLをもう1人に送ってください。2人そろうとバトルが始まります。"
+      : "部屋に入りました。作成者との接続を待っています。";
+    if (elements.titleCreateRoomButton) elements.titleCreateRoomButton.textContent = "URLをコピー";
+    elements.titleShareLink.textContent = createdRoom
+      ? `パスワード: ${onlineState.roomId}\nURL: ${link}`
+      : `パスワード: ${onlineState.roomId}`;
     return;
   }
   elements.titleLobbyStatus.textContent = "バトルスタート";
@@ -1316,6 +1333,7 @@ function startMultiSetup() {
   cpuThinking = false;
   titleActive = true;
   titleLobbyOpen = true;
+  titleLobbyMode = "menu";
   titleRulesOpen = false;
   titleCardsOpen = false;
   titleCpuOpen = false;
@@ -1335,6 +1353,7 @@ function backToTitle() {
   optionsOpen = false;
   titleActive = true;
   titleLobbyOpen = false;
+  titleLobbyMode = "menu";
   titleRulesOpen = false;
   titleCardsOpen = false;
   titleCpuOpen = false;
@@ -1389,6 +1408,7 @@ elements.rulesNextButton?.addEventListener("click", () => {
 });
 elements.titleBackButton?.addEventListener("click", () => {
   titleLobbyOpen = false;
+  titleLobbyMode = "menu";
   titleRulesOpen = false;
   titleCardsOpen = false;
   titleCpuOpen = false;
@@ -1397,11 +1417,29 @@ elements.titleBackButton?.addEventListener("click", () => {
   render();
 });
 elements.titleCreateRoomButton?.addEventListener("click", async () => {
+  if (onlineMode && onlineState && !onlineState.started && onlinePlayerId === 0) {
+    const link = makeRoomUrl(onlineState.roomId);
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(link);
+      showFloat("URLをコピーしました", "draw");
+    }
+    return;
+  }
+  if (titleLobbyMode === "join") {
+    titleLobbyMode = "menu";
+    render();
+    return;
+  }
   await createOnlineRoom({ fromTitle: true });
 });
 elements.titleJoinRoomButton?.addEventListener("click", async () => {
-  const roomId = elements.titleRoomIdInput.value.trim().toUpperCase();
-  await joinOnlineRoom(roomId, { fromTitle: true });
+  if (titleLobbyMode !== "join") {
+    titleLobbyMode = "join";
+    render();
+    return;
+  }
+  const password = elements.titleRoomIdInput.value.trim().toUpperCase();
+  await joinOnlineRoom(password, { fromTitle: true });
 });
 elements.optionsButton?.addEventListener("click", () => {
   optionsOpen = !optionsOpen;
@@ -1460,6 +1498,7 @@ async function createOnlineRoom({ fromTitle }) {
     onlinePlayerId = result.playerId;
     titleActive = fromTitle;
     titleLobbyOpen = fromTitle;
+    titleLobbyMode = "waiting";
     titleRulesOpen = false;
     titleCardsOpen = false;
     optionsOpen = false;
@@ -1473,10 +1512,10 @@ async function createOnlineRoom({ fromTitle }) {
 async function joinOnlineRoom(roomId, { fromTitle }) {
   if (!await ensureSocket()) return;
   if (!roomId) {
-    showFloat("部屋IDを入力", "damage");
+    showFloat("パスワードを入力", "damage");
     return;
   }
-  socket.emit("room:join", { roomId }, (result) => {
+  socket.emit("room:join", { password: roomId }, (result) => {
     if (!result?.ok) {
       showFloat(result?.message || "参加に失敗", "damage");
       return;
@@ -1485,6 +1524,7 @@ async function joinOnlineRoom(roomId, { fromTitle }) {
     onlinePlayerId = result.playerId;
     titleActive = fromTitle;
     titleLobbyOpen = fromTitle;
+    titleLobbyMode = "waiting";
     titleRulesOpen = false;
     titleCardsOpen = false;
     optionsOpen = false;
@@ -1533,6 +1573,7 @@ async function ensureSocket() {
     onlineMode = true;
     onlineState = state;
     onlinePlayerId = state.playerId;
+    titleLobbyMode = state.started ? "menu" : "waiting";
     titleActive = !state.started && titleLobbyOpen;
     if (state.started && !lastOnlineStarted) {
       titleActive = false;
@@ -2753,14 +2794,12 @@ function initializeFromUrl() {
   if (!roomId) return;
   titleActive = true;
   titleLobbyOpen = true;
+  titleLobbyMode = "join";
   titleRulesOpen = false;
   titleCardsOpen = false;
   cpuEnabled = false;
   if (elements.roomIdInput) elements.roomIdInput.value = roomId.toUpperCase();
   if (elements.titleRoomIdInput) elements.titleRoomIdInput.value = roomId.toUpperCase();
-  if (window.location.protocol !== "file:") {
-    setTimeout(() => joinOnlineRoom(roomId.toUpperCase(), { fromTitle: true }), 250);
-  }
 }
 
 initializeFromUrl();

@@ -1686,6 +1686,10 @@ body.title-cpu-active .version-label {
   align-items: center;
 }
 
+.title-lobby-row .hidden {
+  display: none;
+}
+
 .title-lobby input {
   min-height: 58px;
   padding: 0 14px;

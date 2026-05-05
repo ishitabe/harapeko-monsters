@@ -28,12 +28,13 @@ io.on("connection", (socket) => {
   socket.on("room:create", (_payload, reply) => {
     const room = createRoom();
     joinRoom(socket, room, 0);
-    reply?.({ ok: true, roomId: room.id, playerId: 0 });
+    reply?.({ ok: true, roomId: room.id, password: room.id, playerId: 0 });
     broadcastRoom(room);
   });
 
-  socket.on("room:join", ({ roomId } = {}, reply) => {
-    const room = rooms.get(String(roomId || "").trim().toUpperCase());
+  socket.on("room:join", ({ roomId, password } = {}, reply) => {
+    const key = String(password || roomId || "").trim().toUpperCase();
+    const room = rooms.get(key);
     if (!room) return reply?.({ ok: false, message: "部屋が見つかりません。" });
     const seat = nextOpenSeat(room);
     if (seat === null) return reply?.({ ok: false, message: "この部屋は満員です。" });
@@ -46,7 +47,7 @@ io.on("connection", (socket) => {
       room.game.lastMessage = "2人そろいました。プレイヤー1から開始です。山札を選んでドローしてください。";
       room.game.log.unshift("オンライン対戦を開始しました。");
     }
-    reply?.({ ok: true, roomId: room.id, playerId: seat });
+    reply?.({ ok: true, roomId: room.id, password: room.id, playerId: seat });
     broadcastRoom(room);
   });
 
