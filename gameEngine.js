@@ -462,6 +462,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
         }
       });
       game.pendingPileSearch = null;
+      reshuffleDecks(game);
       rebalanceDecksIfNeeded(game);
       return ok(game, { drawnCards, discardedDrawCards });
     }
@@ -906,6 +907,16 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (pool.length === 0) return;
     distributeCardsAcrossDecks(game, pool);
     addLog(game, "2つの山札が空になったため、山札と捨札をすべてシャッフルして3山に均等分配しました。");
+  }
+
+  function reshuffleDecks(game) {
+    const pool = shuffle(game.piles.flatMap((pile) => pile.deck));
+    if (pool.length === 0) return;
+    game.piles.forEach((pile) => { pile.deck = []; });
+    pool.forEach((cardId, index) => {
+      game.piles[index % game.piles.length].deck.push(cardId);
+    });
+    addLog(game, "ザ・サーチの効果で山札をシャッフルして3山に再分配しました。");
   }
 
   function distributeCardsAcrossDecks(game, pool) {

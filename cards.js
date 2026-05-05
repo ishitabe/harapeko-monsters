@@ -50,7 +50,7 @@ const CARD_DEFINITIONS = {
   battleDrum: { id: "battleDrum", name: "バトルドラム", type: "action", effectKey: "drawOneBuffOwnField", text: "山札から1枚ドロー。自分の場のモンスターのパワー+2。" },
   readyStance: { id: "readyStance", name: "構える", type: "action", effectKey: "buffHpByEnemyCount", text: "相手の場にいるモンスターの数だけ自分の場のモンスター全員のHPを増やす。" },
   auroraVeil: { id: "auroraVeil", name: "オーロラベール", type: "action", effectKey: "damageMinusOneUntilNextTurn", text: "次の自分のターンまで自分が受ける全てのダメージを-1する。" },
-  theSearch: { id: "theSearch", name: "ザ・サーチ", type: "action", effectKey: "searchOneFromEachPile", text: "全ての山札からカードを1枚選び手札に加える。" },
+  theSearch: { id: "theSearch", name: "ザ・サーチ", type: "action", effectKey: "searchOneFromEachPile", text: "全ての山札からカードを1枚選び手札に加える。その後、山札をシャッフルして3山に再分配する。" },
   restock: { id: "restock", name: "補充", type: "action", effectKey: "discardAnyGainActions", text: "手札を好きな枚数捨てる。捨てた数だけアクション権を増やす。" },
 };
 
