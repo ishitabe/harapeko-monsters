@@ -137,8 +137,11 @@ const elements = {
   titleLobbyStatus: document.querySelector("#titleLobbyStatus"),
   titleLobbyNote: document.querySelector("#titleLobbyNote"),
   titleShareLink: document.querySelector("#titleShareLink"),
+  titleRandomButton: document.querySelector("#titleRandomButton"),
   titleCreateRoomButton: document.querySelector("#titleCreateRoomButton"),
   titleJoinRoomButton: document.querySelector("#titleJoinRoomButton"),
+  titleCopyPasswordButton: document.querySelector("#titleCopyPasswordButton"),
+  titleCopyUrlButton: document.querySelector("#titleCopyUrlButton"),
   titleRoomIdInput: document.querySelector("#titleRoomIdInput"),
   titleBackButton: document.querySelector("#titleBackButton"),
   onlineStatus: document.querySelector("#onlineStatus"),
@@ -238,6 +241,17 @@ function renderPlayerInfo(view) {
     const player = view.players[playerId];
     elements.playerName[slotId].textContent = player.name;
     elements.life[slotId].textContent = `HP ${player.life}`;
+    elements.life[slotId].onclick = null;
+    if (slotId === 1) {
+      elements.life[slotId].onclick = () => {
+        const currentView = getView();
+        if (!isMyTurn(currentView) || currentView.winner !== null || animationLock || !currentView.players[currentView.activePlayer].hasDrawnThisTurn) return;
+        selectedKey = "life:opponent";
+        detailKey = "life:opponent";
+        detailData = { source: "opponentLife", zone: "相手ライフ", card: null };
+        renderDetail();
+      };
+    }
     const previousLife = previousView?.players[playerId]?.life;
     elements.life[slotId].classList.remove("life-damage", "life-heal");
     if (previousLife !== undefined && previousLife !== player.life) {
@@ -288,17 +302,26 @@ function renderTitleLobby() {
   const createdRoom = waiting && onlinePlayerId === 0;
   const joinedRoom = waiting && onlinePlayerId === 1;
   elements.titleRoomIdInput?.classList.toggle("hidden", titleLobbyMode !== "join");
+  elements.titleRandomButton?.classList.toggle("hidden", waiting || titleLobbyMode === "join" || titleLobbyMode === "friend");
   elements.titleCreateRoomButton?.classList.toggle("hidden", joinedRoom);
   elements.titleJoinRoomButton?.classList.toggle("hidden", waiting);
+  elements.titleCopyPasswordButton?.classList.toggle("hidden", !createdRoom);
+  elements.titleCopyUrlButton?.classList.toggle("hidden", !createdRoom);
   if (!onlineMode) {
-    elements.titleLobbyStatus.textContent = titleLobbyMode === "join" ? "部屋に入る" : "マルチ対戦";
+    elements.titleLobbyStatus.textContent = titleLobbyMode === "join" ? "部屋に入る" : titleLobbyMode === "friend" ? "友達と対戦" : titleLobbyMode === "random" ? "ランダム対戦" : "マルチ対戦";
     elements.titleLobbyNote.textContent = window.location.protocol === "file:"
       ? "オンライン対戦は npm start で起動したURLから使えます。"
       : titleLobbyMode === "join"
         ? "部屋を作った人から教えてもらったパスワードを入力してください。"
-        : "まず部屋を作るか、部屋に入るを選んでください。";
-    if (elements.titleCreateRoomButton) elements.titleCreateRoomButton.textContent = titleLobbyMode === "join" ? "戻る" : "部屋を作る";
+        : titleLobbyMode === "friend"
+          ? "部屋を作るか、パスワードで部屋に入ってください。"
+          : titleLobbyMode === "random"
+            ? "ランダム対戦相手を探しています。"
+            : "ランダム対戦か、友達と対戦を選んでください。";
+    if (elements.titleRandomButton) elements.titleRandomButton.textContent = "ランダム対戦";
+    if (elements.titleCreateRoomButton) elements.titleCreateRoomButton.textContent = titleLobbyMode === "join" ? "戻る" : titleLobbyMode === "friend" ? "部屋を作る" : "友達と対戦";
     if (elements.titleJoinRoomButton) elements.titleJoinRoomButton.textContent = titleLobbyMode === "join" ? "入る" : "部屋に入る";
+    elements.titleJoinRoomButton?.classList.toggle("hidden", titleLobbyMode === "menu");
     if (elements.titleRoomIdInput) elements.titleRoomIdInput.placeholder = "パスワード";
     elements.titleShareLink.textContent = "";
     return;
@@ -309,7 +332,8 @@ function renderTitleLobby() {
     elements.titleLobbyNote.textContent = createdRoom
       ? "このパスワードかURLをもう1人に送ってください。2人そろうとバトルが始まります。"
       : "部屋に入りました。作成者との接続を待っています。";
-    if (elements.titleCreateRoomButton) elements.titleCreateRoomButton.textContent = "URLをコピー";
+    if (elements.titleCreateRoomButton) elements.titleCreateRoomButton.textContent = "待機中";
+    elements.titleCreateRoomButton?.classList.add("hidden");
     elements.titleShareLink.textContent = createdRoom
       ? `パスワード: ${onlineState.roomId}\nURL: ${link}`
       : `パスワード: ${onlineState.roomId}`;
@@ -713,8 +737,34 @@ function renderDetailActions(container, data) {
     return;
   }
 
+  if (data.source === "opponentLife") {
+    const opponentId = view.activePlayer === 0 ? 1 : 0;
+    const opponentHasSnorlax = view.players[opponentId].field.some((target) => CARD_DEFINITIONS[target.cardId].effectKey === "mustBeAttacked");
+    const attackers = activePlayer.field.filter((unit) => unit.canAct && !opponentHasSnorlax && (view.players[opponentId].field.length < view.maxFieldSize || CARD_DEFINITIONS[unit.cardId].effectKey === "ignoreWallLifeAttack"));
+    container.append(createSmallButton("全員ライフ攻撃", disabled || attackers.length === 0, () => {
+      runGameAction("attackLifeAll", {}, () => engine.attackLifeWithAll(game, game.activePlayer));
+      showFloat("全員でライフ攻撃！", "damage");
+      clearSelection();
+      if (!onlineMode) render();
+    }));
+    return;
+  }
+
   if (data.source === "hand") {
     if (data.card.type === "unit") {
+      if (data.card.effectKey === "damageOnSummonZeroPowerAndReturn" && view.players[view.activePlayer === 0 ? 1 : 0].field.length > 0) {
+        const opponentId = view.activePlayer === 0 ? 1 : 0;
+        view.players[opponentId].field.forEach((target) => {
+          container.append(createSmallButton(`${CARD_DEFINITIONS[target.cardId].name}に1ダメージして召喚`, disabled || activePlayer.actions <= 0 || activePlayer.field.length >= view.maxFieldSize, () => {
+            playSound("summon");
+            runGameAction("summon", { handIndex: data.handIndex, payload: { targetUnitId: target.id } }, () => engine.summonFromHand(game, game.activePlayer, data.handIndex, { targetUnitId: target.id }));
+            showFloat(`${data.card.name}を召喚！`, "summon");
+            clearSelection();
+            if (!onlineMode) render();
+          }));
+        });
+        return;
+      }
       container.append(createSmallButton("このモンスターを召喚", disabled || activePlayer.actions <= 0 || activePlayer.field.length >= view.maxFieldSize, () => {
         playSound("summon");
         runGameAction("summon", { handIndex: data.handIndex }, () => engine.summonFromHand(game, game.activePlayer, data.handIndex));
@@ -769,7 +819,7 @@ function renderDetailActions(container, data) {
           if (!onlineMode) render();
         }));
       }
-      if (CARD_DEFINITIONS[unit.cardId].effectKey === "zeroPowerAndReturn") {
+      if (CARD_DEFINITIONS[unit.cardId].effectKey === "damageOnSummonZeroPowerAndReturn") {
         const opponentId = view.activePlayer === 0 ? 1 : 0;
         view.players[opponentId].field.forEach((target) => {
           container.append(createSmallButton(`${CARD_DEFINITIONS[target.cardId].name}を威嚇して戻る`, disabled || !unit.canAct, () => {
@@ -788,12 +838,15 @@ function renderDetailActions(container, data) {
           if (!onlineMode) render();
         }));
       }
-      if (CARD_DEFINITIONS[unit.cardId].effectKey === "reduceNextOpponentAction") {
-        container.append(createSmallButton("相手の次アクション-1", disabled || !unit.canAct, () => {
-          runGameAction("unitAbility", { ability: "reduceNextOpponentAction", unitId: unit.id }, () => engine.useUnitAbility(game, game.activePlayer, { ability: "reduceNextOpponentAction", unitId: unit.id }));
-          clearSelection();
-          if (!onlineMode) render();
-        }));
+      if (CARD_DEFINITIONS[unit.cardId].effectKey === "sleepTargetNextTurn") {
+        const opponentId = view.activePlayer === 0 ? 1 : 0;
+        view.players[opponentId].field.forEach((target) => {
+          container.append(createSmallButton(`${CARD_DEFINITIONS[target.cardId].name}を召喚酔い`, disabled || !unit.canAct, () => {
+            runGameAction("unitAbility", { ability: "sleepTargetNextTurn", unitId: unit.id, targetUnitId: target.id }, () => engine.useUnitAbility(game, game.activePlayer, { ability: "sleepTargetNextTurn", unitId: unit.id, targetUnitId: target.id }));
+            clearSelection();
+            if (!onlineMode) render();
+          }));
+        });
       }
       const opponentId = view.activePlayer === 0 ? 1 : 0;
       const defenders = filterAttackTargets(view.players[opponentId].field);
@@ -1086,8 +1139,9 @@ function renderWinnerOverlay(view) {
   node.querySelector("#winnerRematch").addEventListener("click", () => {
     node.remove();
     if (onlineMode) {
-      showFloat("オンラインはタイトルから再作成してください", "cpu");
-      backToTitle();
+      socket?.emit("room:rematch", {}, (result) => {
+        if (!result?.ok) showFloat(result?.message || "連戦できません", "damage");
+      });
       return;
     }
     startCpuGame(cpuDifficulty);
@@ -1407,6 +1461,7 @@ elements.rulesNextButton?.addEventListener("click", () => {
   render();
 });
 elements.titleBackButton?.addEventListener("click", () => {
+  if (socket) socket.emit("room:leave");
   titleLobbyOpen = false;
   titleLobbyMode = "menu";
   titleRulesOpen = false;
@@ -1426,11 +1481,19 @@ elements.titleCreateRoomButton?.addEventListener("click", async () => {
     return;
   }
   if (titleLobbyMode === "join") {
-    titleLobbyMode = "menu";
+    titleLobbyMode = "friend";
+    render();
+    return;
+  }
+  if (titleLobbyMode === "menu") {
+    titleLobbyMode = "friend";
     render();
     return;
   }
   await createOnlineRoom({ fromTitle: true });
+});
+elements.titleRandomButton?.addEventListener("click", async () => {
+  await joinRandomRoom({ fromTitle: true });
 });
 elements.titleJoinRoomButton?.addEventListener("click", async () => {
   if (titleLobbyMode !== "join") {
@@ -1440,6 +1503,14 @@ elements.titleJoinRoomButton?.addEventListener("click", async () => {
   }
   const password = elements.titleRoomIdInput.value.trim().toUpperCase();
   await joinOnlineRoom(password, { fromTitle: true });
+});
+elements.titleCopyPasswordButton?.addEventListener("click", async () => {
+  if (!onlineState?.roomId) return;
+  await copyText(onlineState.roomId, "パスワードをコピーしました");
+});
+elements.titleCopyUrlButton?.addEventListener("click", async () => {
+  if (!onlineState?.roomId) return;
+  await copyText(makeRoomUrl(onlineState.roomId), "URLをコピーしました");
 });
 elements.optionsButton?.addEventListener("click", () => {
   optionsOpen = !optionsOpen;
@@ -1533,6 +1604,43 @@ async function joinOnlineRoom(roomId, { fromTitle }) {
     history.replaceState(null, "", makeRoomUrl(result.roomId));
     showFloat(`部屋 ${result.roomId} 参加`, "draw");
   });
+}
+
+async function joinRandomRoom({ fromTitle }) {
+  if (!await ensureSocket()) return;
+  titleLobbyMode = "random";
+  render();
+  socket.emit("room:random", {}, (result) => {
+    if (!result?.ok) {
+      showFloat(result?.message || "ランダム対戦に失敗", "damage");
+      titleLobbyMode = "menu";
+      render();
+      return;
+    }
+    if (result.waiting) {
+      onlineMode = false;
+      onlineState = null;
+      titleActive = fromTitle;
+      titleLobbyOpen = fromTitle;
+      titleLobbyMode = "random";
+      showFloat("相手を探しています", "draw");
+      render();
+      return;
+    }
+    onlineMode = true;
+    onlinePlayerId = result.playerId;
+    titleActive = fromTitle;
+    titleLobbyOpen = fromTitle;
+    titleLobbyMode = "waiting";
+    optionsOpen = false;
+    showFloat("ランダム対戦成立", "draw");
+  });
+}
+
+async function copyText(text, message) {
+  if (!text) return;
+  if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+  showFloat(message, "draw");
 }
 
 elements.leaveRoomButton?.addEventListener("click", () => {
@@ -1883,7 +1991,7 @@ function scoreItemOnUnit(itemId, unit) {
     + base * 0.12;
   if (itemId === "focusSash") return (unit.maxHp <= 2 ? 340 : 180)
     + (unit.power >= 3 ? 120 : 0)
-    + (card.effectKey === "attackPowerPlusFive" ? 130 : 0);
+    + (card.effectKey === "attackPowerPlusThree" ? 130 : 0);
   if (itemId === "destinyCloak") return (unit.hp <= 2 ? 290 : 170)
     + (card.effectKey === "mustBeAttacked" ? 240 : 0)
     + (unit.power <= 1 ? 50 : 0);
@@ -1988,7 +2096,7 @@ function hardSummonChoices() {
       if (entry.card.effectKey === "attackAllEnemies" && game.players[0].field.length >= 2) score += 280;
       if (entry.card.effectKey === "allyMonsterAttackPowerPlusTwo" && player.field.some((unit) => unit.canAct)) score += 240;
       if (entry.card.effectKey === "enemyPowerMinusOneOnSummon" && game.players[0].field.length >= 2) score += 220;
-      if (entry.card.effectKey === "zeroPowerAndReturn" && game.players[0].field.some((unit) => unit.power >= 3)) score += 180;
+      if (entry.card.effectKey === "damageOnSummonZeroPowerAndReturn" && game.players[0].field.some((unit) => unit.hp <= 1 || unit.power >= 3)) score += 220;
       return { type: "summon", handIndex: entry.handIndex, score };
     });
 }
@@ -2241,7 +2349,7 @@ function dangerScoreForGame(targetGame, unit, threatenedPlayerId) {
   const power = unit.item?.cardId === "lifePower" ? Math.max(unit.power, unit.hp) : unit.power;
   let score = Math.max(0, power) * 90 + Math.max(0, unit.hp) * 35;
   if (power >= threatened.life) score += 1000;
-  if (card.effectKey === "attackPowerPlusFive" && power + 5 >= threatened.life) score += 900;
+  if (card.effectKey === "attackPowerPlusThree" && power + 3 >= threatened.life) score += 900;
   if (card.effectKey === "attackAllEnemies") score += threatened.field.length * 160;
   if (card.effectKey === "allyMonsterAttackPowerPlusTwo") score += targetGame.players[threatenedPlayerId === 0 ? 1 : 0].field.length * 130;
   if (card.effectKey === "ignoreWallLifeAttack") score += 240;
@@ -2393,23 +2501,23 @@ function hardCardScore(card) {
 function hardUnitCardScore(card) {
   if (!card) return 0;
   const effectBonus = {
-    attackPowerPlusFive: 240,
+    attackPowerPlusThree: 210,
     drawFromPileOnKill: 180,
     attackOrGainLife: 190,
     damageAllOthersTurnStart: 170,
-    useTargetPowerAsHp: 170,
+    useTargetPowerAsHpNoSummonSick: 190,
     ignorePowerIncreases: 140,
     mustBeAttacked: 230,
     healLifeOnTurnEnd: 160,
     powerPlusIfLifeTen: 220,
     maxHpPlusOneOnTurnEnd: 170,
     enemyPowerMinusOneOnSummon: 200,
-    zeroPowerAndReturn: 170,
+    damageOnSummonZeroPowerAndReturn: 190,
     allyMonsterAttackPowerPlusTwo: 210,
     attackAllEnemies: 240,
     doubleOwnPower: 190,
     ignoreWallLifeAttack: 260,
-    reduceNextOpponentAction: 190,
+    sleepTargetNextTurn: 190,
   };
   return 100 + (card.hp || 0) * 45 + (card.power || 0) * 70 + (effectBonus[card.effectKey] || 0);
 }
@@ -2527,10 +2635,14 @@ function chooseHardCpuUnitAbility() {
         choices.push({ unitId: unit.id, score, label: "CPU パワー倍化", payload: { ability: "doubleOwnPower", unitId: unit.id } });
       }
     }
-    if (card.effectKey === "reduceNextOpponentAction") {
-      choices.push({ unitId: unit.id, score: 230 + opponent.hand.length * 25, label: "CPU 妨害", payload: { ability: "reduceNextOpponentAction", unitId: unit.id }, fx: "fx-item" });
+    if (card.effectKey === "sleepTargetNextTurn") {
+      opponent.field.forEach((target) => {
+        if (target.canAct || dangerScore(target) >= 420) {
+          choices.push({ unitId: unit.id, targetId: target.id, score: 230 + dangerScore(target) * 0.35, label: "CPU 召喚酔い", payload: { ability: "sleepTargetNextTurn", unitId: unit.id, targetUnitId: target.id }, fx: "fx-item" });
+        }
+      });
     }
-    if (card.effectKey === "zeroPowerAndReturn") {
+    if (card.effectKey === "damageOnSummonZeroPowerAndReturn") {
       opponent.field.forEach((target) => {
         if (target.power >= 2) {
           choices.push({
@@ -2702,7 +2814,7 @@ function dangerousTargetPlan(target) {
 
 function dangerScore(unit) {
   const card = CARD_DEFINITIONS[unit.cardId] || {};
-  const nextLifeDamage = Math.max(0, unit.power) + (card.effectKey === "attackPowerPlusFive" ? 5 : 0);
+  const nextLifeDamage = Math.max(0, unit.power) + (card.effectKey === "attackPowerPlusThree" ? 3 : 0);
   let score = unitThreat(unit) + nextLifeDamage * 80;
   if (nextLifeDamage >= game.players[1].life) score += 1200;
   if (card.effectKey === "attackAllEnemies") score += game.players[1].field.length * 180;

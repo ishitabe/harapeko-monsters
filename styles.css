@@ -1681,7 +1681,7 @@ body.title-cpu-active .version-label {
 
 .title-lobby-row {
   display: grid;
-  grid-template-columns: 1fr 140px 1fr;
+  grid-template-columns: 1fr 1fr 140px 1fr;
   gap: 12px;
   align-items: center;
 }
@@ -1711,6 +1711,21 @@ body.title-cpu-active .version-label {
   background: rgba(103, 183, 255, 0.08);
   color: #d9f0ff;
   word-break: break-all;
+}
+
+.title-copy-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.title-copy-row .hidden {
+  display: none;
+}
+
+.title-bottom-button {
+  width: min(260px, 100%);
+  margin: 18px auto 0;
 }
 
 @media (max-width: 760px) {

@@ -4,16 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>はらぺこモンスターズ</title>
-    <link rel="stylesheet" href="styles.css?v=47">
+    <link rel="stylesheet" href="styles.css?v=48">
     <script>
       window.addEventListener("error", (event) => {
         const message = document.querySelector("#messageText");
         if (message) message.textContent = `読み込みエラー: ${event.message}`;
       });
     </script>
-    <script src="cards.js?v=47" defer></script>
-    <script src="gameEngine.js?v=47" defer></script>
-    <script src="app.js?v=47" defer></script>
+    <script src="cards.js?v=48" defer></script>
+    <script src="gameEngine.js?v=48" defer></script>
+    <script src="app.js?v=48" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -49,27 +49,32 @@
         <div class="title-cpu hidden" id="titleCpu" aria-label="CPU対戦">
           <div class="rules-head">
             <span>CPU対戦</span>
-            <button class="small-button" id="cpuBackButton" type="button">戻る</button>
           </div>
           <h2>CPUの強さを選ぶ</h2>
           <div class="title-actions cpu-actions">
             <button class="title-button" id="cpuNormalButton" type="button">普通</button>
             <button class="title-button primary" id="cpuHardButton" type="button">強い</button>
           </div>
+          <button class="small-button title-bottom-button" id="cpuBackButton" type="button">キャンセル</button>
         </div>
         <div class="title-lobby hidden" id="titleLobby">
           <strong id="titleLobbyStatus">マルチ対戦</strong>
           <p id="titleLobbyNote">部屋を作るか、共有された部屋IDで参加してください。</p>
           <div class="title-lobby-row">
+            <button class="title-button" id="titleRandomButton" type="button">ランダム対戦</button>
             <button class="title-button primary" id="titleCreateRoomButton" type="button">部屋作成</button>
             <input id="titleRoomIdInput" type="text" maxlength="8" placeholder="部屋ID">
             <button class="title-button" id="titleJoinRoomButton" type="button">参加</button>
           </div>
           <p class="share-link" id="titleShareLink"></p>
+          <div class="title-copy-row">
+            <button class="small-button" id="titleCopyPasswordButton" type="button">パスワードをコピー</button>
+            <button class="small-button" id="titleCopyUrlButton" type="button">URLをコピー</button>
+          </div>
           <button class="small-button" id="titleBackButton" type="button">戻る</button>
         </div>
         <p class="title-note">山札を選び、モンスターを出して、相手のHPを0にしよう。</p>
-        <p class="version-label">v0.42</p>
+        <p class="version-label">v0.48</p>
       </div>
     </section>
     <main class="battle-shell">

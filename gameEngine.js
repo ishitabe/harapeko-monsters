@@ -133,7 +133,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     return ok(game, { drawnCards: [drawn.cardId] });
   }
 
-  function summonFromHand(game, playerId, handIndex) {
+  function summonFromHand(game, playerId, handIndex, payload = {}) {
     if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const player = game.players[playerId];
     if (!player.hasDrawnThisTurn) return fail(game, "先にターン開始ドローをしてください。");
@@ -149,10 +149,17 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     player.actions -= 1;
     const unit = createUnit(cardId, game.turn);
     if (card.effectKey === "mustBeAttacked") unit.power += game.players[opponentOf(playerId)].field.length;
-    if (hasItemEffect(unit, "canActOnSummon")) unit.canAct = true;
+    if (card.effectKey === "useTargetPowerAsHpNoSummonSick" || hasItemEffect(unit, "canActOnSummon")) unit.canAct = true;
     player.field.push(unit);
     if (card.effectKey === "enemyPowerMinusOneOnSummon") {
       game.players[opponentOf(playerId)].field.forEach((target) => lowerPower(game, opponentOf(playerId), target, 1, playerId));
+    }
+    if (card.effectKey === "damageOnSummonZeroPowerAndReturn" && payload.targetUnitId) {
+      const target = findUnit(game.players[opponentOf(playerId)], payload.targetUnitId);
+      if (target) {
+        applyDamage(game, opponentOf(playerId), target, 1);
+        discardDeadUnits(game);
+      }
     }
     game.lastMessage = `${player.name}が${card.name}を召喚しました。召喚ターンは行動できません。`;
     addLog(game, game.lastMessage);
@@ -302,7 +309,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
     if (card.effectKey === "discardOpponentHand") {
       if (payload.opponentHandIndex === undefined || payload.opponentHandIndex === null || payload.opponentHandIndex === "") {
-        game.pendingOpponentHandCheck = { playerId, opponentId, count: 2 };
+        game.pendingOpponentHandCheck = { playerId, opponentId, count: 1 };
         return ok(game);
       }
       const opponentHandIndex = Number(payload.opponentHandIndex);
@@ -356,10 +363,10 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (card.effectKey === "shockWave") {
       opponent.field.forEach((unit) => {
         if (isProtectedFromOpponentEffects(game, opponentId, playerId)) return;
-        unit.hp = Math.max(0, unit.hp - 1);
+        unit.maxHp = Math.max(1, unit.maxHp - 1);
+        unit.hp = Math.min(unit.hp, unit.maxHp);
         lowerPower(game, opponentId, unit, 1, playerId);
       });
-      discardDeadUnits(game);
       return ok(game);
     }
 
@@ -524,6 +531,26 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     return ok(game);
   }
 
+  function attackLifeWithAll(game, playerId) {
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
+    const player = game.players[playerId];
+    if (!player.hasDrawnThisTurn) return fail(game, "先にターン開始ドローをしてください。");
+    const opponentId = opponentOf(playerId);
+    if (hasEffect(game.players[opponentId], "mustBeAttacked")) return fail(game, "カビゴンがいるため、ライフは攻撃できません。");
+    const attackers = player.field.filter((unit) => unit.canAct && (game.players[opponentId].field.length < maxFieldSize || cards[unit.cardId].effectKey === "ignoreWallLifeAttack"));
+    if (attackers.length === 0) return fail(game, "ライフ攻撃できるモンスターがいません。");
+    let totalDamage = 0;
+    attackers.forEach((attacker) => {
+      const damage = getEffectivePower(game, attacker, null, "lifeAttack");
+      attacker.canAct = false;
+      totalDamage += dealLifeDamage(game, opponentId, damage);
+    });
+    game.lastMessage = `${player.name}が全員でライフに${totalDamage}ダメージ。`;
+    addLog(game, game.lastMessage);
+    checkWinner(game);
+    return ok(game);
+  }
+
   function attackMonster(game, playerId, attackerId, defenderId) {
     if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const player = game.players[playerId];
@@ -560,7 +587,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (!unit || !unit.canAct) return fail(game, "そのモンスターは行動できません。");
     const card = cards[unit.cardId];
     const opponentId = opponentOf(playerId);
-    if (payload.ability === "zeroPowerAndReturn" && card.effectKey === "zeroPowerAndReturn") {
+    if (payload.ability === "zeroPowerAndReturn" && card.effectKey === "damageOnSummonZeroPowerAndReturn") {
       const target = findUnit(game.players[opponentId], payload.targetUnitId);
       if (!target) return fail(game, "相手モンスターを選んでください。");
       lowerPower(game, opponentId, target, target.power, playerId);
@@ -572,8 +599,10 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       unit.canAct = false;
       return ok(game);
     }
-    if (payload.ability === "reduceNextOpponentAction" && card.effectKey === "reduceNextOpponentAction") {
-      game.players[opponentId].actionPenaltyNextTurn += 1;
+    if (payload.ability === "sleepTargetNextTurn" && card.effectKey === "sleepTargetNextTurn") {
+      const target = findUnit(game.players[opponentId], payload.targetUnitId);
+      if (!target) return fail(game, "相手モンスターを選んでください。");
+      target.sleepUntilTurn = game.turn + 2;
       unit.canAct = false;
       return ok(game);
     }
@@ -625,7 +654,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     player.noCounterThisTurn = false;
     player.hasDrawnThisTurn = false;
     player.field.forEach((unit) => {
-      unit.canAct = unit.summonedTurn < game.turn;
+      unit.canAct = unit.summonedTurn < game.turn && !(unit.sleepUntilTurn > game.turn);
     });
     applyTurnStartEffects(game, playerId);
   }
@@ -698,7 +727,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     }
 
     if ((reason === "attack" || reason === "lifeAttack") && !powerIncreaseBlocked) {
-      if (card.effectKey === "attackPowerPlusFive") power += 5;
+      if (card.effectKey === "attackPowerPlusThree") power += 3;
       if (reason === "attack" && targetUnit && hasEffect(game.players[unitOwnerId], "allyMonsterAttackPowerPlusTwo")) power += 2;
       if (card.effectKey === "powerPlusIfLifeTen" && game.players[unitOwnerId].life >= 10) power += 4;
       if (unit.item && cards[unit.item.cardId].effectKey === "attackPowerPlusTwo") {
@@ -755,6 +784,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       applyDamage(game, defenderOwnerId, target, defenderDamage);
       if (counterDamage > 0) applyDamage(game, attackerOwnerId, attacker, counterDamage);
       resolveDestinyCloak(game, target, attacker);
+      if (target.id === defender.id) resolveDestinyCloak(game, attacker, target);
       totalDefenderDamage += defenderDamage;
       attackerDamage += counterDamage;
     });
@@ -762,7 +792,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   }
 
   function resolveCombat(game, attackerOwnerId, attacker, defenderOwnerId, defender) {
-    if (cards[attacker.cardId].effectKey === "useTargetPowerAsHp") {
+    if (["useTargetPowerAsHp", "useTargetPowerAsHpNoSummonSick"].includes(cards[attacker.cardId].effectKey)) {
       defender.hp = Math.min(defender.hp, Math.max(0, defender.power));
     }
     const defenderDamage = getEffectivePower(game, attacker, defender, "attack");
@@ -770,6 +800,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     applyDamage(game, defenderOwnerId, defender, defenderDamage);
     applyDamage(game, attackerOwnerId, attacker, attackerDamage);
     resolveDestinyCloak(game, defender, attacker);
+    resolveDestinyCloak(game, attacker, defender);
     return { attackerDamage, defenderDamage };
   }
 
@@ -809,6 +840,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       canAct: false,
       summonedTurn,
       item: itemCardId ? { cardId: itemCardId, revealed: false } : null,
+      sleepUntilTurn: 0,
     };
   }
 
@@ -1200,6 +1232,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     playAction,
     gainLifeWithUnit,
     attackLife,
+    attackLifeWithAll,
     attackMonster,
     useUnitAbility,
     endTurn,

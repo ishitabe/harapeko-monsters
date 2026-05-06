@@ -14,6 +14,7 @@ const io = new Server(server, {
 });
 const engine = createGameEngine(CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL);
 const rooms = new Map();
+let randomWaitingSocketId = null;
 
 app.use(express.static(__dirname));
 
@@ -32,6 +33,22 @@ io.on("connection", (socket) => {
     broadcastRoom(room);
   });
 
+  socket.on("room:random", (_payload, reply) => {
+    const waitingSocket = randomWaitingSocketId ? io.sockets.sockets.get(randomWaitingSocketId) : null;
+    if (waitingSocket && waitingSocket.id !== socket.id && !waitingSocket.data.roomId) {
+      randomWaitingSocketId = null;
+      const room = createRoom();
+      joinRoom(waitingSocket, room, 0);
+      joinRoom(socket, room, 1);
+      startRoomGame(room);
+      reply?.({ ok: true, roomId: room.id, playerId: 1, random: true });
+      broadcastRoom(room);
+      return;
+    }
+    randomWaitingSocketId = socket.id;
+    reply?.({ ok: true, waiting: true });
+  });
+
   socket.on("room:join", ({ roomId, password } = {}, reply) => {
     const key = String(password || roomId || "").trim().toUpperCase();
     const room = rooms.get(key);
@@ -40,14 +57,17 @@ io.on("connection", (socket) => {
     if (seat === null) return reply?.({ ok: false, message: "この部屋は満員です。" });
     joinRoom(socket, room, seat);
     if (room.players[0] && room.players[1] && !room.started) {
-      room.started = true;
-      room.game = engine.createGame();
-      room.game.players[0].name = "プレイヤー1";
-      room.game.players[1].name = "プレイヤー2";
-      room.game.lastMessage = "2人そろいました。プレイヤー1から開始です。山札を選んでドローしてください。";
-      room.game.log.unshift("オンライン対戦を開始しました。");
+      startRoomGame(room);
     }
     reply?.({ ok: true, roomId: room.id, password: room.id, playerId: seat });
+    broadcastRoom(room);
+  });
+
+  socket.on("room:rematch", (_payload, reply) => {
+    const room = getSocketRoom(socket);
+    if (!room || !room.players[0] || !room.players[1]) return reply?.({ ok: false, message: "連戦できる相手がいません。" });
+    startRoomGame(room);
+    reply?.({ ok: true, roomId: room.id });
     broadcastRoom(room);
   });
 
@@ -86,6 +106,16 @@ function createRoom() {
   return room;
 }
 
+function startRoomGame(room) {
+  room.started = true;
+  room.game = engine.createGame();
+  room.game.players[0].name = "プレイヤー1";
+  room.game.players[1].name = "プレイヤー2";
+  room.game.lastMessage = "2人そろいました。山札を選んでドローしてください。";
+  room.game.log.unshift("オンライン対戦を開始しました。");
+  room.updatedAt = Date.now();
+}
+
 function filterDrawnCards(drawnCards, playerId) {
   return playerId === undefined || playerId === null ? [] : (drawnCards || []);
 }
@@ -100,6 +130,7 @@ function joinRoom(socket, room, playerId) {
 }
 
 function leaveSocketRoom(socket) {
+  if (randomWaitingSocketId === socket.id) randomWaitingSocketId = null;
   const room = getSocketRoom(socket);
   if (!room) return;
   const playerId = socket.data.playerId;
@@ -127,7 +158,7 @@ function applyAction(game, playerId, payload) {
     case "draw":
       return engine.drawFromPile(game, playerId, payload.pileId);
     case "summon":
-      return engine.summonFromHand(game, playerId, payload.handIndex);
+      return engine.summonFromHand(game, playerId, payload.handIndex, payload.payload || {});
     case "equip":
       return engine.equipItemFromHand(game, playerId, payload.handIndex, payload.unitId);
     case "playAction":
@@ -142,6 +173,8 @@ function applyAction(game, playerId, payload) {
       return engine.resolvePendingPileSearch(game, playerId, payload.pileIndexes);
     case "attackLife":
       return engine.attackLife(game, playerId, payload.attackerId);
+    case "attackLifeAll":
+      return engine.attackLifeWithAll(game, playerId);
     case "attackMonster":
       return engine.attackMonster(game, playerId, payload.attackerId, payload.defenderId);
     case "unitAbility":
