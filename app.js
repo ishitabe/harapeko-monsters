@@ -31,7 +31,29 @@ let detailData = null;
 let previousView = null;
 let animationLock = false;
 const pendingFx = new Map();
-const AVATAR_OPTIONS = ["assets/player.png", "assets/enemy.png"];
+const AVATAR_OPTIONS = [
+  "assets/avatars/アクダルマ.png",
+  "assets/avatars/アシガタコ.png",
+  "assets/avatars/ゴッレム.png",
+  "assets/avatars/シャド.png",
+  "assets/avatars/スーフィクス.png",
+  "assets/avatars/スラ・プラチナ.png",
+  "assets/avatars/ソードチャンプ.png",
+  "assets/avatars/たっくん.png",
+  "assets/avatars/トリ.png",
+  "assets/avatars/ナックル.png",
+  "assets/avatars/ニヤオ.png",
+  "assets/avatars/バドギャドス.png",
+  "assets/avatars/パンドラ.png",
+  "assets/avatars/ビーチプリンセス.png",
+  "assets/avatars/プリンスライム.png",
+  "assets/avatars/マシン１号.png",
+  "assets/avatars/マッスルドラゴン.png",
+  "assets/avatars/ラブキング.png",
+  "assets/avatars/ワラードー.png",
+  "assets/avatars/ワラボン.png",
+  "assets/avatars/天才スライム.png",
+];
 const RANDOM_NAMES = ["アオイ", "ヒナタ", "レン", "ミナト", "ユウ", "ソラ", "ナギ", "ハル"];
 let playerProfile = loadPlayerProfile();
 const RULE_PAGES = [
