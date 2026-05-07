@@ -31,7 +31,8 @@ let detailData = null;
 let previousView = null;
 let animationLock = false;
 const pendingFx = new Map();
-const AVATAR_OPTIONS = [
+const AVATAR_OPTIONS = (window.HarapekoAvatars || []).map((avatar) => avatar.src);
+const AVATAR_FALLBACK_OPTIONS = [
   "assets/avatars/avatar-akudaruma.png",
   "assets/avatars/avatar-ashigatako.png",
   "assets/avatars/avatar-gollem.png",
@@ -54,6 +55,7 @@ const AVATAR_OPTIONS = [
   "assets/avatars/avatar-warabon.png",
   "assets/avatars/avatar-genius-slime.png",
 ];
+if (AVATAR_OPTIONS.length === 0) AVATAR_OPTIONS.push(...AVATAR_FALLBACK_OPTIONS);
 const RANDOM_NAMES = ["アオイ", "ヒナタ", "レン", "ミナト", "ユウ", "ソラ", "ナギ", "ハル"];
 let playerProfile = loadPlayerProfile();
 const RULE_PAGES = [
