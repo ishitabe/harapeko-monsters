@@ -96,7 +96,7 @@ p {
 .battlefield {
   position: relative;
   display: grid;
-  grid-template-rows: 58px 88px minmax(270px, 1fr) 216px;
+  grid-template-rows: 58px 96px minmax(270px, 1fr) 206px;
   gap: 10px;
 }
 
@@ -229,7 +229,7 @@ p {
 }
 
 .opponent-row {
-  grid-template-columns: 1fr 148px;
+  grid-template-columns: 1fr 174px;
 }
 
 .player-row {
@@ -258,14 +258,25 @@ p {
 
 .life-box {
   display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+  grid-template-areas:
+    "name name"
+    "avatar hp"
+    "avatar hand"
+    "actions actions";
+  align-items: center;
   justify-items: center;
-  gap: 5px;
-  padding: 9px;
+  column-gap: 10px;
+  row-gap: 2px;
+  min-height: 0;
+  padding: 7px 10px;
+  overflow: hidden;
 }
 
 .player-avatar {
-  width: 46px;
-  height: 46px;
+  grid-area: avatar;
+  width: 44px;
+  height: 44px;
   object-fit: cover;
   border: 2px solid rgba(255,255,255,0.18);
   border-radius: 50%;
@@ -289,11 +300,48 @@ p {
   font-weight: 800;
 }
 
+.life-box span {
+  grid-area: name;
+  max-width: 100%;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  line-height: 1.1;
+}
+
 .life-box strong {
+  grid-area: hp;
   color: #fff4df;
-  font-size: 2.35rem;
-  line-height: 0.95;
+  font-size: 2rem;
+  line-height: 0.9;
+  white-space: nowrap;
   text-shadow: 0 0 22px rgba(242, 189, 92, 0.42);
+}
+
+.life-box small {
+  grid-area: hand;
+  justify-self: center;
+  font-size: 0.76rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.life-box .action-lamps {
+  grid-area: actions;
+  min-height: 18px;
+  gap: 6px;
+  transform: scale(0.82);
+  transform-origin: center;
+}
+
+.life-box.player {
+  width: 160px;
+}
+
+.life-box.opponent {
+  min-height: 94px;
 }
 
 .player-controls {
