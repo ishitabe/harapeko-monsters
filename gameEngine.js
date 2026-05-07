@@ -17,6 +17,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       pendingQuickReplay: null,
       pendingOpponentHandCheck: null,
       pendingDiscardSelection: null,
+      pendingDiscardTake: null,
       pendingPileSearch: null,
       lastPlayedAction: null,
       piles: pileDefinitions.map((pile) => ({ id: pile.id, name: pile.name, deck: [] })),
@@ -43,6 +44,8 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       noCounterThisTurn: false,
       actionPenaltyNextTurn: 0,
       damageReductionUntilTurn: 0,
+      lifeDamageReductionUntilTurn: 0,
+      avatar: "",
     };
   }
 
@@ -63,6 +66,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       pendingQuickReplay: game.pendingQuickReplay,
       pendingOpponentHandCheck: game.pendingOpponentHandCheck,
       pendingDiscardSelection: game.pendingDiscardSelection,
+      pendingDiscardTake: game.pendingDiscardTake,
       pendingPileSearch: game.pendingPileSearch && game.pendingPileSearch.playerId === viewerId
         ? publicPendingPileSearch(game)
         : null,
@@ -80,6 +84,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       })),
       players: game.players.map((player, ownerId) => ({
         name: player.name,
+        avatar: player.avatar || "",
         life: player.life,
         actions: player.actions,
         hasDrawnThisTurn: player.hasDrawnThisTurn,
@@ -293,8 +298,12 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (card.effectKey === "drawTwoGainAction") {
       if (!payload.pileId) return fail(game, "山札を選んでください。");
       const { drawnCards, discardedDrawCards } = drawMultipleDetailed(game, playerId, payload.pileId, 2);
+      const opponentDraw = drawMultipleDetailed(game, opponentId, payload.pileId, 2);
       player.actions += 1;
-      return ok(game, { drawnCards, discardedDrawCards });
+      return ok(game, {
+        drawnCards,
+        discardedDrawCards: [...discardedDrawCards, ...opponentDraw.discardedDrawCards],
+      });
     }
 
     if (card.effectKey === "takeDiscardToHandGainAction") {
@@ -337,6 +346,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
     if (card.effectKey === "mysticGuard") {
       player.mysticGuardUntilTurn = game.turn + 2;
+      player.lifeDamageReductionUntilTurn = game.turn + 2;
       return ok(game);
     }
 
@@ -386,7 +396,12 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
     if (card.effectKey === "healLifeThree") {
       player.life += 4;
-      return ok(game);
+      const pile = payload.pileId ? getPile(game, payload.pileId) : game.piles.find((candidate) => candidate.deck.length > 0);
+      const drawn = pile ? drawCard(game, playerId, pile.id, { silent: true }) : null;
+      return ok(game, {
+        drawnCards: drawn && drawn.added ? [drawn.cardId] : [],
+        discardedDrawCards: drawn && !drawn.added ? [drawn.cardId] : [],
+      });
     }
 
     if (card.effectKey === "searchTwoFromPile") {
@@ -416,7 +431,12 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
     if (card.effectKey === "damageMinusOneUntilNextTurn") {
       player.damageReductionUntilTurn = game.turn + 2;
-      return ok(game);
+      const pile = payload.pileId ? getPile(game, payload.pileId) : game.piles.find((candidate) => candidate.deck.length > 0);
+      const drawn = pile ? drawCard(game, playerId, pile.id, { silent: true }) : null;
+      return ok(game, {
+        drawnCards: drawn && drawn.added ? [drawn.cardId] : [],
+        discardedDrawCards: drawn && !drawn.added ? [drawn.cardId] : [],
+      });
     }
 
     if (card.effectKey === "searchOneFromEachPile") {
@@ -434,7 +454,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
         game.discard.push(cardId);
         count += 1;
       });
-      player.actions += count;
+      player.actions += count + 1;
       return ok(game);
     }
 
@@ -524,6 +544,9 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     const damage = getEffectivePower(game, attacker, null, "lifeAttack");
     attacker.canAct = false;
     const actualDamage = dealLifeDamage(game, opponentId, damage);
+    if (cards[attacker.cardId].effectKey === "takeDiscardOnLifeAttack" && game.discard.length > 0) {
+      game.pendingDiscardTake = { playerId, count: 1, source: attacker.cardId };
+    }
     game.lastMessage = `${cards[attacker.cardId].name}がライフに${actualDamage}ダメージ。`;
     addLog(game, game.lastMessage);
     checkWinner(game);
@@ -544,6 +567,9 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       const damage = getEffectivePower(game, attacker, null, "lifeAttack");
       attacker.canAct = false;
       totalDamage += dealLifeDamage(game, opponentId, damage);
+      if (cards[attacker.cardId].effectKey === "takeDiscardOnLifeAttack" && game.discard.length > 0) {
+        game.pendingDiscardTake = { playerId, count: 1, source: attacker.cardId };
+      }
     });
     game.lastMessage = `${player.name}が全員でライフに${totalDamage}ダメージ。`;
     addLog(game, game.lastMessage);
@@ -617,9 +643,11 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (game.pendingQuickReplay?.playerId === playerId) game.pendingQuickReplay = null;
     if (game.pendingOpponentHandCheck?.playerId === playerId) game.pendingOpponentHandCheck = null;
     if (game.pendingDiscardSelection?.playerId === playerId) game.pendingDiscardSelection = null;
+    if (game.pendingDiscardTake?.playerId === playerId) game.pendingDiscardTake = null;
     if (game.pendingPileSearch?.playerId === playerId) game.pendingPileSearch = null;
 
     applyTurnEndEffects(game, playerId);
+    if (game.winner !== null) return ok(game);
     healAllUnits(game);
     const nextPlayerId = opponentOf(playerId);
     game.activePlayer = nextPlayerId;
@@ -641,6 +669,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     game.pendingQuickReplay = null;
     game.pendingOpponentHandCheck = null;
     game.pendingDiscardSelection = null;
+    game.pendingDiscardTake = null;
     game.pendingPileSearch = null;
     game.lastMessage = `${game.players[playerId].name}が降参しました。${game.players[winnerId].name}の勝ちです。`;
     addLog(game, game.lastMessage);
@@ -757,7 +786,8 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   }
 
   function dealLifeDamage(game, playerId, amount) {
-    const damage = reduceDamageForPlayer(game, playerId, amount);
+    let damage = reduceDamageForPlayer(game, playerId, amount);
+    if (game.players[playerId].lifeDamageReductionUntilTurn > game.turn) damage = Math.max(0, damage - 1);
     game.players[playerId].life = Math.max(0, game.players[playerId].life - damage);
     return damage;
   }
@@ -776,7 +806,6 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     let totalDefenderDamage = 0;
     let attackerDamage = 0;
     [...game.players[defenderOwnerId].field].forEach((target) => {
-      if (!canTargetDefender(game.players[defenderOwnerId], target)) return;
       const defenderDamage = getEffectivePower(game, attacker, target, "attack");
       const counterDamage = target.id === defender.id && !game.players[attackerOwnerId].noCounterThisTurn
         ? getEffectivePower(game, target, attacker, "counter")
@@ -939,12 +968,24 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   function applyTurnEndEffects(game, playerId) {
     const player = game.players[playerId];
     player.field.forEach((unit) => {
+      if (cards[unit.cardId].effectKey === "damageAllOthersTurnEnd") {
+        game.players.forEach((candidate, ownerId) => {
+          dealLifeDamage(game, ownerId, 1);
+          candidate.field.forEach((target) => {
+            if (target.id === unit.id) return;
+            applyDamage(game, ownerId, target, 1);
+          });
+        });
+        addLog(game, `${cards[unit.cardId].name}が自分以外の全体に1ダメージ。`);
+      }
       if (cards[unit.cardId].effectKey === "healLifeOnTurnEnd") player.life += 1;
       if (cards[unit.cardId].effectKey === "maxHpPlusOneOnTurnEnd") {
         unit.maxHp += 1;
         unit.hp += 1;
       }
     });
+    discardDeadUnits(game);
+    checkWinner(game);
   }
 
   function ensureDecksHaveCards(game) {
@@ -1127,6 +1168,21 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     return ok(game);
   }
 
+  function resolvePendingDiscardTake(game, playerId, discardIndex) {
+    const pending = game.pendingDiscardTake;
+    if (!pending || pending.playerId !== playerId) return fail(game, "捨札からカードを加える効果の処理待ちではありません。");
+    const index = Number(discardIndex);
+    const cardId = game.discard[index];
+    if (!cardId) return fail(game, "捨札からカードを選んでください。");
+    game.discard.splice(index, 1);
+    if (game.players[playerId].hand.length >= maxHandSize) game.discard.push(cardId);
+    else game.players[playerId].hand.push(cardId);
+    game.pendingDiscardTake = null;
+    game.lastMessage = `${game.players[playerId].name}が捨札から${cards[cardId].name}を手札に加えました。`;
+    addLog(game, game.lastMessage);
+    return ok(game);
+  }
+
   function resolvePendingQuickReplay(game, playerId, payload = {}) {
     const pending = game.pendingQuickReplay;
     if (!pending || pending.playerId !== playerId) return fail(game, "早業の2回目処理待ちではありません。");
@@ -1178,6 +1234,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     game.pendingQuickReplay = null;
     game.pendingOpponentHandCheck = null;
     game.pendingDiscardSelection = null;
+    game.pendingDiscardTake = null;
     game.pendingPileSearch = null;
     game.lastMessage = `決着！${game.players[game.winner].name}の勝ちです。`;
     addLog(game, game.lastMessage);
@@ -1240,6 +1297,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     addToDiscard,
     resolvePendingOpponentHandCheck,
     resolvePendingDiscardSelection,
+    resolvePendingDiscardTake,
     resolvePendingPileSearch,
     resolvePendingQuickReplay,
     getEffectivePower,

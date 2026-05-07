@@ -263,6 +263,26 @@ p {
   padding: 9px;
 }
 
+.player-avatar {
+  width: 46px;
+  height: 46px;
+  object-fit: cover;
+  border: 2px solid rgba(255,255,255,0.18);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  box-shadow: 0 0 18px rgba(103,183,255,0.18);
+}
+
+.player-name-blue {
+  color: #67b7ff !important;
+  text-shadow: 0 0 14px rgba(103,183,255,0.36);
+}
+
+.player-name-red {
+  color: #ff7878 !important;
+  text-shadow: 0 0 14px rgba(255,109,109,0.34);
+}
+
 .life-box span,
 .life-box small {
   color: var(--muted);
@@ -1091,6 +1111,16 @@ p {
   text-shadow: 0 0 34px rgba(242,189,92,0.56);
 }
 
+.winner-avatar {
+  width: 132px;
+  height: 132px;
+  object-fit: cover;
+  border: 4px solid rgba(242,189,92,0.72);
+  border-radius: 50%;
+  margin: 14px auto 6px;
+  box-shadow: 0 0 42px rgba(242,189,92,0.42);
+}
+
 .winner-actions {
   display: flex;
   justify-content: center;
@@ -1142,6 +1172,75 @@ p {
   opacity: 0;
   transform: translate(-50%, -54%) scale(1.16);
   transition: opacity 260ms ease, transform 260ms ease;
+}
+
+.battle-start-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1700;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at center, rgba(103,183,255,0.18), transparent 42%),
+    rgba(2,8,16,0.68);
+  animation: winnerIn 260ms ease-out;
+}
+
+.battle-start-card {
+  width: min(820px, 90vw);
+  display: grid;
+  grid-template-columns: 1fr 170px 1fr;
+  align-items: center;
+  gap: 24px;
+  padding: 34px;
+  border: 1px solid rgba(242,189,92,0.46);
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(16,28,42,0.98), rgba(8,13,20,0.98));
+  box-shadow: 0 42px 120px rgba(0,0,0,0.72), 0 0 70px rgba(103,183,255,0.24);
+  animation: winnerPop 900ms cubic-bezier(.2,.9,.15,1);
+}
+
+.battle-start-player {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  font-size: 1.45rem;
+  font-weight: 1000;
+}
+
+.battle-start-player img {
+  width: 132px;
+  height: 132px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 4px solid rgba(255,255,255,0.18);
+  box-shadow: 0 0 40px rgba(255,255,255,0.18);
+}
+
+.battle-start-player.self strong {
+  color: #67b7ff;
+}
+
+.battle-start-player.opponent strong {
+  color: #ff7878;
+}
+
+.battle-start-vs {
+  display: grid;
+  justify-items: center;
+  color: var(--gold);
+  text-shadow: 0 0 28px rgba(242,189,92,0.42);
+}
+
+.battle-start-vs span {
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.battle-start-vs b {
+  font-size: 2.7rem;
+  line-height: 1;
 }
 
 @keyframes detailIn {
@@ -1379,10 +1478,76 @@ body:not(.title-active) .title-screen {
   margin-top: 34px;
 }
 
+.profile-setup {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+  gap: 18px;
+  align-items: end;
+  margin: 28px auto 0;
+  max-width: 620px;
+  text-align: left;
+}
+
+.profile-setup label,
+.profile-setup > div {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.profile-setup input {
+  min-height: 52px;
+  padding: 0 16px;
+  border: 1px solid rgba(103,183,255,0.26);
+  border-radius: 12px;
+  background: rgba(2, 8, 16, 0.76);
+  color: var(--ink);
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
+.avatar-picker {
+  display: flex;
+  gap: 10px;
+}
+
+.avatar-choice {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid rgba(255,255,255,0.14);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.avatar-choice img {
+  width: 46px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.avatar-choice.selected {
+  border-color: var(--gold);
+  box-shadow: 0 0 22px rgba(242,189,92,0.36);
+  transform: scale(1.08);
+}
+
 body.title-lobby-active .title-actions,
 body.title-rules-active .title-actions,
 body.title-cards-active .title-actions,
 body.title-cpu-active .title-actions:not(.cpu-actions) {
+  display: none;
+}
+
+body.title-lobby-active .profile-setup,
+body.title-rules-active .profile-setup,
+body.title-cards-active .profile-setup,
+body.title-cpu-active .profile-setup {
   display: none;
 }
 
@@ -2108,6 +2273,12 @@ body.title-cpu-active .version-label {
   .title-actions {
     display: grid;
     gap: 12px;
+  }
+
+  .profile-setup {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 20px;
   }
 
   .title-button {

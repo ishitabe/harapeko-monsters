@@ -26,36 +26,42 @@ io.on("connection", (socket) => {
   socket.data.roomId = null;
   socket.data.playerId = null;
 
-  socket.on("room:create", (_payload, reply) => {
+  socket.on("room:create", (payload = {}, reply) => {
     const room = createRoom();
     joinRoom(socket, room, 0);
+    setPlayerMeta(room, 0, payload.player || {});
     reply?.({ ok: true, roomId: room.id, password: room.id, playerId: 0 });
     broadcastRoom(room);
   });
 
-  socket.on("room:random", (_payload, reply) => {
+  socket.on("room:random", (payload = {}, reply) => {
     const waitingSocket = randomWaitingSocketId ? io.sockets.sockets.get(randomWaitingSocketId) : null;
     if (waitingSocket && waitingSocket.id !== socket.id && !waitingSocket.data.roomId) {
       randomWaitingSocketId = null;
       const room = createRoom();
       joinRoom(waitingSocket, room, 0);
       joinRoom(socket, room, 1);
+      setPlayerMeta(room, 0, waitingSocket.data.playerMeta || {});
+      setPlayerMeta(room, 1, payload.player || {});
       startRoomGame(room);
       reply?.({ ok: true, roomId: room.id, playerId: 1, random: true });
       broadcastRoom(room);
       return;
     }
     randomWaitingSocketId = socket.id;
+    socket.data.playerMeta = sanitizePlayerMeta(payload.player || {});
     reply?.({ ok: true, waiting: true });
   });
 
-  socket.on("room:join", ({ roomId, password } = {}, reply) => {
+  socket.on("room:join", (payload = {}, reply) => {
+    const { roomId, password } = payload;
     const key = String(password || roomId || "").trim().toUpperCase();
     const room = rooms.get(key);
     if (!room) return reply?.({ ok: false, message: "部屋が見つかりません。" });
     const seat = nextOpenSeat(room);
     if (seat === null) return reply?.({ ok: false, message: "この部屋は満員です。" });
     joinRoom(socket, room, seat);
+    setPlayerMeta(room, seat, payload.player || {});
     if (room.players[0] && room.players[1] && !room.started) {
       startRoomGame(room);
     }
@@ -99,6 +105,7 @@ function createRoom() {
     id,
     game: null,
     players: [null, null],
+    playerMeta: [defaultPlayerMeta(0), defaultPlayerMeta(1)],
     started: false,
     updatedAt: Date.now(),
   };
@@ -109,8 +116,10 @@ function createRoom() {
 function startRoomGame(room) {
   room.started = true;
   room.game = engine.createGame();
-  room.game.players[0].name = "プレイヤー1";
-  room.game.players[1].name = "プレイヤー2";
+  room.game.players[0].name = room.playerMeta[0].name;
+  room.game.players[0].avatar = room.playerMeta[0].avatar;
+  room.game.players[1].name = room.playerMeta[1].name;
+  room.game.players[1].avatar = room.playerMeta[1].avatar;
   room.game.lastMessage = "2人そろいました。山札を選んでドローしてください。";
   room.game.log.unshift("オンライン対戦を開始しました。");
   room.updatedAt = Date.now();
@@ -127,6 +136,21 @@ function joinRoom(socket, room, playerId) {
   socket.data.playerId = playerId;
   socket.join(room.id);
   room.updatedAt = Date.now();
+}
+
+function defaultPlayerMeta(playerId) {
+  return { name: `プレイヤー${playerId + 1}`, avatar: playerId === 0 ? "assets/player.png" : "assets/enemy.png" };
+}
+
+function sanitizePlayerMeta(meta = {}, playerId = 0) {
+  const fallback = defaultPlayerMeta(playerId);
+  const name = String(meta.name || "").trim().slice(0, 16) || fallback.name;
+  const avatar = String(meta.avatar || "").trim().slice(0, 120) || fallback.avatar;
+  return { name, avatar };
+}
+
+function setPlayerMeta(room, playerId, meta = {}) {
+  room.playerMeta[playerId] = sanitizePlayerMeta(meta, playerId);
 }
 
 function leaveSocketRoom(socket) {
@@ -169,6 +193,8 @@ function applyAction(game, playerId, payload) {
       return engine.resolvePendingOpponentHandCheck(game, playerId, payload.opponentHandIndex);
     case "discardSelection":
       return engine.resolvePendingDiscardSelection(game, playerId, payload.handIndexes);
+    case "discardTake":
+      return engine.resolvePendingDiscardTake(game, playerId, payload.discardIndex);
     case "pileSearch":
       return engine.resolvePendingPileSearch(game, playerId, payload.pileIndexes);
     case "attackLife":
@@ -215,6 +241,7 @@ function createWaitingView(room, viewerId) {
     pendingQuickReplay: null,
     pendingOpponentHandCheck: null,
     pendingDiscardSelection: null,
+    pendingDiscardTake: null,
     pendingPileSearch: null,
     lastPlayedAction: null,
     maxFieldSize: 3,
@@ -224,7 +251,8 @@ function createWaitingView(room, viewerId) {
     discard: [],
     piles: PILE_DEFINITIONS.map((pile) => ({ id: pile.id, name: pile.name, count: 0, topCardId: null })),
     players: [0, 1].map((playerId) => ({
-      name: playerId === viewerId ? `あなた プレイヤー${playerId + 1}` : `相手 プレイヤー${playerId + 1}`,
+      name: room.playerMeta[playerId]?.name || (playerId === viewerId ? `あなた プレイヤー${playerId + 1}` : `相手 プレイヤー${playerId + 1}`),
+      avatar: room.playerMeta[playerId]?.avatar || "",
       life: 12,
       actions: 0,
       hasDrawnThisTurn: false,

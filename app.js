@@ -31,6 +31,9 @@ let detailData = null;
 let previousView = null;
 let animationLock = false;
 const pendingFx = new Map();
+const AVATAR_OPTIONS = ["assets/player.png", "assets/enemy.png"];
+const RANDOM_NAMES = ["アオイ", "ヒナタ", "レン", "ミナト", "ユウ", "ソラ", "ナギ", "ハル"];
+let playerProfile = loadPlayerProfile();
 const RULE_PAGES = [
   {
     title: "まずは勝ち方",
@@ -115,6 +118,8 @@ const elements = {
   backTitleButton: document.querySelector("#backTitleButton"),
   titleScreen: document.querySelector("#titleScreen"),
   startCpuButton: document.querySelector("#startCpuButton"),
+  playerNameInput: document.querySelector("#playerNameInput"),
+  avatarPicker: document.querySelector("#avatarPicker"),
   startMultiButton: document.querySelector("#startMultiButton"),
   showRulesButton: document.querySelector("#showRulesButton"),
   showCardsButton: document.querySelector("#showCardsButton"),
@@ -160,6 +165,71 @@ const elements = {
   fields: [document.querySelector("#p0Field"), document.querySelector("#p1Field")],
 };
 
+function loadPlayerProfile() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("harapekoPlayerProfile") || "{}");
+    return {
+      name: String(saved.name || "").slice(0, 16),
+      avatar: AVATAR_OPTIONS.includes(saved.avatar) ? saved.avatar : AVATAR_OPTIONS[0],
+    };
+  } catch {
+    return { name: "", avatar: AVATAR_OPTIONS[0] };
+  }
+}
+
+function currentPlayerProfile() {
+  const name = elements.playerNameInput?.value.trim() || playerProfile.name || randomPlayerName();
+  const avatar = playerProfile.avatar || AVATAR_OPTIONS[0];
+  playerProfile = { name: name.slice(0, 16), avatar };
+  try {
+    localStorage.setItem("harapekoPlayerProfile", JSON.stringify(playerProfile));
+  } catch {
+    // localStorage is optional in private/restricted browsers.
+  }
+  return playerProfile;
+}
+
+function randomPlayerName() {
+  return RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
+}
+
+function setupProfileControls() {
+  if (elements.playerNameInput) {
+    elements.playerNameInput.value = playerProfile.name;
+    elements.playerNameInput.addEventListener("input", () => {
+      playerProfile.name = elements.playerNameInput.value.trim().slice(0, 16);
+      try {
+        localStorage.setItem("harapekoPlayerProfile", JSON.stringify(playerProfile));
+      } catch {
+        // localStorage is optional.
+      }
+    });
+  }
+  if (!elements.avatarPicker) return;
+  elements.avatarPicker.replaceChildren();
+  AVATAR_OPTIONS.forEach((avatar) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `avatar-choice ${playerProfile.avatar === avatar ? "selected" : ""}`;
+    button.innerHTML = `<img src="${avatar}" alt="">`;
+    button.addEventListener("click", () => {
+      playerProfile.avatar = avatar;
+      try {
+        localStorage.setItem("harapekoPlayerProfile", JSON.stringify(playerProfile));
+      } catch {
+        // localStorage is optional.
+      }
+      setupProfileControls();
+    });
+    elements.avatarPicker.append(button);
+  });
+}
+
+function cpuProfile(difficulty) {
+  const avatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
+  return { name: difficulty === "hard" ? "CPU（強い）" : "CPU（普通）", avatar };
+}
+
 function render() {
   window.__CARD_APP_RENDERED = true;
   const view = getView();
@@ -171,9 +241,11 @@ function render() {
   const locked = lockedForCpu || lockedForOnline || animationLock;
   renderBattleEvents(view);
 
-  elements.turnLabel.textContent = view.winner === null
-    ? `${activePlayer.name}のターン ${view.turn}`
-    : `決着: ${view.players[view.winner].name}の勝ち`;
+  const turnNameClass = view.activePlayer === selfId ? "player-name-blue" : "player-name-red";
+  const winnerNameClass = view.winner === selfId ? "player-name-blue" : "player-name-red";
+  elements.turnLabel.innerHTML = view.winner === null
+    ? `<span class="${turnNameClass}">${activePlayer.name}</span>のターン ${view.turn}`
+    : `決着: <span class="${winnerNameClass}">${view.players[view.winner].name}</span>の勝ち`;
   elements.actionLabel.textContent = activePlayer.hasDrawnThisTurn
     ? `アクション ${activePlayer.actions}/2`
     : "山札を選んでドロー";
@@ -211,6 +283,7 @@ function render() {
   renderPendingDoubleCheck();
   renderPendingQuickReplay();
   renderPendingDiscardSelection();
+  renderPendingDiscardTake();
   renderPendingPileSearch();
   updateDrawPrompt(view, locked);
   renderWinnerOverlay(view);
@@ -240,6 +313,15 @@ function renderPlayerInfo(view) {
   slots.forEach((playerId, slotId) => {
     const player = view.players[playerId];
     elements.playerName[slotId].textContent = player.name;
+    elements.playerName[slotId].className = slotId === 0 ? "player-name-blue" : "player-name-red";
+    let avatarNode = elements.playerName[slotId].parentElement.querySelector(".player-avatar");
+    if (!avatarNode) {
+      avatarNode = document.createElement("img");
+      avatarNode.className = "player-avatar";
+      avatarNode.alt = "";
+      elements.playerName[slotId].parentElement.prepend(avatarNode);
+    }
+    avatarNode.src = player.avatar || (slotId === 0 ? AVATAR_OPTIONS[0] : AVATAR_OPTIONS[1]);
     elements.life[slotId].textContent = `HP ${player.life}`;
     elements.life[slotId].onclick = null;
     if (slotId === 1) {
@@ -302,9 +384,9 @@ function renderTitleLobby() {
   const createdRoom = waiting && onlinePlayerId === 0;
   const joinedRoom = waiting && onlinePlayerId === 1;
   elements.titleRoomIdInput?.classList.toggle("hidden", titleLobbyMode !== "join");
-  elements.titleRandomButton?.classList.toggle("hidden", waiting || titleLobbyMode === "join" || titleLobbyMode === "friend");
-  elements.titleCreateRoomButton?.classList.toggle("hidden", joinedRoom);
-  elements.titleJoinRoomButton?.classList.toggle("hidden", waiting);
+  elements.titleRandomButton?.classList.toggle("hidden", waiting || titleLobbyMode === "join" || titleLobbyMode === "friend" || titleLobbyMode === "random");
+  elements.titleCreateRoomButton?.classList.toggle("hidden", joinedRoom || titleLobbyMode === "random");
+  elements.titleJoinRoomButton?.classList.toggle("hidden", waiting || titleLobbyMode === "random");
   elements.titleCopyPasswordButton?.classList.toggle("hidden", !createdRoom);
   elements.titleCopyUrlButton?.classList.toggle("hidden", !createdRoom);
   if (!onlineMode) {
@@ -685,6 +767,16 @@ function renderPendingDiscardSelection() {
   renderDetail();
 }
 
+function renderPendingDiscardTake() {
+  const view = getView();
+  const pending = view.pendingDiscardTake;
+  if (!pending || pending.playerId !== getSelfId() || isCpuTurn()) return;
+  selectedKey = "pending:discardTake";
+  detailKey = "pending:discardTake";
+  detailData = { source: "pendingDiscardTake", zone: "黒バド", card: CARD_DEFINITIONS.calyrexShadow };
+  renderDetail();
+}
+
 function renderPendingPileSearch() {
   const view = getView();
   const pending = view.pendingPileSearch;
@@ -729,6 +821,11 @@ function renderDetailActions(container, data) {
 
   if (data.source === "pendingDiscardSelection") {
     renderDiscardSelectionControls(container, data.count, view);
+    return;
+  }
+
+  if (data.source === "pendingDiscardTake") {
+    renderDiscardTakeControls(container, view);
     return;
   }
 
@@ -802,7 +899,8 @@ function renderDetailActions(container, data) {
       if (!unit) return;
       const opponentHasWall = view.players[view.activePlayer === 0 ? 1 : 0].field.length >= view.maxFieldSize;
       const opponentHasSnorlax = view.players[view.activePlayer === 0 ? 1 : 0].field.some((target) => CARD_DEFINITIONS[target.cardId].effectKey === "mustBeAttacked");
-      container.append(createSmallButton(opponentHasSnorlax ? "カビゴンでライフ攻撃不可" : opponentHasWall ? "壁でライフ攻撃不可" : "ライフを攻撃", disabled || !unit.canAct || opponentHasWall || opponentHasSnorlax, async () => {
+      const ignoresWall = CARD_DEFINITIONS[unit.cardId].effectKey === "ignoreWallLifeAttack";
+      container.append(createSmallButton(opponentHasSnorlax ? "カビゴンでライフ攻撃不可" : opponentHasWall && !ignoresWall ? "壁でライフ攻撃不可" : "ライフを攻撃", disabled || !unit.canAct || (opponentHasWall && !ignoresWall) || opponentHasSnorlax, async () => {
         await playAttackSequence(`field:${data.ownerId}:${unit.id}`, null, getOpponentId());
         playSound("attack");
         runGameAction("attackLife", { attackerId: unit.id }, () => engine.attackLife(game, game.activePlayer, unit.id));
@@ -973,7 +1071,7 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
   const active = view.players[view.activePlayer];
   const opponent = view.players[view.activePlayer === 0 ? 1 : 0];
 
-  if (["drawTwoGainAction", "drawPileDiscardTwo", "searchTwoFromPile", "drawOneBuffOwnField"].includes(card.effectKey)) {
+  if (["drawTwoGainAction", "drawPileDiscardTwo", "searchTwoFromPile", "drawOneBuffOwnField", "healLifeThree", "damageMinusOneUntilNextTurn"].includes(card.effectKey)) {
     controls.pile = appendSelect(form, "山札", view.piles.map((pile) => [pile.id, `${pile.name} (${pile.count})`]));
   }
   if (["discardUnit"].includes(card.effectKey)) {
@@ -1035,6 +1133,22 @@ function renderDiscardSelectionControls(container, count, view) {
   form.append(createSmallButton(`${count}枚捨てる`, hand.length < count, () => {
     const handIndexes = picker.getSelectedValues();
     runGameAction("discardSelection", { handIndexes }, () => engine.resolvePendingDiscardSelection(game, game.activePlayer, handIndexes));
+    clearSelection();
+    if (!onlineMode) render();
+  }));
+  container.append(form);
+}
+
+function renderDiscardTakeControls(container, view) {
+  const form = document.createElement("div");
+  form.className = "action-form";
+  const note = document.createElement("p");
+  note.className = "empty-note";
+  note.textContent = "黒バドの効果です。捨札から手札に加えるカードを1枚選んでください。";
+  form.append(note);
+  const select = appendSelect(form, "捨札", view.discard.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]));
+  form.append(createSmallButton("手札に加える", view.discard.length === 0, () => {
+    runGameAction("discardTake", { discardIndex: select.value }, () => engine.resolvePendingDiscardTake(game, game.activePlayer, select.value));
     clearSelection();
     if (!onlineMode) render();
   }));
@@ -1120,12 +1234,14 @@ function renderWinnerOverlay(view) {
   }
   if (node) return;
   const winner = view.players[view.winner];
+  const selfWon = view.winner === getSelfId();
   node = document.createElement("div");
   node.id = "winnerOverlay";
   node.className = "winner-overlay";
   node.innerHTML = `
     <div class="winner-card">
-      <p>決着</p>
+      <p>${selfWon ? "勝利" : "敗北"}</p>
+      <img class="winner-avatar" src="${winner.avatar || AVATAR_OPTIONS[view.winner] || AVATAR_OPTIONS[0]}" alt="">
       <h2>${winner.name}の勝ち！</h2>
       <div class="winner-actions">
         <button type="button" id="winnerRematch">もう一度戦う</button>
@@ -1273,6 +1389,9 @@ function ownUnitOptions(view) {
 
 function renderBattleEvents(view) {
   if (!previousView) return;
+  if (view.winner === null && previousView.activePlayer !== view.activePlayer) {
+    showTurnBanner(`${view.players[view.activePlayer].name}のターン`);
+  }
   if (onlineMode && view.lastPlayedAction && view.lastPlayedAction.playerId !== getSelfId()
     && view.lastPlayedAction.serial !== previousView.lastPlayedAction?.serial) {
     const card = CARD_DEFINITIONS[view.lastPlayedAction.cardId];
@@ -1364,7 +1483,12 @@ function startCpuGame(difficulty = "normal") {
   cpuEnabled = true;
   cpuThinking = false;
   game = engine.createGame();
-  game.players[1].name = "CPU";
+  const selfProfile = currentPlayerProfile();
+  const opponentProfile = cpuProfile(difficulty);
+  game.players[0].name = selfProfile.name;
+  game.players[0].avatar = selfProfile.avatar;
+  game.players[1].name = opponentProfile.name;
+  game.players[1].avatar = opponentProfile.avatar;
   titleActive = false;
   titleLobbyOpen = false;
   titleRulesOpen = false;
@@ -1373,8 +1497,9 @@ function startCpuGame(difficulty = "normal") {
   optionsOpen = false;
   clearSelection();
   previousView = null;
-  showTurnBanner(difficulty === "hard" ? "CPU対戦 強い" : "CPU対戦 普通");
   render();
+  showBattleStart(engine.getPublicState(game, 0), 0);
+  setTimeout(() => showTurnBanner(`${game.players[game.activePlayer].name}のターン`), 1300);
 }
 
 function startMultiSetup() {
@@ -1528,7 +1653,12 @@ elements.resetButton.addEventListener("click", () => {
     return;
   }
   game = engine.createGame();
-  game.players[1].name = "CPU";
+  const selfProfile = currentPlayerProfile();
+  const opponentProfile = cpuProfile(cpuDifficulty);
+  game.players[0].name = selfProfile.name;
+  game.players[0].avatar = selfProfile.avatar;
+  game.players[1].name = opponentProfile.name;
+  game.players[1].avatar = opponentProfile.avatar;
   cpuThinking = false;
   clearSelection();
   render();
@@ -1560,7 +1690,7 @@ elements.joinRoomButton?.addEventListener("click", async () => {
 
 async function createOnlineRoom({ fromTitle }) {
   if (!await ensureSocket()) return;
-  socket.emit("room:create", {}, (result) => {
+  socket.emit("room:create", { player: currentPlayerProfile() }, (result) => {
     if (!result?.ok) {
       showFloat(result?.message || "部屋作成に失敗", "damage");
       return;
@@ -1586,7 +1716,7 @@ async function joinOnlineRoom(roomId, { fromTitle }) {
     showFloat("パスワードを入力", "damage");
     return;
   }
-  socket.emit("room:join", { password: roomId }, (result) => {
+  socket.emit("room:join", { password: roomId, player: currentPlayerProfile() }, (result) => {
     if (!result?.ok) {
       showFloat(result?.message || "参加に失敗", "damage");
       return;
@@ -1610,7 +1740,7 @@ async function joinRandomRoom({ fromTitle }) {
   if (!await ensureSocket()) return;
   titleLobbyMode = "random";
   render();
-  socket.emit("room:random", {}, (result) => {
+  socket.emit("room:random", { player: currentPlayerProfile() }, (result) => {
     if (!result?.ok) {
       showFloat(result?.message || "ランダム対戦に失敗", "damage");
       titleLobbyMode = "menu";
@@ -1688,7 +1818,8 @@ async function ensureSocket() {
       titleLobbyOpen = false;
       titleRulesOpen = false;
       titleCardsOpen = false;
-      showTurnBanner("BATTLE START");
+      showBattleStart(state.view, state.playerId);
+      setTimeout(() => showTurnBanner(`${state.view.players[state.view.activePlayer].name}のターン`), 1300);
     }
     lastOnlineStarted = Boolean(state.started);
     if (elements.roomIdInput && state.roomId) elements.roomIdInput.value = state.roomId;
@@ -1796,6 +1927,32 @@ function showTurnBanner(text) {
   node.addEventListener("animationend", () => node.remove(), { once: true });
 }
 
+function showBattleStart(view, selfId = getSelfId()) {
+  const opponentId = selfId === 0 ? 1 : 0;
+  const node = document.createElement("div");
+  node.className = "battle-start-overlay";
+  node.innerHTML = `
+    <div class="battle-start-card">
+      <div class="battle-start-player self">
+        <img src="${view.players[selfId].avatar || AVATAR_OPTIONS[0]}" alt="">
+        <strong>${view.players[selfId].name}</strong>
+      </div>
+      <div class="battle-start-vs">
+        <span>BATTLE</span>
+        <b>START</b>
+      </div>
+      <div class="battle-start-player opponent">
+        <img src="${view.players[opponentId].avatar || AVATAR_OPTIONS[1]}" alt="">
+        <strong>${view.players[opponentId].name}</strong>
+      </div>
+    </div>
+  `;
+  document.body.append(node);
+  playSound("turn");
+  setAnimationLock(1250);
+  setTimeout(() => node.remove(), 1250);
+}
+
 function setAnimationLock(ms) {
   animationLock = true;
   document.body.classList.add("animation-lock");
@@ -1841,7 +1998,7 @@ function scheduleCpuTurn() {
   const view = engine.getPublicState(game, 0);
   if (!isCpuTurn(view) || cpuThinking) return;
   cpuThinking = true;
-  showTurnBanner("ENEMY TURN");
+  showTurnBanner(`${view.players[1].name}のターン`);
   playSound("turn");
   window.setTimeout(async () => {
     try {
@@ -1860,17 +2017,19 @@ async function runCpuTurn() {
     return;
   }
   await runCpuOpeningDraw();
+  await runCpuPendingDiscardTake();
   await runCpuSummon();
   await runCpuActions();
   await runCpuAttacks();
+  await runCpuPendingDiscardTake();
   if (game.winner === null && game.activePlayer === 1) {
     await cpuStep("ターン終了", () => engine.endTurn(game, 1), "turn");
-    showTurnBanner("YOUR TURN");
   }
 }
 
 async function runHardCpuTurn() {
   await runCpuOpeningDraw();
+  await runCpuPendingDiscardTake();
   await runCpuEquipItems();
   let guard = 0;
   while (game.winner === null && game.activePlayer === 1 && game.players[1].actions > 0 && guard < 8) {
@@ -1882,11 +2041,12 @@ async function runHardCpuTurn() {
     await runCpuEquipItems();
   }
   await runHardCpuUnitAbilities();
+  await runCpuPendingDiscardTake();
   await runCpuEquipItems();
   await runHardCpuAttacks();
+  await runCpuPendingDiscardTake();
   if (game.winner === null && game.activePlayer === 1) {
     await cpuStep("CPU ターン終了", () => engine.endTurn(game, 1), "turn");
-    showTurnBanner("YOUR TURN");
   }
 }
 
@@ -1902,6 +2062,14 @@ async function runCpuOpeningDraw() {
       return engine.drawFromPile(game, 1, pile.id);
     }, "draw");
   }
+}
+
+async function runCpuPendingDiscardTake() {
+  if (game.pendingDiscardTake?.playerId !== 1) return;
+  const index = game.discard
+    .map((cardId, discardIndex) => ({ discardIndex, score: hardCardIdScore(cardId) }))
+    .sort((a, b) => b.score - a.score)[0]?.discardIndex ?? 0;
+  await cpuStep("CPU 捨札回収", () => engine.resolvePendingDiscardTake(game, 1, index), "select");
 }
 
 async function runCpuSummon() {
@@ -2075,6 +2243,7 @@ async function resolveCpuPendingChoices() {
     const indexes = chooseHardCpuPileSearchIndexes();
     await cpuStep("CPU サーチ", () => engine.resolvePendingPileSearch(game, 1, indexes), "draw");
   }
+  await runCpuPendingDiscardTake();
 }
 
 function hardSummonChoices() {
@@ -2504,7 +2673,7 @@ function hardUnitCardScore(card) {
     attackPowerPlusThree: 210,
     drawFromPileOnKill: 180,
     attackOrGainLife: 190,
-    damageAllOthersTurnStart: 170,
+    damageAllOthersTurnEnd: 170,
     useTargetPowerAsHpNoSummonSick: 190,
     ignorePowerIncreases: 140,
     mustBeAttacked: 230,
@@ -2914,6 +3083,7 @@ function initializeFromUrl() {
   if (elements.titleRoomIdInput) elements.titleRoomIdInput.value = roomId.toUpperCase();
 }
 
+setupProfileControls();
 initializeFromUrl();
 render();
 })();
