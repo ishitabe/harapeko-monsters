@@ -30,6 +30,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     distributeCardsAcrossDecks(game, shuffle([...cardPool]));
     dealOpeningHands(game);
     game.players[firstPlayer].actions = 1;
+    addTurnSeparator(game, firstPlayer);
     return game;
   }
 
@@ -168,7 +169,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
         discardDeadUnits(game);
       }
     }
-    game.lastMessage = `${player.name}が${card.name}を召喚しました。召喚ターンは行動できません。`;
+    game.lastMessage = `${player.name}が${card.name}を召喚しました。`;
     addLog(game, game.lastMessage);
     return ok(game);
   }
@@ -570,7 +571,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (cards[attacker.cardId].effectKey === "takeDiscardOnLifeAttack" && game.discard.length > 0) {
       game.pendingDiscardTake = { playerId, count: 1, source: attacker.cardId };
     }
-    game.lastMessage = `${cards[attacker.cardId].name}がライフに${actualDamage}ダメージ。`;
+    game.lastMessage = `${cards[attacker.cardId].name}が${game.players[opponentId].name}のライフに攻撃　${actualDamage}ダメージ！`;
     addLog(game, game.lastMessage);
     checkWinner(game);
     resolveAfterAction(game, playerId, attacker.id);
@@ -594,7 +595,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
         game.pendingDiscardTake = { playerId, count: 1, source: attacker.cardId };
       }
     });
-    game.lastMessage = `${player.name}が全員でライフに${totalDamage}ダメージ。`;
+    game.lastMessage = `${player.name}が全員で${game.players[opponentId].name}のライフに攻撃　合計${totalDamage}ダメージ！`;
     addLog(game, game.lastMessage);
     checkWinner(game);
     return ok(game);
@@ -623,7 +624,8 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     }
     const specialMessage = /気合いのタスキ|道連れマント/.test(game.lastMessage) ? game.lastMessage : "";
     game.lastMessage = specialMessage || `${cards[attacker.cardId].name}が${cards[defender.cardId].name}を攻撃しました。`;
-    addLog(game, `同時処理: 相手に${result.defenderDamage}、反撃で${result.attackerDamage}ダメージ。`);
+    addLog(game, `${cards[attacker.cardId].name}が${cards[defender.cardId].name}に攻撃　${result.defenderDamage}ダメージ！`);
+    if (result.attackerDamage > 0) addLog(game, `${cards[defender.cardId].name}が${cards[attacker.cardId].name}に反撃　${result.attackerDamage}ダメージ！`);
     discardDeadUnits(game);
     resolveAfterAction(game, playerId, attacker.id);
     return ok(game, { drawnCards });
@@ -686,6 +688,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     startTurn(game, nextPlayerId);
     game.lastMessage = `${game.players[nextPlayerId].name}のターンです。山札を1つ選んでドローしてください。`;
     addLog(game, `${game.players[playerId].name}がターン終了。`);
+    addTurnSeparator(game, nextPlayerId);
     return ok(game);
   }
 
@@ -872,7 +875,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     const card = cards[unit.cardId];
     if (unit.item) discardItem(game, unit);
     game.discard.push(unit.cardId);
-    addLog(game, `${card.name}を捨札へ送りました。`);
+    addLog(game, `${card.name}は倒れた　${card.name}を捨札に送りました。`);
     if (card.effectKey === "drawTwoOnDeath") {
       drawAnyAvailableCard(game, ownerId);
       drawAnyAvailableCard(game, ownerId);
@@ -956,7 +959,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (unit.item) discardItem(game, unit);
     game.discard.push(unit.cardId);
     player.field.splice(index, 1);
-    addLog(game, `${cards[unit.cardId].name}を捨札へ送りました。`);
+    addLog(game, `${cards[unit.cardId].name}を捨札に送りました。`);
   }
 
   function moveUnitToHand(game, ownerId, unit) {
@@ -1067,15 +1070,20 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     const deadName = cards[deadCandidate.cardId].name;
     const opposingName = cards[opposingUnit.cardId].name;
     revealItem(game, deadCandidate, `${deadName}は道連れマントで${opposingName}を道連れにした。`);
-    game.lastMessage = `${deadName}は道連れマントで${opposingName}を道連れにした。`;
-    addLog(game, game.lastMessage);
     opposingUnit.hp = 0;
   }
 
   function revealItem(game, unit, message) {
-    if (!unit.item || unit.item.revealed) return;
+    if (!unit.item) return;
+    const itemName = cards[unit.item.cardId].name;
+    if (unit.item.revealed) {
+      game.lastMessage = `${itemName}: ${message}`;
+      addLog(game, game.lastMessage);
+      return;
+    }
     unit.item.revealed = true;
-    addLog(game, `${cards[unit.item.cardId].name}を公開。${message}`);
+    game.lastMessage = `${itemName}を公開。${message}`;
+    addLog(game, game.lastMessage);
   }
 
   function discardItem(game, unit) {
@@ -1314,8 +1322,13 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   }
 
   function addLog(game, message) {
+    if (!message) return;
     game.log.unshift(message);
-    game.log = game.log.slice(0, 16);
+    game.log = game.log.slice(0, 32);
+  }
+
+  function addTurnSeparator(game, playerId) {
+    addLog(game, `──── ${game.players[playerId].name}のターン ────`);
   }
 
   function ok(game, extra = {}) {

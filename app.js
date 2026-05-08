@@ -741,6 +741,7 @@ function renderLog(log) {
   log.forEach((entry) => {
     const item = document.createElement("li");
     item.textContent = entry;
+    if (entry.startsWith("────")) item.className = "log-turn-separator";
     elements.logList.append(item);
   });
 }
@@ -915,9 +916,10 @@ function renderDetailActions(container, data) {
     const opponentId = view.activePlayer === 0 ? 1 : 0;
     const opponentHasSnorlax = view.players[opponentId].field.some((target) => CARD_DEFINITIONS[target.cardId].effectKey === "mustBeAttacked");
     const attackers = activePlayer.field.filter((unit) => unit.canAct && !opponentHasSnorlax && (view.players[opponentId].field.length < view.maxFieldSize || CARD_DEFINITIONS[unit.cardId].effectKey === "ignoreWallLifeAttack"));
-    container.append(createSmallButton("全員ライフ攻撃", disabled || attackers.length === 0, () => {
-      runGameAction("attackLifeAll", {}, () => engine.attackLifeWithAll(game, game.activePlayer));
-      showFloat("全員でライフ攻撃！", "damage");
+    container.append(createSmallButton("全員ライフ攻撃", disabled || attackers.length === 0, async () => {
+      await playAttackSequence(null, null, opponentId);
+      const result = runGameAction("attackLifeAll", {}, () => engine.attackLifeWithAll(game, getSelfId()));
+      if (!result || result.ok !== false) showFloat("全員でライフ攻撃！", "damage");
       clearSelection();
       if (!onlineMode) render();
     }));
@@ -1149,7 +1151,7 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
   const opponent = view.players[view.activePlayer === 0 ? 1 : 0];
 
   if (["drawTwoGainAction", "drawPileDiscardTwo", "searchTwoFromPile", "drawOneBuffOwnField", "healLifeThree", "damageMinusOneUntilNextTurn"].includes(card.effectKey)) {
-    controls.pile = appendSelect(form, "山札", view.piles.map((pile) => [pile.id, `${pile.name} (${pile.count})`]));
+    controls.pile = appendSelect(form, "山札", view.piles.map((pile) => [pile.id, pileChoiceLabel(pile)]));
   }
   if (["discardUnit"].includes(card.effectKey)) {
     controls.target = appendSelect(form, "対象", orderedUnitOptions(view));
@@ -1176,13 +1178,13 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
     form.append(note);
   }
   if (card.effectKey === "reviveUnit") {
-    controls.discard = appendSelect(form, "捨札", view.discard
+    controls.discard = appendClickMultiPicker(form, "捨札", view.discard
       .map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name, CARD_DEFINITIONS[cardId].type])
       .filter((entry) => entry[2] === "unit")
-      .map(([value, label]) => [value, label]));
+      .map(([value, label]) => [value, label, view.discard[Number(value)]]), 1);
   }
   if (card.effectKey === "takeDiscardToHandGainAction") {
-    controls.discard = appendSelect(form, "捨札", view.discard.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]));
+    controls.discard = appendClickMultiPicker(form, "捨札", view.discard.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name, cardId]), 1);
   }
   return controls;
 }
@@ -1205,7 +1207,7 @@ function renderDiscardSelectionControls(container, count, view) {
     container.append(form);
     return;
   }
-  const choices = hand.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]);
+  const choices = hand.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name, cardId]);
   const picker = appendClickMultiPicker(form, "捨てる手札", choices, count);
   form.append(createSmallButton(`${count}枚捨てる`, hand.length < count, () => {
     const handIndexes = picker.getSelectedValues();
@@ -1223,9 +1225,11 @@ function renderDiscardTakeControls(container, view) {
   note.className = "empty-note";
   note.textContent = "黒バドの効果です。捨札から手札に加えるカードを1枚選んでください。";
   form.append(note);
-  const select = appendSelect(form, "捨札", view.discard.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]));
+  const choices = view.discard.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name, cardId]);
+  const picker = appendClickMultiPicker(form, "捨札", choices, 1);
   form.append(createSmallButton("手札に加える", view.discard.length === 0, () => {
-    runGameAction("discardTake", { discardIndex: select.value }, () => engine.resolvePendingDiscardTake(game, game.activePlayer, select.value));
+    const [discardIndex] = picker.getSelectedValues();
+    runGameAction("discardTake", { discardIndex }, () => engine.resolvePendingDiscardTake(game, game.activePlayer, discardIndex));
     clearSelection();
     if (!onlineMode) render();
   }));
@@ -1241,7 +1245,7 @@ function renderPileDrawSelectionControls(container, count, view) {
   form.append(note);
   const selects = [];
   for (let index = 0; index < count; index += 1) {
-    selects.push(appendSelect(form, `ドロー${index + 1}`, view.piles.map((pile) => [pile.id, `${pile.name} (${pile.count})`])));
+    selects.push(appendSelect(form, `ドロー${index + 1}`, view.piles.map((pile) => [pile.id, pileChoiceLabel(pile)])));
   }
   form.append(createSmallButton("ドローする", false, () => {
     const pileIds = selects.map((select) => select.value);
@@ -1260,8 +1264,8 @@ function renderPileSearchControls(container, data) {
   note.textContent = `山札から手札に加えるカードを${data.count}枚まで選んでください。`;
   form.append(note);
   const choices = data.entries
-    ? data.entries.map((entry) => [entry.value, entry.label])
-    : (data.cards || []).map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]);
+    ? data.entries.map((entry) => [entry.value, entry.label, entry.cardId])
+    : (data.cards || []).map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name, cardId]);
   const picker = appendClickMultiPicker(form, "山札の中身", choices, data.count);
   form.append(createSmallButton("手札に加える", choices.length === 0, () => {
     const pileIndexes = picker.getSelectedValues();
@@ -1279,7 +1283,7 @@ function readActionPayload(controls) {
   else if (controls.target) payload.unitId = controls.target.value;
   if (controls.ownUnit) payload.ownUnitId = controls.ownUnit.value;
   if (controls.opponentUnit) payload.opponentUnitId = controls.opponentUnit.value;
-  if (controls.discard) payload.discardIndex = controls.discard.value;
+  if (controls.discard) payload.discardIndex = controls.discard.getSelectedValues ? controls.discard.getSelectedValues()[0] : controls.discard.value;
   if (controls.opponentHand) payload.opponentHandIndex = controls.opponentHand.value;
   if (controls.discards) payload.discardHandIndexes = controls.discards.getSelectedValues
     ? controls.discards.getSelectedValues()
@@ -1441,11 +1445,20 @@ function appendClickMultiPicker(form, label, options, maxCount) {
       button.classList.toggle("selected", selected.has(button.value));
     });
   };
-  options.forEach(([value, text]) => {
+  options.forEach(([value, text, cardId]) => {
     const button = document.createElement("button");
     button.type = "button";
     button.value = value;
-    button.textContent = text;
+    if (cardId && CARD_DEFINITIONS[cardId]) {
+      button.className = `choice-card ${CARD_DEFINITIONS[cardId].type}`;
+      button.innerHTML = compactCardMarkup(CARD_DEFINITIONS[cardId]);
+      const source = document.createElement("span");
+      source.className = "choice-source";
+      source.textContent = text;
+      button.prepend(source);
+    } else {
+      button.textContent = text;
+    }
     button.addEventListener("click", () => {
       if (selected.has(value)) selected.delete(value);
       else if (selected.size < maxCount) selected.add(value);
@@ -1457,6 +1470,11 @@ function appendClickMultiPicker(form, label, options, maxCount) {
   wrapper.append(title, grid);
   form.append(wrapper);
   return { getSelectedValues };
+}
+
+function pileChoiceLabel(pile) {
+  const topCard = pile.topCardId ? CARD_DEFINITIONS[pile.topCardId] : null;
+  return `${pile.name} 残り${pile.count}枚 / トップ: ${topCard ? topCard.name : "なし"}`;
 }
 
 function replaceOptions(select, options) {
@@ -1992,10 +2010,10 @@ function flushFx() {
 
 async function playAttackSequence(attackerKey, targetKey = null, targetLifePlayerId = null) {
   setAnimationLock(1700);
-  addFx(attackerKey, "fx-attack-charge", 1300);
+  if (attackerKey) addFx(attackerKey, "fx-attack-charge", 1300);
   render();
   await delay(620);
-  addFx(attackerKey, "fx-attack");
+  if (attackerKey) addFx(attackerKey, "fx-attack");
   if (targetKey) addFx(targetKey, "fx-hit");
   if (targetLifePlayerId !== null) {
     const slot = targetLifePlayerId === getSelfId() ? 0 : 1;

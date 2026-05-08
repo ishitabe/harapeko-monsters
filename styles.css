@@ -877,21 +877,21 @@ p {
 
 .click-picker-wrap > span {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 900;
 }
 
 .click-picker {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  max-height: 300px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  max-height: 430px;
   overflow: auto;
 }
 
 .click-picker button {
-  min-height: 44px;
-  padding: 8px 10px;
+  min-height: 54px;
+  padding: 10px 12px;
   border: 1px solid rgba(103, 183, 255, 0.25);
   border-radius: 10px;
   background: linear-gradient(180deg, rgba(33, 48, 66, 0.96), rgba(17, 25, 36, 0.96));
@@ -906,6 +906,30 @@ p {
   background: linear-gradient(180deg, rgba(242, 189, 92, 0.38), rgba(93, 63, 24, 0.96));
   color: #fff6df;
   box-shadow: 0 0 0 2px rgba(242, 189, 92, 0.18), 0 0 24px rgba(242, 189, 92, 0.2);
+}
+
+.click-picker .choice-card {
+  display: grid;
+  gap: 6px;
+  min-height: 154px;
+  align-content: start;
+  box-shadow: 0 12px 26px rgba(0,0,0,0.34);
+}
+
+.click-picker .choice-card .card-name {
+  font-size: 1rem;
+}
+
+.click-picker .choice-card small {
+  color: #d8e6ef;
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+
+.choice-source {
+  color: var(--gold);
+  font-size: 0.72rem;
+  line-height: 1.2;
 }
 
 .detail-panel {
@@ -1476,6 +1500,17 @@ p {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.35;
+}
+
+.log-turn-separator {
+  list-style: none;
+  margin-left: -18px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(103, 183, 255, 0.12);
+  color: #bfe4ff;
+  font-weight: 900;
+  text-align: center;
 }
 
 .title-screen {
@@ -2102,8 +2137,8 @@ body.title-cpu-active .version-label {
   }
 
   .opponent-row {
-    grid-template-columns: minmax(0, 1fr) 104px;
-    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) 96px;
+    gap: 6px;
   }
 
   .player-row {
@@ -2128,8 +2163,11 @@ body.title-cpu-active .version-label {
   }
 
   .life-box {
+    grid-template-columns: 38px minmax(0, 1fr);
     padding: 7px 6px;
     gap: 3px;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .life-box strong {
