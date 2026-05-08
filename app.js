@@ -2481,7 +2481,7 @@ function hardActionCandidates(handIndex, cardId) {
       if (bestPile && drawRoomAfterPlaying() >= 3) add(360 + bestKnownPileScore(bestPile, 3) * 0.25, { pileId: bestPile.id });
       break;
     case "searchOneFromEachPile":
-      if (drawRoomAfterPlaying() >= 3 && game.piles.some((pile) => pile.deck.length > 0)) add(420);
+      if (drawRoomAfterPlaying() >= 1 && game.piles.some((pile) => pile.deck.length > 0)) add(420);
       break;
     case "drawPileDiscardTwo":
       if (bestPile && drawRoomAfterPlaying() >= 4) add(330 + bestKnownPileScore(bestPile, 6) * 0.12, { pileId: bestPile.id });

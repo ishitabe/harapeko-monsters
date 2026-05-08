@@ -444,7 +444,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     }
 
     if (card.effectKey === "searchOneFromEachPile") {
-      game.pendingPileSearch = { playerId, allPiles: true, count: game.piles.filter((pile) => pile.deck.length > 0).length };
+      game.pendingPileSearch = { playerId, allPiles: true, count: 1 };
       return ok(game);
     }
 
