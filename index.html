@@ -4,17 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>はらぺこモンスターズ</title>
-    <link rel="stylesheet" href="styles.css?v=54">
+    <link rel="stylesheet" href="styles.css?v=55">
     <script>
       window.addEventListener("error", (event) => {
         const message = document.querySelector("#messageText");
         if (message) message.textContent = `読み込みエラー: ${event.message}`;
       });
     </script>
-    <script src="avatars.js?v=54" defer></script>
-    <script src="cards.js?v=54" defer></script>
-    <script src="gameEngine.js?v=54" defer></script>
-    <script src="app.js?v=54" defer></script>
+    <script src="avatars.js?v=55" defer></script>
+    <script src="cards.js?v=55" defer></script>
+    <script src="gameEngine.js?v=55" defer></script>
+    <script src="app.js?v=55" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -36,6 +36,7 @@
           <button class="title-button" id="startMultiButton" type="button">マルチ対戦</button>
           <button class="title-button rules-button" id="showRulesButton" type="button">ルール</button>
           <button class="title-button cards-button" id="showCardsButton" type="button">カード一覧</button>
+          <button class="title-button update-button" id="showUpdatesButton" type="button">アップデート履歴</button>
         </div>
         <div class="title-rules hidden" id="titleRules" aria-label="ルール説明">
           <div class="rules-head">
@@ -56,6 +57,14 @@
           </div>
           <h2>カード一覧</h2>
           <div class="card-list-body" id="cardListBody"></div>
+        </div>
+        <div class="title-updates hidden" id="titleUpdates" aria-label="アップデート履歴">
+          <div class="rules-head">
+            <span>UPDATE HISTORY</span>
+            <button class="small-button" id="updatesCloseButton" type="button">閉じる</button>
+          </div>
+          <h2>アップデート履歴</h2>
+          <div class="update-list-body" id="updateListBody"></div>
         </div>
         <div class="title-cpu hidden" id="titleCpu" aria-label="CPU対戦">
           <div class="rules-head">
@@ -85,7 +94,7 @@
           <button class="small-button" id="titleBackButton" type="button">戻る</button>
         </div>
         <p class="title-note">山札を選び、モンスターを出して、相手のHPを0にしよう。</p>
-        <p class="version-label">v0.54</p>
+        <p class="version-label">v0.55</p>
       </div>
     </section>
     <main class="battle-shell">

@@ -18,6 +18,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       pendingOpponentHandCheck: null,
       pendingDiscardSelection: null,
       pendingDiscardTake: null,
+      pendingPileDrawSelection: null,
       pendingPileSearch: null,
       lastPlayedAction: null,
       piles: pileDefinitions.map((pile) => ({ id: pile.id, name: pile.name, deck: [] })),
@@ -67,6 +68,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       pendingOpponentHandCheck: game.pendingOpponentHandCheck,
       pendingDiscardSelection: game.pendingDiscardSelection,
       pendingDiscardTake: game.pendingDiscardTake,
+      pendingPileDrawSelection: game.pendingPileDrawSelection,
       pendingPileSearch: game.pendingPileSearch && game.pendingPileSearch.playerId === viewerId
         ? publicPendingPileSearch(game)
         : null,
@@ -90,7 +92,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
         hasDrawnThisTurn: player.hasDrawnThisTurn,
         handCount: player.hand.length,
         hand: canViewHand(game, viewerId, ownerId) ? [...player.hand] : [],
-        field: player.field.map((unit) => publicUnit(unit, ownerId, viewerId)),
+        field: player.field.map((unit) => publicUnit(game, unit, ownerId, viewerId)),
       })),
     };
   }
@@ -332,7 +334,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
     if (card.effectKey === "dealTwoToUnitOrLife") {
       if (payload.targetType === "life") {
-        dealLifeDamage(game, opponentId, 3);
+        dealLifeDamage(game, opponentId, 3, playerId, "action");
         checkWinner(game);
         return ok(game);
       }
@@ -373,10 +375,11 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (card.effectKey === "shockWave") {
       opponent.field.forEach((unit) => {
         if (isProtectedFromOpponentEffects(game, opponentId, playerId)) return;
-        unit.maxHp = Math.max(1, unit.maxHp - 1);
+        unit.maxHp = Math.max(0, unit.maxHp - 1);
         unit.hp = Math.min(unit.hp, unit.maxHp);
         lowerPower(game, opponentId, unit, 1, playerId);
       });
+      discardDeadUnits(game);
       return ok(game);
     }
 
@@ -406,7 +409,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
     if (card.effectKey === "searchTwoFromPile") {
       if (!payload.pileId) return fail(game, "山札を選んでください。");
-      game.pendingPileSearch = { playerId, pileId: payload.pileId, count: 3 };
+      game.pendingPileSearch = { playerId, pileId: payload.pileId, count: 2, discardAfter: 1 };
       return ok(game);
     }
 
@@ -422,9 +425,10 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
     if (card.effectKey === "buffHpByEnemyCount") {
       const amount = opponent.field.length;
+      if (amount > 0) game.pendingPileDrawSelection = { playerId, count: amount, source: card.id };
       player.field.forEach((unit) => {
-        unit.maxHp += amount;
-        unit.hp += amount;
+        unit.maxHp += 1;
+        unit.hp += 1;
       });
       return ok(game);
     }
@@ -511,7 +515,26 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       }
     });
     game.pendingPileSearch = null;
+    if (pending.discardAfter) game.pendingDiscardSelection = { playerId, count: pending.discardAfter, source: "preparation" };
     rebalanceDecksIfNeeded(game);
+    return ok(game, { drawnCards, discardedDrawCards });
+  }
+
+  function resolvePendingPileDrawSelection(game, playerId, pileIds) {
+    const pending = game.pendingPileDrawSelection;
+    if (!pending || pending.playerId !== playerId) return fail(game, "山札ドローの選択待ちではありません。");
+    const selectedPileIds = Array.isArray(pileIds) ? pileIds : [pileIds].filter(Boolean);
+    if (selectedPileIds.length < pending.count) return fail(game, `山札を${pending.count}回分選んでください。`);
+    const drawnCards = [];
+    const discardedDrawCards = [];
+    selectedPileIds.slice(0, pending.count).forEach((pileId) => {
+      const drawn = drawCard(game, playerId, pileId, { silent: true });
+      if (drawn?.added) drawnCards.push(drawn.cardId);
+      else if (drawn) discardedDrawCards.push(drawn.cardId);
+    });
+    game.pendingPileDrawSelection = null;
+    game.lastMessage = `${game.players[playerId].name}が構えて${drawnCards.length}枚ドローしました。`;
+    addLog(game, game.lastMessage);
     return ok(game, { drawnCards, discardedDrawCards });
   }
 
@@ -598,7 +621,8 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
         addLog(game, `${cards[attacker.cardId].name}の撃破時効果で1ドロー。`);
       }
     }
-    game.lastMessage = `${cards[attacker.cardId].name}が${cards[defender.cardId].name}を攻撃しました。`;
+    const specialMessage = /気合いのタスキ|道連れマント/.test(game.lastMessage) ? game.lastMessage : "";
+    game.lastMessage = specialMessage || `${cards[attacker.cardId].name}が${cards[defender.cardId].name}を攻撃しました。`;
     addLog(game, `同時処理: 相手に${result.defenderDamage}、反撃で${result.attackerDamage}ダメージ。`);
     discardDeadUnits(game);
     resolveAfterAction(game, playerId, attacker.id);
@@ -621,6 +645,12 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       return ok(game);
     }
     if (payload.ability === "doubleOwnPower" && card.effectKey === "doubleOwnPower") {
+      if (hasAnyEffect(game, "ignorePowerIncreases")) {
+        unit.canAct = false;
+        game.lastMessage = `${cards[unit.cardId].name}のパワー倍化はヌオーに無効化されました。`;
+        addLog(game, game.lastMessage);
+        return ok(game);
+      }
       unit.power *= 2;
       unit.canAct = false;
       return ok(game);
@@ -644,6 +674,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (game.pendingOpponentHandCheck?.playerId === playerId) game.pendingOpponentHandCheck = null;
     if (game.pendingDiscardSelection?.playerId === playerId) game.pendingDiscardSelection = null;
     if (game.pendingDiscardTake?.playerId === playerId) game.pendingDiscardTake = null;
+    if (game.pendingPileDrawSelection?.playerId === playerId) game.pendingPileDrawSelection = null;
     if (game.pendingPileSearch?.playerId === playerId) game.pendingPileSearch = null;
 
     applyTurnEndEffects(game, playerId);
@@ -670,6 +701,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     game.pendingOpponentHandCheck = null;
     game.pendingDiscardSelection = null;
     game.pendingDiscardTake = null;
+    game.pendingPileDrawSelection = null;
     game.pendingPileSearch = null;
     game.lastMessage = `${game.players[playerId].name}が降参しました。${game.players[winnerId].name}の勝ちです。`;
     addLog(game, game.lastMessage);
@@ -746,8 +778,8 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     const card = cards[unit.cardId];
     const unitOwnerId = ownerOfUnit(game, unit.id);
     const targetOwnerId = targetUnit ? ownerOfUnit(game, targetUnit.id) : opponentOf(unitOwnerId);
-    const powerIncreaseBlocked = targetOwnerId !== null && hasEffect(game.players[targetOwnerId], "ignorePowerIncreases");
-    if ((reason === "attack" || reason === "lifeAttack" || reason === "counter") && unit.item && cards[unit.item.cardId].effectKey === "powerEqualsHp") {
+    const powerIncreaseBlocked = hasAnyEffect(game, "ignorePowerIncreases");
+    if ((reason === "attack" || reason === "lifeAttack" || reason === "counter") && unit.item && cards[unit.item.cardId].effectKey === "powerEqualsHp" && !powerIncreaseBlocked) {
       revealItem(game, unit, "ライフパワーでパワーがHPと同じ値になります。");
       power = unit.hp;
     }
@@ -776,7 +808,9 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (unit.item && cards[unit.item.cardId].effectKey === "maxHpPlusTwo") revealItem(game, unit, "突撃チョッキのHP+2が影響しました。");
     if (unit.item && cards[unit.item.cardId].effectKey === "pikachuPowerPlusSix" && unit.cardId === "pikachu") revealItem(game, unit, "でんきだまのHP+6が影響しました。");
     if (unit.hp === unit.maxHp && unit.hp - amount <= 0 && unit.item && cards[unit.item.cardId].effectKey === "surviveLethalAtOne") {
-      revealItem(game, unit, "気合いのタスキでHP1で耐えました。");
+      revealItem(game, unit, `${cards[unit.cardId].name}は気合いのタスキで耐えた。`);
+      game.lastMessage = `${cards[unit.cardId].name}は気合いのタスキで耐えた。`;
+      addLog(game, game.lastMessage);
       discardItem(game, unit);
       unit.hp = 1;
       return false;
@@ -785,7 +819,8 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     return unit.hp <= 0;
   }
 
-  function dealLifeDamage(game, playerId, amount) {
+  function dealLifeDamage(game, playerId, amount, sourcePlayerId = null, sourceType = "attack") {
+    if (sourcePlayerId !== null && sourcePlayerId !== playerId && sourceType !== "attack" && game.players[playerId].mysticGuardUntilTurn > game.turn) return 0;
     let damage = reduceDamageForPlayer(game, playerId, amount);
     if (game.players[playerId].lifeDamageReductionUntilTurn > game.turn) damage = Math.max(0, damage - 1);
     game.players[playerId].life = Math.max(0, game.players[playerId].life - damage);
@@ -794,7 +829,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
   function reduceDamageForPlayer(game, playerId, amount) {
     if (amount <= 0) return 0;
-    return game.players[playerId].damageReductionUntilTurn > game.turn ? Math.max(0, amount - 1) : amount;
+    return game.players[playerId].damageReductionUntilTurn > game.turn ? Math.max(0, amount - 2) : amount;
   }
 
   function resolveAttack(game, attackerOwnerId, attacker, defenderOwnerId, defender) {
@@ -873,14 +908,17 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     };
   }
 
-  function publicUnit(unit, ownerId, viewerId) {
+  function publicUnit(game, unit, ownerId, viewerId) {
     const hiddenHpItem = ownerId !== viewerId && unit.item && !unit.item.revealed
       && ["maxHpPlusTwo", "pikachuPowerPlusSix"].includes(cards[unit.item.cardId].effectKey);
     const hiddenPowerItem = ownerId !== viewerId && unit.item && !unit.item.revealed
       && ["pikachuPowerPlusSix", "powerEqualsHp", "attackPowerPlusTwo"].includes(cards[unit.item.cardId].effectKey);
-    const visiblePower = unit.item && cards[unit.item.cardId].effectKey === "powerEqualsHp" && (ownerId === viewerId || unit.item.revealed)
+    let visiblePower = unit.item && cards[unit.item.cardId].effectKey === "powerEqualsHp" && (ownerId === viewerId || unit.item.revealed)
       ? unit.hp
       : unit.power;
+    if (hasAnyEffect(game, "ignorePowerIncreases")) {
+      visiblePower = Math.min(visiblePower, unit.basePower ?? cards[unit.cardId].power);
+    }
     return {
       ...unit,
       hp: hiddenHpItem ? Math.min(unit.hp, unit.baseHp) : unit.hp,
@@ -1026,7 +1064,11 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   function resolveDestinyCloak(game, deadCandidate, opposingUnit) {
     if (deadCandidate.hp > 0 || !deadCandidate.item) return;
     if (cards[deadCandidate.item.cardId].effectKey !== "destroyOpponentOnDeath") return;
-    revealItem(game, deadCandidate, "道連れマントで相手も破壊します。");
+    const deadName = cards[deadCandidate.cardId].name;
+    const opposingName = cards[opposingUnit.cardId].name;
+    revealItem(game, deadCandidate, `${deadName}は道連れマントで${opposingName}を道連れにした。`);
+    game.lastMessage = `${deadName}は道連れマントで${opposingName}を道連れにした。`;
+    addLog(game, game.lastMessage);
     opposingUnit.hp = 0;
   }
 
@@ -1235,6 +1277,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     game.pendingOpponentHandCheck = null;
     game.pendingDiscardSelection = null;
     game.pendingDiscardTake = null;
+    game.pendingPileDrawSelection = null;
     game.pendingPileSearch = null;
     game.lastMessage = `決着！${game.players[game.winner].name}の勝ちです。`;
     addLog(game, game.lastMessage);
@@ -1255,6 +1298,10 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
   function hasEffect(player, effectKey) {
     return player.field.some((unit) => cards[unit.cardId].effectKey === effectKey);
+  }
+
+  function hasAnyEffect(game, effectKey) {
+    return game.players.some((player) => hasEffect(player, effectKey));
   }
 
   function shuffle(items) {
@@ -1298,6 +1345,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     resolvePendingOpponentHandCheck,
     resolvePendingDiscardSelection,
     resolvePendingDiscardTake,
+    resolvePendingPileDrawSelection,
     resolvePendingPileSearch,
     resolvePendingQuickReplay,
     getEffectivePower,

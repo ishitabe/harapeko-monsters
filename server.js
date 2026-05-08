@@ -195,6 +195,8 @@ function applyAction(game, playerId, payload) {
       return engine.resolvePendingDiscardSelection(game, playerId, payload.handIndexes);
     case "discardTake":
       return engine.resolvePendingDiscardTake(game, playerId, payload.discardIndex);
+    case "pileDrawSelection":
+      return engine.resolvePendingPileDrawSelection(game, playerId, payload.pileIds);
     case "pileSearch":
       return engine.resolvePendingPileSearch(game, playerId, payload.pileIndexes);
     case "attackLife":
@@ -242,6 +244,7 @@ function createWaitingView(room, viewerId) {
     pendingOpponentHandCheck: null,
     pendingDiscardSelection: null,
     pendingDiscardTake: null,
+    pendingPileDrawSelection: null,
     pendingPileSearch: null,
     lastPlayedAction: null,
     maxFieldSize: 3,

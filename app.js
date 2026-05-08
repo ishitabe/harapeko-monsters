@@ -22,6 +22,7 @@ let titleLobbyOpen = false;
 let titleLobbyMode = "menu";
 let titleRulesOpen = false;
 let titleCardsOpen = false;
+let titleUpdatesOpen = false;
 let titleCpuOpen = false;
 let cpuDifficulty = "normal";
 let rulesPageIndex = 0;
@@ -120,6 +121,20 @@ const RULE_PAGES = [
     ]
   }
 ];
+const UPDATE_HISTORY = [
+  {
+    version: "v0.55",
+    title: "カード調整と表示改善",
+    items: [
+      "オーロラベールの軽減を-2に変更。",
+      "衝撃波で最大HPが0になったモンスターは倒れるように変更。",
+      "ヌオーが場にいる間、ミミッキュ倍化や持ち物などのパワー上昇を無効化。",
+      "構える、下準備、神秘の守りを新仕様に変更。",
+      "気合いのタスキと道連れマントの発動メッセージを追加。",
+      "アップデート履歴画面を追加。"
+    ]
+  }
+];
 
 const elements = {
   turnLabel: document.querySelector("#turnLabel"),
@@ -147,6 +162,7 @@ const elements = {
   startMultiButton: document.querySelector("#startMultiButton"),
   showRulesButton: document.querySelector("#showRulesButton"),
   showCardsButton: document.querySelector("#showCardsButton"),
+  showUpdatesButton: document.querySelector("#showUpdatesButton"),
   titleCpu: document.querySelector("#titleCpu"),
   cpuNormalButton: document.querySelector("#cpuNormalButton"),
   cpuHardButton: document.querySelector("#cpuHardButton"),
@@ -162,6 +178,9 @@ const elements = {
   cardListSummary: document.querySelector("#cardListSummary"),
   cardListBody: document.querySelector("#cardListBody"),
   cardsCloseButton: document.querySelector("#cardsCloseButton"),
+  titleUpdates: document.querySelector("#titleUpdates"),
+  updateListBody: document.querySelector("#updateListBody"),
+  updatesCloseButton: document.querySelector("#updatesCloseButton"),
   titleLobby: document.querySelector("#titleLobby"),
   titleLobbyStatus: document.querySelector("#titleLobbyStatus"),
   titleLobbyNote: document.querySelector("#titleLobbyNote"),
@@ -283,10 +302,12 @@ function render() {
   document.body.classList.toggle("title-lobby-active", titleLobbyOpen);
   document.body.classList.toggle("title-rules-active", titleRulesOpen);
   document.body.classList.toggle("title-cards-active", titleCardsOpen);
+  document.body.classList.toggle("title-updates-active", titleUpdatesOpen);
   document.body.classList.toggle("title-cpu-active", titleCpuOpen);
   elements.titleLobby?.classList.toggle("hidden", !titleLobbyOpen);
   elements.titleRules?.classList.toggle("hidden", !titleRulesOpen);
   elements.titleCards?.classList.toggle("hidden", !titleCardsOpen);
+  elements.titleUpdates?.classList.toggle("hidden", !titleUpdatesOpen);
   elements.titleCpu?.classList.toggle("hidden", !titleCpuOpen);
   elements.optionsPanel?.classList.toggle("hidden", !optionsOpen);
   updateOptionsVisibility();
@@ -295,6 +316,7 @@ function render() {
   renderTitleLobby();
   renderRules();
   renderCardList();
+  renderUpdateHistory();
   renderPlayerInfo(view);
   renderOpponentHand(view.players[opponentId].handCount);
   renderDecks(view.piles, activePlayer, view.winner, locked);
@@ -308,6 +330,7 @@ function render() {
   renderPendingQuickReplay();
   renderPendingDiscardSelection();
   renderPendingDiscardTake();
+  renderPendingPileDrawSelection();
   renderPendingPileSearch();
   updateDrawPrompt(view, locked);
   renderWinnerOverlay(view);
@@ -513,6 +536,20 @@ function renderCardList() {
     });
     section.append(grid);
     elements.cardListBody.append(section);
+  });
+}
+
+function renderUpdateHistory() {
+  if (!elements.titleUpdates || !titleUpdatesOpen) return;
+  elements.updateListBody.replaceChildren();
+  UPDATE_HISTORY.forEach((entry) => {
+    const section = document.createElement("section");
+    section.className = "update-entry";
+    section.innerHTML = `
+      <h3>${entry.version} ${entry.title}</h3>
+      <ul>${entry.items.map((item) => `<li>${item}</li>`).join("")}</ul>
+    `;
+    elements.updateListBody.append(section);
   });
 }
 
@@ -787,7 +824,8 @@ function renderPendingDiscardSelection() {
   if (!pending || pending.playerId !== getSelfId() || isCpuTurn()) return;
   selectedKey = "pending:discardSelection";
   detailKey = "pending:discardSelection";
-  detailData = { source: "pendingDiscardSelection", zone: "アクロバット", count: pending.count, card: CARD_DEFINITIONS.acrobat };
+  const card = pending.source === "preparation" ? CARD_DEFINITIONS.preparation : CARD_DEFINITIONS.acrobat;
+  detailData = { source: "pendingDiscardSelection", zone: card.name, count: pending.count, card };
   renderDetail();
 }
 
@@ -798,6 +836,16 @@ function renderPendingDiscardTake() {
   selectedKey = "pending:discardTake";
   detailKey = "pending:discardTake";
   detailData = { source: "pendingDiscardTake", zone: "黒バド", card: CARD_DEFINITIONS.calyrexShadow };
+  renderDetail();
+}
+
+function renderPendingPileDrawSelection() {
+  const view = getView();
+  const pending = view.pendingPileDrawSelection;
+  if (!pending || pending.playerId !== getSelfId() || isCpuTurn()) return;
+  selectedKey = "pending:pileDrawSelection";
+  detailKey = "pending:pileDrawSelection";
+  detailData = { source: "pendingPileDrawSelection", zone: "構える", count: pending.count, card: CARD_DEFINITIONS.readyStance };
   renderDetail();
 }
 
@@ -850,6 +898,11 @@ function renderDetailActions(container, data) {
 
   if (data.source === "pendingDiscardTake") {
     renderDiscardTakeControls(container, view);
+    return;
+  }
+
+  if (data.source === "pendingPileDrawSelection") {
+    renderPileDrawSelectionControls(container, data.count, view);
     return;
   }
 
@@ -1139,7 +1192,7 @@ function renderDiscardSelectionControls(container, count, view) {
   form.className = "action-form";
   const note = document.createElement("p");
   note.className = "empty-note";
-  note.textContent = `アクロバットでドローしました。捨てる手札を${count}枚選んでください。`;
+  note.textContent = `効果処理です。捨てる手札を${count}枚選んでください。`;
   form.append(note);
   const hand = view.players[getSelfId()].hand;
   if (hand.length <= count) {
@@ -1173,6 +1226,26 @@ function renderDiscardTakeControls(container, view) {
   const select = appendSelect(form, "捨札", view.discard.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]));
   form.append(createSmallButton("手札に加える", view.discard.length === 0, () => {
     runGameAction("discardTake", { discardIndex: select.value }, () => engine.resolvePendingDiscardTake(game, game.activePlayer, select.value));
+    clearSelection();
+    if (!onlineMode) render();
+  }));
+  container.append(form);
+}
+
+function renderPileDrawSelectionControls(container, count, view) {
+  const form = document.createElement("div");
+  form.className = "action-form";
+  const note = document.createElement("p");
+  note.className = "empty-note";
+  note.textContent = `構えるの効果です。山札を${count}回分選んでドローしてください。同じ山を複数回選べます。`;
+  form.append(note);
+  const selects = [];
+  for (let index = 0; index < count; index += 1) {
+    selects.push(appendSelect(form, `ドロー${index + 1}`, view.piles.map((pile) => [pile.id, `${pile.name} (${pile.count})`])));
+  }
+  form.append(createSmallButton("ドローする", false, () => {
+    const pileIds = selects.map((select) => select.value);
+    runGameAction("pileDrawSelection", { pileIds }, () => engine.resolvePendingPileDrawSelection(game, game.activePlayer, pileIds), showDrawnCards);
     clearSelection();
     if (!onlineMode) render();
   }));
@@ -1413,9 +1486,7 @@ function ownUnitOptions(view) {
 
 function renderBattleEvents(view) {
   if (!previousView) return;
-  if (view.winner === null && previousView.activePlayer !== view.activePlayer) {
-    showTurnBanner(`${view.players[view.activePlayer].name}のターン`);
-  }
+  const turnChanged = view.winner === null && previousView.activePlayer !== view.activePlayer;
   if (onlineMode && view.lastPlayedAction && view.lastPlayedAction.playerId !== getSelfId()
     && view.lastPlayedAction.serial !== previousView.lastPlayedAction?.serial) {
     const card = CARD_DEFINITIONS[view.lastPlayedAction.cardId];
@@ -1436,6 +1507,9 @@ function renderBattleEvents(view) {
     setTimeout(() => document.body.classList.remove("screen-shake"), 760);
   }
   showStatChangeEvents(view);
+  if (turnChanged) {
+    setTimeout(() => showTurnBanner(`${view.players[view.activePlayer].name}のターン`), 1450);
+  }
 }
 
 function showStatChangeEvents(view) {
@@ -1494,6 +1568,7 @@ function startCpuSetup() {
   titleLobbyOpen = false;
   titleRulesOpen = false;
   titleCardsOpen = false;
+  titleUpdatesOpen = false;
   render();
 }
 
@@ -1517,6 +1592,7 @@ function startCpuGame(difficulty = "normal") {
   titleLobbyOpen = false;
   titleRulesOpen = false;
   titleCardsOpen = false;
+  titleUpdatesOpen = false;
   titleCpuOpen = false;
   optionsOpen = false;
   clearSelection();
@@ -1539,6 +1615,7 @@ function startMultiSetup() {
   titleLobbyMode = "menu";
   titleRulesOpen = false;
   titleCardsOpen = false;
+  titleUpdatesOpen = false;
   titleCpuOpen = false;
   optionsOpen = false;
   clearSelection();
@@ -1559,6 +1636,7 @@ function backToTitle() {
   titleLobbyMode = "menu";
   titleRulesOpen = false;
   titleCardsOpen = false;
+  titleUpdatesOpen = false;
   titleCpuOpen = false;
   clearSelection();
   render();
@@ -1581,6 +1659,7 @@ elements.startMultiButton?.addEventListener("click", startMultiSetup);
 elements.showRulesButton?.addEventListener("click", () => {
   titleRulesOpen = true;
   titleCardsOpen = false;
+  titleUpdatesOpen = false;
   titleCpuOpen = false;
   titleLobbyOpen = false;
   rulesPageIndex = 0;
@@ -1589,12 +1668,25 @@ elements.showRulesButton?.addEventListener("click", () => {
 elements.showCardsButton?.addEventListener("click", () => {
   titleCardsOpen = true;
   titleRulesOpen = false;
+  titleUpdatesOpen = false;
   titleCpuOpen = false;
   titleLobbyOpen = false;
   render();
 });
 elements.cardsCloseButton?.addEventListener("click", () => {
   titleCardsOpen = false;
+  render();
+});
+elements.showUpdatesButton?.addEventListener("click", () => {
+  titleUpdatesOpen = true;
+  titleCardsOpen = false;
+  titleRulesOpen = false;
+  titleCpuOpen = false;
+  titleLobbyOpen = false;
+  render();
+});
+elements.updatesCloseButton?.addEventListener("click", () => {
+  titleUpdatesOpen = false;
   render();
 });
 elements.rulesCloseButton?.addEventListener("click", () => {
@@ -2022,7 +2114,6 @@ function scheduleCpuTurn() {
   const view = engine.getPublicState(game, 0);
   if (!isCpuTurn(view) || cpuThinking) return;
   cpuThinking = true;
-  showTurnBanner(`${view.players[1].name}のターン`);
   playSound("turn");
   window.setTimeout(async () => {
     try {
@@ -2222,6 +2313,10 @@ async function runCpuActions() {
           .map((entry) => entry.index) || [];
       await cpuStep("CPU 下準備", () => engine.resolvePendingPileSearch(game, 1, indexes), "draw");
     }
+    if (game.pendingPileDrawSelection?.playerId === 1) {
+      const pileIds = chooseCpuPileDrawIds(game.pendingPileDrawSelection.count);
+      await cpuStep("CPU 構えるドロー", () => engine.resolvePendingPileDrawSelection(game, 1, pileIds), "draw");
+    }
   }
 }
 
@@ -2267,7 +2362,19 @@ async function resolveCpuPendingChoices() {
     const indexes = chooseHardCpuPileSearchIndexes();
     await cpuStep("CPU サーチ", () => engine.resolvePendingPileSearch(game, 1, indexes), "draw");
   }
+  if (game.pendingPileDrawSelection?.playerId === 1) {
+    const pileIds = chooseCpuPileDrawIds(game.pendingPileDrawSelection.count);
+    await cpuStep("CPU 構えるドロー", () => engine.resolvePendingPileDrawSelection(game, 1, pileIds), "draw");
+  }
   await runCpuPendingDiscardTake();
+}
+
+function chooseCpuPileDrawIds(count) {
+  const ids = [];
+  for (let index = 0; index < count; index += 1) {
+    ids.push(chooseBestCpuPile()?.id || game.piles.find((pile) => pile.deck.length > 0)?.id);
+  }
+  return ids.filter(Boolean);
 }
 
 function hardSummonChoices() {
@@ -2276,6 +2383,7 @@ function hardSummonChoices() {
   return player.hand
     .map((cardId, handIndex) => ({ cardId, handIndex, card: CARD_DEFINITIONS[cardId] }))
     .filter((entry) => entry.card.type === "unit")
+    .filter((entry) => !(entry.cardId === "tyranitar" && player.life <= 3))
     .map((entry) => {
       let score = 120 + hardUnitCardScore(entry.card);
       if (player.field.length === 0) score += 180;
@@ -2581,6 +2689,11 @@ function resolveSimulatedCpuPending(simulated) {
         .slice(0, pending.count)
         .map((entry) => entry.index);
     engine.resolvePendingPileSearch(simulated, 1, indexes);
+  }
+  if (simulated.pendingPileDrawSelection?.playerId === 1) {
+    const count = simulated.pendingPileDrawSelection.count;
+    const pileIds = Array.from({ length: count }, () => simulated.piles.find((pile) => pile.deck.length > 0)?.id).filter(Boolean);
+    engine.resolvePendingPileDrawSelection(simulated, 1, pileIds);
   }
 }
 
