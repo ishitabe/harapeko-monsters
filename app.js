@@ -23,6 +23,7 @@ let titleLobbyMode = "menu";
 let titleRulesOpen = false;
 let titleCardsOpen = false;
 let titleUpdatesOpen = false;
+let titleRecordsOpen = false;
 let titleCpuOpen = false;
 let cpuDifficulty = "normal";
 let rulesPageIndex = 0;
@@ -31,6 +32,8 @@ let detailKey = null;
 let detailData = null;
 let previousView = null;
 let animationLock = false;
+let hardCpuMatchActive = false;
+let hardCpuResultHandled = false;
 const pendingFx = new Map();
 const AVATAR_OPTIONS = (window.HarapekoAvatars || []).map((avatar) => avatar.src);
 const AVATAR_FALLBACK_OPTIONS = [
@@ -123,6 +126,24 @@ const RULE_PAGES = [
 ];
 const UPDATE_HISTORY = [
   {
+    version: "v0.56",
+    title: "ログ、記録、スマホ表示の調整",
+    items: [
+      "ザ・サーチで手札に加える枚数を、空でない山の数だけから1枚だけに変更。",
+      "攻撃ログを「同時処理: 相手に○、反撃で○ダメージ」から「○○が○○に攻撃　○ダメージ！」「○○が○○に反撃　○ダメージ！」に変更。",
+      "モンスター死亡ログを「○○を捨札へ送りました」から「○○は倒れた　○○を捨札に送りました」に変更。",
+      "持ち物公開時、画面メッセージとログの両方に「持ち物名を公開。効果内容」を表示するように変更。",
+      "ログの保持件数を16件から32件に増やし、ターン開始ごとに区切り行を追加。",
+      "召喚時ログから「召喚ターンは行動できません。」を削除。",
+      "山札や捨札からカードを選ぶ効果を、名前だけの選択からカード風ボタンで効果文も見られる選択に変更。",
+      "山を選んでドローする効果の選択肢に、山札トップカード名を表示するように変更。",
+      "相手ライフクリックからの全員ライフ攻撃でエラーになることがある問題を修正。",
+      "CPU（強い）戦だけを対象に、現在連勝数、最高連勝数、ローカル上位5件の記録を追加。",
+      "CPU（強い）戦の決着前にリセット、タイトルへ戻る、降参で中断した場合、現在連勝数を0に戻すように変更。",
+      "スマホ表示で相手HP欄が右に見切れないよう、相手手札とHPボックスの幅を調整。"
+    ]
+  },
+  {
     version: "v0.55",
     title: "カード調整と表示改善",
     items: [
@@ -163,6 +184,7 @@ const elements = {
   showRulesButton: document.querySelector("#showRulesButton"),
   showCardsButton: document.querySelector("#showCardsButton"),
   showUpdatesButton: document.querySelector("#showUpdatesButton"),
+  showRecordsButton: document.querySelector("#showRecordsButton"),
   titleCpu: document.querySelector("#titleCpu"),
   cpuNormalButton: document.querySelector("#cpuNormalButton"),
   cpuHardButton: document.querySelector("#cpuHardButton"),
@@ -181,6 +203,9 @@ const elements = {
   titleUpdates: document.querySelector("#titleUpdates"),
   updateListBody: document.querySelector("#updateListBody"),
   updatesCloseButton: document.querySelector("#updatesCloseButton"),
+  titleRecords: document.querySelector("#titleRecords"),
+  recordListBody: document.querySelector("#recordListBody"),
+  recordsCloseButton: document.querySelector("#recordsCloseButton"),
   titleLobby: document.querySelector("#titleLobby"),
   titleLobbyStatus: document.querySelector("#titleLobbyStatus"),
   titleLobbyNote: document.querySelector("#titleLobbyNote"),
@@ -234,6 +259,65 @@ function currentPlayerProfile() {
 
 function randomPlayerName() {
   return RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
+}
+
+function loadHardCpuRecords() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("harapekoHardCpuRecords") || "{}");
+    return {
+      current: Math.max(0, Number(saved.current) || 0),
+      best: Math.max(0, Number(saved.best) || 0),
+      ranking: Array.isArray(saved.ranking) ? saved.ranking
+        .map((entry) => ({ name: String(entry.name || "ななし").slice(0, 16), best: Math.max(0, Number(entry.best) || 0) }))
+        .filter((entry) => entry.best > 0)
+        .sort((a, b) => b.best - a.best)
+        .slice(0, 5) : [],
+    };
+  } catch {
+    return { current: 0, best: 0, ranking: [] };
+  }
+}
+
+function saveHardCpuRecords(records) {
+  try {
+    localStorage.setItem("harapekoHardCpuRecords", JSON.stringify(records));
+  } catch {
+    // localStorage is optional.
+  }
+}
+
+function updateHardCpuRanking(records, name, streak) {
+  const ranking = [...records.ranking];
+  const existing = ranking.find((entry) => entry.name === name);
+  if (existing) existing.best = Math.max(existing.best, streak);
+  else ranking.push({ name, best: streak });
+  records.ranking = ranking.sort((a, b) => b.best - a.best).slice(0, 5);
+}
+
+function resolveHardCpuResultIfNeeded(view) {
+  if (!hardCpuMatchActive || hardCpuResultHandled || onlineMode || cpuDifficulty !== "hard" || view.winner === null) return null;
+  const records = loadHardCpuRecords();
+  const selfWon = view.winner === 0;
+  if (selfWon) {
+    records.current += 1;
+    records.best = Math.max(records.best, records.current);
+    updateHardCpuRanking(records, view.players[0].name, records.current);
+  } else {
+    records.current = 0;
+  }
+  saveHardCpuRecords(records);
+  hardCpuResultHandled = true;
+  hardCpuMatchActive = false;
+  return { selfWon, streak: records.current, best: records.best };
+}
+
+function resetHardCpuStreakForInterrupt() {
+  if (!hardCpuMatchActive || hardCpuResultHandled || onlineMode || cpuDifficulty !== "hard" || game.winner !== null) return;
+  const records = loadHardCpuRecords();
+  records.current = 0;
+  saveHardCpuRecords(records);
+  hardCpuMatchActive = false;
+  hardCpuResultHandled = true;
 }
 
 function setupProfileControls() {
@@ -303,11 +387,13 @@ function render() {
   document.body.classList.toggle("title-rules-active", titleRulesOpen);
   document.body.classList.toggle("title-cards-active", titleCardsOpen);
   document.body.classList.toggle("title-updates-active", titleUpdatesOpen);
+  document.body.classList.toggle("title-records-active", titleRecordsOpen);
   document.body.classList.toggle("title-cpu-active", titleCpuOpen);
   elements.titleLobby?.classList.toggle("hidden", !titleLobbyOpen);
   elements.titleRules?.classList.toggle("hidden", !titleRulesOpen);
   elements.titleCards?.classList.toggle("hidden", !titleCardsOpen);
   elements.titleUpdates?.classList.toggle("hidden", !titleUpdatesOpen);
+  elements.titleRecords?.classList.toggle("hidden", !titleRecordsOpen);
   elements.titleCpu?.classList.toggle("hidden", !titleCpuOpen);
   elements.optionsPanel?.classList.toggle("hidden", !optionsOpen);
   updateOptionsVisibility();
@@ -317,6 +403,8 @@ function render() {
   renderRules();
   renderCardList();
   renderUpdateHistory();
+  renderRecords();
+  updateTitleRecordButton();
   renderPlayerInfo(view);
   renderOpponentHand(view.players[opponentId].handCount);
   renderDecks(view.piles, activePlayer, view.winner, locked);
@@ -361,6 +449,18 @@ function renderPlayerInfo(view) {
     const player = view.players[playerId];
     elements.playerName[slotId].textContent = player.name;
     elements.playerName[slotId].className = slotId === 0 ? "player-name-blue" : "player-name-red";
+    let streakNode = elements.playerName[slotId].parentElement.querySelector(".streak-note");
+    if (!streakNode) {
+      streakNode = document.createElement("small");
+      streakNode.className = "streak-note";
+      elements.playerName[slotId].after(streakNode);
+    }
+    if (!onlineMode && cpuDifficulty === "hard" && slotId === 0 && (hardCpuMatchActive || view.winner !== null)) {
+      streakNode.textContent = `${loadHardCpuRecords().current}連勝中`;
+      streakNode.hidden = false;
+    } else {
+      streakNode.hidden = true;
+    }
     let avatarNode = elements.playerName[slotId].parentElement.querySelector(".player-avatar");
     if (!avatarNode) {
       avatarNode = document.createElement("img");
@@ -551,6 +651,30 @@ function renderUpdateHistory() {
     `;
     elements.updateListBody.append(section);
   });
+}
+
+function renderRecords() {
+  if (!elements.titleRecords || !titleRecordsOpen) return;
+  const records = loadHardCpuRecords();
+  const rankingItems = records.ranking.length > 0
+    ? records.ranking.map((entry, index) => `<li><b>${index + 1}位</b> ${entry.name} ${entry.best}連勝</li>`).join("")
+    : "<li>まだ記録がありません。</li>";
+  elements.recordListBody.innerHTML = `
+    <section class="record-summary">
+      <div><span>現在</span><strong>${records.current}連勝</strong></div>
+      <div><span>最高</span><strong>${records.best}連勝</strong></div>
+    </section>
+    <section class="record-ranking">
+      <h3>ローカルランキング TOP5</h3>
+      <ol>${rankingItems}</ol>
+    </section>
+  `;
+}
+
+function updateTitleRecordButton() {
+  if (!elements.showRecordsButton) return;
+  const records = loadHardCpuRecords();
+  elements.showRecordsButton.textContent = `記録 ${records.current}連勝中`;
 }
 
 function makeRoomUrl(roomId) {
@@ -1334,8 +1458,12 @@ function renderWinnerOverlay(view) {
     return;
   }
   if (node) return;
+  const hardResult = resolveHardCpuResultIfNeeded(view);
   const winner = view.players[view.winner];
   const selfWon = view.winner === getSelfId();
+  const hardStreakLine = hardResult
+    ? `<p class="winner-streak">${hardResult.selfWon ? `${hardResult.streak}連勝目！` : "連勝は0に戻りました。"}</p>`
+    : "";
   node = document.createElement("div");
   node.id = "winnerOverlay";
   node.className = "winner-overlay";
@@ -1344,6 +1472,7 @@ function renderWinnerOverlay(view) {
       <p>${selfWon ? "勝利" : "敗北"}</p>
       <img class="winner-avatar" src="${winner.avatar || AVATAR_OPTIONS[view.winner] || AVATAR_OPTIONS[0]}" alt="">
       <h2>${winner.name}の勝ち！</h2>
+      ${hardStreakLine}
       <div class="winner-actions">
         <button type="button" id="winnerRematch">もう一度戦う</button>
         <button type="button" id="winnerTitle">タイトルへ</button>
@@ -1587,6 +1716,7 @@ function startCpuSetup() {
   titleRulesOpen = false;
   titleCardsOpen = false;
   titleUpdatesOpen = false;
+  titleRecordsOpen = false;
   render();
 }
 
@@ -1602,6 +1732,8 @@ function startCpuGame(difficulty = "normal") {
   game = engine.createGame();
   const selfProfile = currentPlayerProfile();
   const opponentProfile = cpuProfile(difficulty);
+  hardCpuMatchActive = difficulty === "hard";
+  hardCpuResultHandled = false;
   game.players[0].name = selfProfile.name;
   game.players[0].avatar = selfProfile.avatar;
   game.players[1].name = opponentProfile.name;
@@ -1611,6 +1743,7 @@ function startCpuGame(difficulty = "normal") {
   titleRulesOpen = false;
   titleCardsOpen = false;
   titleUpdatesOpen = false;
+  titleRecordsOpen = false;
   titleCpuOpen = false;
   optionsOpen = false;
   clearSelection();
@@ -1621,6 +1754,7 @@ function startCpuGame(difficulty = "normal") {
 }
 
 function startMultiSetup() {
+  resetHardCpuStreakForInterrupt();
   if (socket) socket.emit("room:leave");
   onlineMode = false;
   onlineState = null;
@@ -1634,6 +1768,7 @@ function startMultiSetup() {
   titleRulesOpen = false;
   titleCardsOpen = false;
   titleUpdatesOpen = false;
+  titleRecordsOpen = false;
   titleCpuOpen = false;
   optionsOpen = false;
   clearSelection();
@@ -1642,6 +1777,7 @@ function startMultiSetup() {
 }
 
 function backToTitle() {
+  resetHardCpuStreakForInterrupt();
   if (socket) socket.emit("room:leave");
   onlineMode = false;
   onlineState = null;
@@ -1655,6 +1791,7 @@ function backToTitle() {
   titleRulesOpen = false;
   titleCardsOpen = false;
   titleUpdatesOpen = false;
+  titleRecordsOpen = false;
   titleCpuOpen = false;
   clearSelection();
   render();
@@ -1678,6 +1815,7 @@ elements.showRulesButton?.addEventListener("click", () => {
   titleRulesOpen = true;
   titleCardsOpen = false;
   titleUpdatesOpen = false;
+  titleRecordsOpen = false;
   titleCpuOpen = false;
   titleLobbyOpen = false;
   rulesPageIndex = 0;
@@ -1687,6 +1825,7 @@ elements.showCardsButton?.addEventListener("click", () => {
   titleCardsOpen = true;
   titleRulesOpen = false;
   titleUpdatesOpen = false;
+  titleRecordsOpen = false;
   titleCpuOpen = false;
   titleLobbyOpen = false;
   render();
@@ -1699,12 +1838,26 @@ elements.showUpdatesButton?.addEventListener("click", () => {
   titleUpdatesOpen = true;
   titleCardsOpen = false;
   titleRulesOpen = false;
+  titleRecordsOpen = false;
   titleCpuOpen = false;
   titleLobbyOpen = false;
   render();
 });
 elements.updatesCloseButton?.addEventListener("click", () => {
   titleUpdatesOpen = false;
+  render();
+});
+elements.showRecordsButton?.addEventListener("click", () => {
+  titleRecordsOpen = true;
+  titleUpdatesOpen = false;
+  titleCardsOpen = false;
+  titleRulesOpen = false;
+  titleCpuOpen = false;
+  titleLobbyOpen = false;
+  render();
+});
+elements.recordsCloseButton?.addEventListener("click", () => {
+  titleRecordsOpen = false;
   render();
 });
 elements.rulesCloseButton?.addEventListener("click", () => {
@@ -1786,6 +1939,7 @@ elements.resetButton.addEventListener("click", () => {
     showFloat("オンライン中はリセット不可", "damage");
     return;
   }
+  resetHardCpuStreakForInterrupt();
   game = engine.createGame();
   const selfProfile = currentPlayerProfile();
   const opponentProfile = cpuProfile(cpuDifficulty);
@@ -1793,6 +1947,8 @@ elements.resetButton.addEventListener("click", () => {
   game.players[0].avatar = selfProfile.avatar;
   game.players[1].name = opponentProfile.name;
   game.players[1].avatar = opponentProfile.avatar;
+  hardCpuMatchActive = cpuDifficulty === "hard";
+  hardCpuResultHandled = false;
   cpuThinking = false;
   clearSelection();
   render();
@@ -1802,6 +1958,7 @@ elements.surrenderButton?.addEventListener("click", () => {
   if (getView().winner !== null) return;
   const accepted = typeof window.confirm === "function" ? window.confirm("降参しますか？") : true;
   if (!accepted) return;
+  resetHardCpuStreakForInterrupt();
   runGameAction("surrender", {}, () => engine.surrender(game, getSelfId()));
   optionsOpen = false;
   clearSelection();
@@ -1908,6 +2065,7 @@ async function copyText(text, message) {
 }
 
 elements.leaveRoomButton?.addEventListener("click", () => {
+  resetHardCpuStreakForInterrupt();
   if (socket) socket.emit("room:leave");
   onlineMode = false;
   onlineState = null;

@@ -261,6 +261,7 @@ p {
   grid-template-columns: 50px minmax(0, 1fr);
   grid-template-areas:
     "name name"
+    "streak streak"
     "avatar hp"
     "avatar hand"
     "actions actions";
@@ -326,6 +327,19 @@ p {
   font-size: 0.76rem;
   line-height: 1;
   white-space: nowrap;
+}
+
+.life-box .streak-note {
+  grid-area: streak;
+  color: #9fd7ff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+
+.life-box .streak-note[hidden] {
+  display: none;
 }
 
 .life-box .action-lamps {
@@ -1631,6 +1645,7 @@ body.title-lobby-active .title-actions,
 body.title-rules-active .title-actions,
 body.title-cards-active .title-actions,
 body.title-updates-active .title-actions,
+body.title-records-active .title-actions,
 body.title-cpu-active .title-actions:not(.cpu-actions) {
   display: none;
 }
@@ -1639,6 +1654,7 @@ body.title-lobby-active .profile-setup,
 body.title-rules-active .profile-setup,
 body.title-cards-active .profile-setup,
 body.title-updates-active .profile-setup,
+body.title-records-active .profile-setup,
 body.title-cpu-active .profile-setup {
   display: none;
 }
@@ -1680,6 +1696,12 @@ body.title-cpu-active .profile-setup {
   border-color: rgba(215, 196, 255, 0.38);
 }
 
+.title-button.record-button {
+  background: linear-gradient(180deg, #a6f0ff, #3e8fc4);
+  color: #06111a;
+  border-color: rgba(166, 240, 255, 0.38);
+}
+
 .title-button:hover {
   transform: translateY(-8px) scale(1.04);
   box-shadow: 0 28px 58px rgba(0,0,0,0.46), 0 0 28px rgba(103, 183, 255, 0.18);
@@ -1702,11 +1724,13 @@ body.title-lobby-active .title-note,
 body.title-rules-active .title-note,
 body.title-cards-active .title-note,
 body.title-updates-active .title-note,
+body.title-records-active .title-note,
 body.title-cpu-active .title-note,
 body.title-lobby-active .version-label,
 body.title-rules-active .version-label,
 body.title-cards-active .version-label,
 body.title-updates-active .version-label,
+body.title-records-active .version-label,
 body.title-cpu-active .version-label {
   display: none;
 }
@@ -1743,14 +1767,16 @@ body.title-cpu-active .version-label {
   display: none;
 }
 
-.title-updates {
+.title-updates,
+.title-records {
   display: grid;
   gap: 18px;
   margin-top: 28px;
   text-align: left;
 }
 
-.title-updates.hidden {
+.title-updates.hidden,
+.title-records.hidden {
   display: none;
 }
 
@@ -1800,12 +1826,63 @@ body.title-cpu-active .version-label {
   text-shadow: 0 0 22px rgba(103, 183, 255, 0.24);
 }
 
-.title-updates h2 {
+.title-updates h2,
+.title-records h2 {
   margin: 0;
   color: #fff6df;
   font-size: 2.1rem;
   text-align: center;
   text-shadow: 0 0 22px rgba(185, 156, 255, 0.24);
+}
+
+.record-list-body {
+  display: grid;
+  gap: 16px;
+}
+
+.record-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.record-summary div,
+.record-ranking {
+  padding: 18px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  background: rgba(14, 22, 33, 0.9);
+  box-shadow: var(--shadow);
+}
+
+.record-summary span {
+  display: block;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.record-summary strong {
+  color: #fff6df;
+  font-size: 2.2rem;
+}
+
+.record-ranking h3 {
+  margin: 0 0 10px;
+  color: #f8ead0;
+}
+
+.record-ranking ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 24px;
+  color: var(--ink);
+}
+
+.winner-streak {
+  margin: -12px 0 22px;
+  color: #9fffc3 !important;
+  font-size: 1.5rem !important;
 }
 
 .rules-body {
@@ -2137,8 +2214,8 @@ body.title-cpu-active .version-label {
   }
 
   .opponent-row {
-    grid-template-columns: minmax(0, 1fr) 96px;
-    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) 124px;
+    gap: 4px;
   }
 
   .player-row {
@@ -2153,25 +2230,32 @@ body.title-cpu-active .version-label {
   .opponent-hand {
     min-height: 52px;
     padding-right: 0;
+    justify-content: flex-start;
+    padding-left: 2px;
+    overflow: hidden;
   }
 
   .card-back {
-    width: 38px;
+    width: 34px;
     height: 54px;
-    margin-left: -14px;
+    margin-left: -18px;
     border-radius: 6px;
   }
 
+  .opponent-hand .card-back:first-child {
+    margin-left: 0;
+  }
+
   .life-box {
-    grid-template-columns: 38px minmax(0, 1fr);
-    padding: 7px 6px;
+    grid-template-columns: 42px minmax(0, 1fr);
+    padding: 7px 5px;
     gap: 3px;
     width: 100%;
     box-sizing: border-box;
   }
 
   .life-box strong {
-    font-size: 1.75rem;
+    font-size: 1.58rem;
   }
 
   .life-box span,
