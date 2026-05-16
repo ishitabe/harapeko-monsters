@@ -1,4 +1,4 @@
-const path = require("path");
+const crypto = require("crypto");
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -12,9 +12,37 @@ const io = new Server(server, {
   cors: { origin: true },
   transports: ["websocket", "polling"],
 });
+
 const engine = createGameEngine(CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL);
 const rooms = new Map();
 let randomWaitingSocketId = null;
+
+const reconnectMs = 60_000;
+const turnLimitMs = 90_000;
+const pendingLimitMs = 30_000;
+const cleanupMs = 6 * 60 * 60 * 1000;
+
+function roomAudit(room, event, detail = {}) {
+  const payload = {
+    roomId: room?.id || "unknown",
+    status: room?.gameStatus || "unknown",
+    gameStarted: Boolean(room?.gameStarted),
+    ...detail,
+  };
+  const line = `[room:${payload.roomId}] ${event}`;
+  if (event.includes("blocked") || event.includes("delete") || event.includes("disconnect")) {
+    console.warn(line, payload);
+  } else {
+    console.log(line, payload);
+  }
+}
+
+function touchRoom(room, reason = "updated") {
+  const now = Date.now();
+  room.updatedAt = now;
+  room.lastUpdatedAt = now;
+  room.lastUpdateReason = reason;
+}
 
 app.use(express.static(__dirname));
 
@@ -25,12 +53,14 @@ app.get("/healthz", (_req, res) => {
 io.on("connection", (socket) => {
   socket.data.roomId = null;
   socket.data.playerId = null;
+  socket.data.playerMeta = null;
 
   socket.on("room:create", (payload = {}, reply) => {
     const room = createRoom();
-    joinRoom(socket, room, 0);
+    const token = createPlayerToken();
+    joinRoom(socket, room, 0, token);
     setPlayerMeta(room, 0, payload.player || {});
-    reply?.({ ok: true, roomId: room.id, password: room.id, playerId: 0 });
+    reply?.({ ok: true, roomId: room.id, password: room.id, playerId: 0, playerToken: token });
     broadcastRoom(room);
   });
 
@@ -39,12 +69,15 @@ io.on("connection", (socket) => {
     if (waitingSocket && waitingSocket.id !== socket.id && !waitingSocket.data.roomId) {
       randomWaitingSocketId = null;
       const room = createRoom();
-      joinRoom(waitingSocket, room, 0);
-      joinRoom(socket, room, 1);
+      const token0 = createPlayerToken();
+      const token1 = createPlayerToken();
+      joinRoom(waitingSocket, room, 0, token0);
+      joinRoom(socket, room, 1, token1);
       setPlayerMeta(room, 0, waitingSocket.data.playerMeta || {});
       setPlayerMeta(room, 1, payload.player || {});
       startRoomGame(room);
-      reply?.({ ok: true, roomId: room.id, playerId: 1, random: true });
+      io.to(waitingSocket.id).emit("room:matched", { ok: true, roomId: room.id, playerId: 0, playerToken: token0, random: true });
+      reply?.({ ok: true, roomId: room.id, playerId: 1, playerToken: token1, random: true });
       broadcastRoom(room);
       return;
     }
@@ -54,26 +87,46 @@ io.on("connection", (socket) => {
   });
 
   socket.on("room:join", (payload = {}, reply) => {
-    const { roomId, password } = payload;
-    const key = String(password || roomId || "").trim().toUpperCase();
+    const key = String(payload.password || payload.roomId || "").trim().toUpperCase();
     const room = rooms.get(key);
     if (!room) return reply?.({ ok: false, message: "部屋が見つかりません。" });
     const seat = nextOpenSeat(room);
     if (seat === null) return reply?.({ ok: false, message: "この部屋は満員です。" });
-    joinRoom(socket, room, seat);
+    const token = createPlayerToken();
+    joinRoom(socket, room, seat, token);
     setPlayerMeta(room, seat, payload.player || {});
-    if (room.players[0] && room.players[1] && !room.started) {
+    if (room.players[0].token && room.players[1].token && room.gameStatus === "waiting") {
       startRoomGame(room);
     }
-    reply?.({ ok: true, roomId: room.id, password: room.id, playerId: seat });
+    reply?.({ ok: true, roomId: room.id, password: room.id, playerId: seat, playerToken: token });
+    broadcastRoom(room);
+  });
+
+  socket.on("room:reconnect", (payload = {}, reply) => {
+    const room = rooms.get(String(payload.roomId || "").trim().toUpperCase());
+    const token = String(payload.playerToken || "");
+    if (!room || !token) return reply?.({ ok: false, message: "復帰できる部屋がありません。" });
+    const playerId = room.players.findIndex((player) => player.token === token);
+    if (playerId === -1) return reply?.({ ok: false, message: "復帰情報が一致しません。" });
+    const player = room.players[playerId];
+    if (player.reconnectDeadline && Date.now() > player.reconnectDeadline) {
+      return reply?.({ ok: false, message: "復帰期限を過ぎています。" });
+    }
+    attachSocketToPlayer(socket, room, playerId);
+    player.connected = true;
+    player.disconnectedAt = null;
+    player.reconnectDeadline = null;
+    room.gameStatus = room.game?.winner === null ? "playing" : room.gameStatus;
+    addRoomLog(room, `${room.playerMeta[playerId].name}が復帰しました。`);
+    reply?.({ ok: true, roomId: room.id, playerId, playerToken: token });
     broadcastRoom(room);
   });
 
   socket.on("room:rematch", (_payload, reply) => {
     const room = getSocketRoom(socket);
-    if (!room || !room.players[0] || !room.players[1]) return reply?.({ ok: false, message: "連戦できる相手がいません。" });
+    if (!room || !room.players[0].token || !room.players[1].token) return reply?.({ ok: false, message: "連戦できる相手がいません。" });
     startRoomGame(room);
-    reply?.({ ok: true, roomId: room.id });
+    reply?.({ ok: true, roomId: room.id, playerToken: room.players[socket.data.playerId].token });
     broadcastRoom(room);
   });
 
@@ -81,8 +134,19 @@ io.on("connection", (socket) => {
     const room = getSocketRoom(socket);
     const playerId = socket.data.playerId;
     if (!room || playerId === null || playerId === undefined) return reply?.({ ok: false, message: "部屋に参加していません。" });
-    if (!room.started) return reply?.({ ok: false, message: "相手の参加待ちです。" });
+    if (room.gameStatus !== "playing" || !room.game || room.game.winner !== null) return reply?.({ ok: false, message: "対戦中ではありません。" });
+    if (!room.players[playerId].connected) return reply?.({ ok: false, message: "接続状態を確認しています。" });
+    if (hasDisconnectedOpponent(room, playerId)) return reply?.({ ok: false, message: "相手の再接続待ちです。" });
+    if (!isAllowedDuringPending(room.game, playerId, payload.type)) return reply?.({ ok: false, message: "効果処理中です。必要な選択を先に完了してください。" });
+
+    const activeBefore = room.game.activePlayer;
     const result = applyAction(room.game, playerId, payload);
+    if (result.ok) {
+      room.lastActionAt = Date.now();
+      room.players[playerId].timeoutCount = 0;
+      if (room.game.activePlayer !== activeBefore) room.turnStartedAt = Date.now();
+      refreshRoomTimers(room);
+    }
     reply?.({
       ok: result.ok,
       message: result.message || room.game.lastMessage,
@@ -92,8 +156,8 @@ io.on("connection", (socket) => {
     broadcastRoom(room);
   });
 
-  socket.on("room:leave", () => leaveSocketRoom(socket));
-  socket.on("disconnect", () => leaveSocketRoom(socket));
+  socket.on("room:leave", () => leaveSocketRoom(socket, { intentional: true }));
+  socket.on("disconnect", () => leaveSocketRoom(socket, { intentional: false }));
 });
 
 function createRoom() {
@@ -103,18 +167,42 @@ function createRoom() {
   } while (rooms.has(id));
   const room = {
     id,
-    game: null,
-    players: [null, null],
+    roomId: id,
+    players: [createEmptySeat(0), createEmptySeat(1)],
     playerMeta: [defaultPlayerMeta(0), defaultPlayerMeta(1)],
+    game: null,
+    gameState: null,
+    gameLog: [],
+    gameStatus: "waiting",
     started: false,
+    lastActionAt: Date.now(),
+    turnStartedAt: null,
+    pendingStartedAt: null,
     updatedAt: Date.now(),
   };
   rooms.set(id, room);
   return room;
 }
 
+function createEmptySeat(playerId) {
+  return {
+    playerId,
+    socketId: null,
+    token: null,
+    connected: false,
+    disconnectedAt: null,
+    reconnectDeadline: null,
+    timeoutCount: 0,
+  };
+}
+
+function createPlayerToken() {
+  return crypto.randomBytes(24).toString("hex");
+}
+
 function startRoomGame(room) {
   room.started = true;
+  room.gameStatus = "playing";
   room.game = engine.createGame();
   room.game.players[0].name = room.playerMeta[0].name;
   room.game.players[0].avatar = room.playerMeta[0].avatar;
@@ -122,20 +210,46 @@ function startRoomGame(room) {
   room.game.players[1].avatar = room.playerMeta[1].avatar;
   room.game.lastMessage = "2人そろいました。山札を選んでドローしてください。";
   room.game.log.unshift("オンライン対戦を開始しました。");
+  room.players.forEach((player) => {
+    player.timeoutCount = 0;
+    player.disconnectedAt = null;
+    player.reconnectDeadline = null;
+  });
+  room.lastActionAt = Date.now();
+  room.turnStartedAt = Date.now();
+  room.pendingStartedAt = null;
   room.updatedAt = Date.now();
 }
 
-function filterDrawnCards(drawnCards, playerId) {
-  return playerId === undefined || playerId === null ? [] : (drawnCards || []);
+function joinRoom(socket, room, playerId, token) {
+  leaveSocketRoom(socket, { intentional: true, silent: true });
+  room.players[playerId] = {
+    ...room.players[playerId],
+    playerId,
+    socketId: socket.id,
+    token,
+    connected: true,
+    disconnectedAt: null,
+    reconnectDeadline: null,
+  };
+  attachSocketToPlayer(socket, room, playerId);
+  room.updatedAt = Date.now();
 }
 
-function joinRoom(socket, room, playerId) {
-  leaveSocketRoom(socket);
-  room.players[playerId] = socket.id;
+function attachSocketToPlayer(socket, room, playerId) {
+  const previousSocketId = room.players[playerId].socketId;
+  if (previousSocketId && previousSocketId !== socket.id) {
+    const previousSocket = io.sockets.sockets.get(previousSocketId);
+    previousSocket?.leave(room.id);
+    if (previousSocket) {
+      previousSocket.data.roomId = null;
+      previousSocket.data.playerId = null;
+    }
+  }
+  room.players[playerId].socketId = socket.id;
   socket.data.roomId = room.id;
   socket.data.playerId = playerId;
   socket.join(room.id);
-  room.updatedAt = Date.now();
 }
 
 function defaultPlayerMeta(playerId) {
@@ -145,7 +259,7 @@ function defaultPlayerMeta(playerId) {
 function sanitizePlayerMeta(meta = {}, playerId = 0) {
   const fallback = defaultPlayerMeta(playerId);
   const name = String(meta.name || "").trim().slice(0, 16) || fallback.name;
-  const avatar = String(meta.avatar || "").trim().slice(0, 120) || fallback.avatar;
+  const avatar = String(meta.avatar || "").trim().slice(0, 3000) || fallback.avatar;
   return { name, avatar };
 }
 
@@ -153,18 +267,37 @@ function setPlayerMeta(room, playerId, meta = {}) {
   room.playerMeta[playerId] = sanitizePlayerMeta(meta, playerId);
 }
 
-function leaveSocketRoom(socket) {
+function leaveSocketRoom(socket, options = {}) {
   if (randomWaitingSocketId === socket.id) randomWaitingSocketId = null;
   const room = getSocketRoom(socket);
   if (!room) return;
   const playerId = socket.data.playerId;
-  if (playerId === 0 || playerId === 1) room.players[playerId] = null;
+  const seat = playerId === 0 || playerId === 1 ? room.players[playerId] : null;
   socket.leave(room.id);
   socket.data.roomId = null;
   socket.data.playerId = null;
+  if (!seat || seat.socketId !== socket.id) return;
+
+  if (options.intentional && room.gameStatus === "playing" && room.game?.winner === null) {
+    engine.surrender(room.game, playerId);
+    room.gameStatus = "finished";
+    addRoomLog(room, `${room.playerMeta[playerId].name}が退出しました。`);
+  }
+
+  if (options.intentional || room.gameStatus === "waiting" || room.gameStatus === "finished") {
+    room.players[playerId] = createEmptySeat(playerId);
+  } else {
+    seat.connected = false;
+    seat.socketId = null;
+    seat.disconnectedAt = Date.now();
+    seat.reconnectDeadline = Date.now() + reconnectMs;
+    room.gameStatus = "reconnecting";
+    addRoomLog(room, `${room.playerMeta[playerId].name}が切断しました。60秒待機中です。`);
+  }
+
   room.updatedAt = Date.now();
-  if (!room.players[0] && !room.players[1]) rooms.delete(room.id);
-  else broadcastRoom(room);
+  if (!room.players[0].token && !room.players[1].token) rooms.delete(room.id);
+  else if (!options.silent) broadcastRoom(room);
 }
 
 function getSocketRoom(socket) {
@@ -172,9 +305,21 @@ function getSocketRoom(socket) {
 }
 
 function nextOpenSeat(room) {
-  if (!room.players[0]) return 0;
-  if (!room.players[1]) return 1;
+  if (!room.players[0].token) return 0;
+  if (!room.players[1].token) return 1;
   return null;
+}
+
+function hasDisconnectedOpponent(room, playerId) {
+  const opponent = room.players[playerId === 0 ? 1 : 0];
+  return Boolean(opponent.token && !opponent.connected && opponent.reconnectDeadline);
+}
+
+function addRoomLog(room, message) {
+  if (!message || !room.game) return;
+  room.game.lastMessage = message;
+  room.game.log.unshift(message);
+  room.game.log = room.game.log.slice(0, 32);
 }
 
 function applyAction(game, playerId, payload) {
@@ -218,19 +363,134 @@ function applyAction(game, playerId, payload) {
   }
 }
 
+function pendingInfo(game) {
+  const entries = [
+    ["quickReplay", game.pendingQuickReplay, "quickReplay"],
+    ["doubleCheck", game.pendingOpponentHandCheck, "doubleCheck"],
+    ["discardSelection", game.pendingDiscardSelection, "discardSelection"],
+    ["discardTake", game.pendingDiscardTake, "discardTake"],
+    ["pileDrawSelection", game.pendingPileDrawSelection, "pileDrawSelection"],
+    ["pileSearch", game.pendingPileSearch, "pileSearch"],
+  ];
+  const found = entries.find(([, value]) => Boolean(value));
+  if (!found) return null;
+  return { kind: found[0], data: found[1], actionType: found[2], playerId: found[1].playerId };
+}
+
+function isAllowedDuringPending(game, playerId, actionType) {
+  const pending = pendingInfo(game);
+  if (!pending) return true;
+  if (["surrender", "endTurn"].includes(actionType)) return true;
+  return pending.playerId === playerId && pending.actionType === actionType;
+}
+
+function refreshRoomTimers(room) {
+  if (!room.game) return;
+  room.gameState = room.game;
+  room.gameLog = [...room.game.log];
+  if (room.game.winner !== null) {
+    room.gameStatus = "finished";
+    room.pendingStartedAt = null;
+    return;
+  }
+  const pending = pendingInfo(room.game);
+  if (pending) {
+    if (!room.pendingStartedAt) room.pendingStartedAt = Date.now();
+  } else {
+    room.pendingStartedAt = null;
+  }
+  if (room.gameStatus !== "reconnecting") room.gameStatus = "playing";
+}
+
+function processRoomTimers(room) {
+  if (!room.game || room.game.winner !== null) {
+    refreshRoomTimers(room);
+    return;
+  }
+  const now = Date.now();
+  let changed = false;
+
+  room.players.forEach((player, playerId) => {
+    if (player.token && !player.connected && player.reconnectDeadline && now > player.reconnectDeadline && room.game.winner === null) {
+      engine.surrender(room.game, playerId);
+      room.gameStatus = "finished";
+      addRoomLog(room, `${room.playerMeta[playerId].name}が60秒以内に戻らなかったため、切断負けになりました。`);
+      changed = true;
+    }
+  });
+
+  if (room.game.winner === null && room.pendingStartedAt && now - room.pendingStartedAt > pendingLimitMs) {
+    const pending = pendingInfo(room.game);
+    const playerId = pending?.playerId ?? room.game.activePlayer;
+    const result = engine.endTurn(room.game, playerId);
+    if (result.ok) {
+      addRoomLog(room, "効果処理が30秒以上続いたため、安全のためターンを終了しました。");
+      room.lastActionAt = now;
+      room.turnStartedAt = now;
+      changed = true;
+    }
+  }
+
+  if (room.game.winner === null && room.gameStatus === "playing" && room.turnStartedAt && now - room.turnStartedAt > turnLimitMs) {
+    const playerId = room.game.activePlayer;
+    room.players[playerId].timeoutCount += 1;
+    if (room.players[playerId].timeoutCount >= 3) {
+      engine.surrender(room.game, playerId);
+      addRoomLog(room, `${room.playerMeta[playerId].name}は3回連続で時間切れになったため敗北しました。`);
+      room.gameStatus = "finished";
+    } else {
+      engine.endTurn(room.game, playerId);
+      addRoomLog(room, `${room.playerMeta[playerId].name}は90秒操作がなかったため自動でターン終了しました。`);
+      room.turnStartedAt = now;
+      room.lastActionAt = now;
+    }
+    changed = true;
+  }
+
+  refreshRoomTimers(room);
+  if (changed || room.players.some((player) => player.connected)) broadcastRoom(room);
+}
+
+function filterDrawnCards(drawnCards, playerId) {
+  return playerId === undefined || playerId === null ? [] : (drawnCards || []);
+}
+
 function broadcastRoom(room) {
+  refreshRoomTimers(room);
   room.updatedAt = Date.now();
   [0, 1].forEach((playerId) => {
-    const socketId = room.players[playerId];
-    if (!socketId) return;
-    io.to(socketId).emit("room:state", {
-      roomId: room.id,
-      playerId,
-      started: room.started,
-      opponentConnected: Boolean(room.players[playerId === 0 ? 1 : 0]),
-      view: room.started ? engine.getPublicState(room.game, playerId) : createWaitingView(room, playerId),
-    });
+    const player = room.players[playerId];
+    if (!player.socketId || !player.connected) return;
+    io.to(player.socketId).emit("room:state", buildRoomState(room, playerId));
   });
+}
+
+function buildRoomState(room, playerId) {
+  const opponentId = playerId === 0 ? 1 : 0;
+  const now = Date.now();
+  const reconnectRemainingMs = room.players[opponentId].reconnectDeadline
+    ? Math.max(0, room.players[opponentId].reconnectDeadline - now)
+    : 0;
+  const turnRemainingMs = room.turnStartedAt && room.gameStatus === "playing" && room.game?.winner === null
+    ? Math.max(0, turnLimitMs - (now - room.turnStartedAt))
+    : 0;
+  return {
+    roomId: room.id,
+    playerId,
+    playerToken: room.players[playerId].token,
+    started: room.started,
+    gameStatus: room.gameStatus,
+    opponentConnected: Boolean(room.players[opponentId].connected),
+    reconnectRemainingMs,
+    turnRemainingMs,
+    turnLimitMs,
+    timeoutCounts: room.players.map((player) => player.timeoutCount),
+    connected: room.players.map((player) => player.connected),
+    pending: pendingInfo(room.game || {})?.kind || null,
+    lastActionAt: room.lastActionAt,
+    turnStartedAt: room.turnStartedAt,
+    view: room.started ? engine.getPublicState(room.game, playerId) : createWaitingView(room, playerId),
+  };
 }
 
 function createWaitingView(room, viewerId) {
@@ -267,7 +527,11 @@ function createWaitingView(room, viewerId) {
 }
 
 setInterval(() => {
-  const deadline = Date.now() - 1000 * 60 * 60 * 6;
+  for (const room of rooms.values()) processRoomTimers(room);
+}, 1000).unref();
+
+setInterval(() => {
+  const deadline = Date.now() - cleanupMs;
   for (const [id, room] of rooms) {
     if (room.updatedAt < deadline) rooms.delete(id);
   }

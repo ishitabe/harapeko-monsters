@@ -216,6 +216,9 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     const cardId = player.hand[Number(handIndex)];
     const card = cards[cardId];
     if (!card || card.type !== "action") return fail(game, "手札のアクションカードを選んでください。");
+    if (card.effectKey === "discardOpponentHand" && game.players[opponentOf(playerId)].hand.length === 0) {
+      return fail(game, "相手の手札が0枚なので二重チェックは使えません。");
+    }
 
     player.hand.splice(Number(handIndex), 1);
     adjustPayloadAfterActionRemoval(payload, Number(handIndex));

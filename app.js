@@ -16,6 +16,7 @@ let onlineMode = false;
 let onlineState = null;
 let onlinePlayerId = 0;
 let lastOnlineStarted = false;
+let reconnectAttempted = false;
 let titleActive = true;
 let optionsOpen = false;
 let titleLobbyOpen = false;
@@ -125,6 +126,31 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.58",
+    title: "オンライン対戦の安定性強化",
+    items: [
+      "オンライン対戦のプレイヤー識別をsocket.idだけで行う方式から、サーバー発行のplayerTokenで同じプレイヤーとして識別する方式に変更。",
+      "部屋作成、部屋参加、ランダム対戦成立時にplayerTokenを発行し、クライアントのlocalStorageに保存するように変更。",
+      "リロード後、保存済みのroomIdとplayerTokenがある場合、room:reconnectで同じ部屋と席に復帰できるように変更。",
+      "通信切断時、即敗北から60秒の再接続待機に変更。",
+      "60秒以内に復帰した場合は対戦続行、60秒を超えた場合は切断負けに変更。",
+      "オンライン対戦に90秒のターン制限時間を追加し、時間切れ時は自動でターン終了するように変更。",
+      "3回連続で時間切れになった場合、時間切れ敗北になるように変更。",
+      "効果処理中のpending状態をサーバー側で判定し、必要な選択以外の操作をエラーで返すように変更。",
+      "pending状態が30秒以上続いた場合、安全のため自動でターン終了するように変更。",
+      "オプション欄に相手の接続状態、再接続待ち秒数、ターン残り秒数、時間切れ回数を表示するように変更。"
+    ]
+  },
+  {
+    version: "v0.57",
+    title: "強いCPUと思考ミスの調整",
+    items: [
+      "CPU（強い）の召喚判断を調整し、不利になりやすい召喚を減らすように変更。",
+      "二重チェックを、相手手札0枚でも使用できる状態から、相手手札0枚では使用できない状態に変更。",
+      "二重チェックを相手手札0枚で実行しようとした場合、カードやアクション権を消費する前に失敗するように変更。"
+    ]
+  },
   {
     version: "v0.56",
     title: "ログ、記録、スマホ表示の調整",
@@ -261,6 +287,33 @@ function randomPlayerName() {
   return RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
 }
 
+function saveOnlineSession(roomId, playerToken) {
+  if (!roomId || !playerToken) return;
+  try {
+    localStorage.setItem("harapekoOnlineSession", JSON.stringify({ roomId, playerToken }));
+  } catch {
+    // localStorage is optional.
+  }
+}
+
+function loadOnlineSession() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("harapekoOnlineSession") || "{}");
+    if (!saved.roomId || !saved.playerToken) return null;
+    return { roomId: String(saved.roomId).toUpperCase(), playerToken: String(saved.playerToken) };
+  } catch {
+    return null;
+  }
+}
+
+function clearOnlineSession() {
+  try {
+    localStorage.removeItem("harapekoOnlineSession");
+  } catch {
+    // localStorage is optional.
+  }
+}
+
 function loadHardCpuRecords() {
   try {
     const saved = JSON.parse(localStorage.getItem("harapekoHardCpuRecords") || "{}");
@@ -364,7 +417,7 @@ function render() {
   const opponentId = selfId === 0 ? 1 : 0;
   const activePlayer = view.players[view.activePlayer];
   const lockedForCpu = !onlineMode && isCpuTurn(view);
-  const lockedForOnline = onlineMode && (!onlineState?.started || view.activePlayer !== selfId);
+  const lockedForOnline = onlineMode && (!onlineState?.started || view.activePlayer !== selfId || onlineState.gameStatus === "reconnecting" || onlineState.gameStatus === "disconnected");
   const locked = lockedForCpu || lockedForOnline || animationLock;
   renderBattleEvents(view);
 
@@ -376,6 +429,9 @@ function render() {
   elements.actionLabel.textContent = activePlayer.hasDrawnThisTurn
     ? `アクション ${activePlayer.actions}/2`
     : "山札を選んでドロー";
+  if (onlineMode && onlineState?.started && view.winner === null) {
+    elements.actionLabel.textContent += ` / 残り${Math.ceil((onlineState.turnRemainingMs || 0) / 1000)}秒`;
+  }
   elements.activeHandLabel.textContent = "手札";
   elements.messageText.textContent = view.lastMessage;
   const canEndTurn = view.winner === null && !titleActive && !animationLock && (onlineMode
@@ -504,8 +560,18 @@ function renderOnlineStatus() {
     elements.leaveRoomButton.disabled = true;
     return;
   }
-  elements.onlineStatus.textContent = onlineState?.started ? "オンライン対戦中" : "相手待ち";
-  elements.onlineRoomLabel.textContent = `部屋 ${onlineState?.roomId || "-"} / あなたはプレイヤー${onlinePlayerId + 1}`;
+  const opponentState = onlineState?.opponentConnected ? "相手接続中" : "相手切断中";
+  const reconnectText = onlineState?.reconnectRemainingMs
+    ? ` / 復帰待ち${Math.ceil(onlineState.reconnectRemainingMs / 1000)}秒`
+    : "";
+  const turnText = onlineState?.started && onlineState?.turnRemainingMs !== undefined
+    ? ` / ターン残り${Math.ceil(onlineState.turnRemainingMs / 1000)}秒`
+    : "";
+  const timeoutText = onlineState?.timeoutCounts
+    ? ` / 時間切れ 自分${onlineState.timeoutCounts[onlinePlayerId] || 0} 相手${onlineState.timeoutCounts[onlinePlayerId === 0 ? 1 : 0] || 0}`
+    : "";
+  elements.onlineStatus.textContent = onlineState?.started ? `オンライン対戦中（${opponentState}）` : "相手待ち";
+  elements.onlineRoomLabel.textContent = `部屋 ${onlineState?.roomId || "-"} / あなたはプレイヤー${onlinePlayerId + 1}${reconnectText}${turnText}${timeoutText}`;
   elements.leaveRoomButton.disabled = false;
 }
 
@@ -1229,6 +1295,10 @@ function isActionUseDisabled(card, view) {
   const activePlayer = view.players[view.activePlayer];
   if (view.winner !== null || animationLock || isCpuTurn(view) || !isMyTurn(view) || !activePlayer.hasDrawnThisTurn || activePlayer.actions <= 0) return true;
   if (card.effectKey === "reviveUnit" && activePlayer.field.length >= view.maxFieldSize) return true;
+  if (card.effectKey === "discardOpponentHand") {
+    const opponentId = view.activePlayer === 0 ? 1 : 0;
+    return view.players[opponentId].handCount <= 0;
+  }
   return false;
 }
 
@@ -1722,6 +1792,7 @@ function startCpuSetup() {
 
 function startCpuGame(difficulty = "normal") {
   if (socket) socket.emit("room:leave");
+  clearOnlineSession();
   cpuDifficulty = difficulty;
   onlineMode = false;
   onlineState = null;
@@ -1756,6 +1827,7 @@ function startCpuGame(difficulty = "normal") {
 function startMultiSetup() {
   resetHardCpuStreakForInterrupt();
   if (socket) socket.emit("room:leave");
+  clearOnlineSession();
   onlineMode = false;
   onlineState = null;
   onlinePlayerId = 0;
@@ -1779,6 +1851,7 @@ function startMultiSetup() {
 function backToTitle() {
   resetHardCpuStreakForInterrupt();
   if (socket) socket.emit("room:leave");
+  clearOnlineSession();
   onlineMode = false;
   onlineState = null;
   onlinePlayerId = 0;
@@ -1874,6 +1947,7 @@ elements.rulesNextButton?.addEventListener("click", () => {
 });
 elements.titleBackButton?.addEventListener("click", () => {
   if (socket) socket.emit("room:leave");
+  clearOnlineSession();
   titleLobbyOpen = false;
   titleLobbyMode = "menu";
   titleRulesOpen = false;
@@ -1988,6 +2062,7 @@ async function createOnlineRoom({ fromTitle }) {
     }
     onlineMode = true;
     onlinePlayerId = result.playerId;
+    saveOnlineSession(result.roomId, result.playerToken);
     titleActive = fromTitle;
     titleLobbyOpen = fromTitle;
     titleLobbyMode = "waiting";
@@ -2014,6 +2089,7 @@ async function joinOnlineRoom(roomId, { fromTitle }) {
     }
     onlineMode = true;
     onlinePlayerId = result.playerId;
+    saveOnlineSession(result.roomId, result.playerToken);
     titleActive = fromTitle;
     titleLobbyOpen = fromTitle;
     titleLobbyMode = "waiting";
@@ -2050,6 +2126,7 @@ async function joinRandomRoom({ fromTitle }) {
     }
     onlineMode = true;
     onlinePlayerId = result.playerId;
+    saveOnlineSession(result.roomId, result.playerToken);
     titleActive = fromTitle;
     titleLobbyOpen = fromTitle;
     titleLobbyMode = "waiting";
@@ -2067,6 +2144,7 @@ async function copyText(text, message) {
 elements.leaveRoomButton?.addEventListener("click", () => {
   resetHardCpuStreakForInterrupt();
   if (socket) socket.emit("room:leave");
+  clearOnlineSession();
   onlineMode = false;
   onlineState = null;
   onlinePlayerId = 0;
@@ -2092,17 +2170,27 @@ async function ensureSocket() {
   }
   socket = window.io({ transports: ["websocket", "polling"] });
   socket.on("connect", () => {
+    attemptOnlineReconnect();
     renderOnlineStatus();
   });
   socket.on("disconnect", () => {
-    onlineMode = false;
-    onlineState = null;
+    if (onlineMode && onlineState) {
+      onlineState = { ...onlineState, opponentConnected: false, gameStatus: "disconnected" };
+    }
     render();
+  });
+  socket.on("room:matched", (result) => {
+    if (!result?.ok) return;
+    onlineMode = true;
+    onlinePlayerId = result.playerId;
+    saveOnlineSession(result.roomId, result.playerToken);
+    showFloat("ランダム対戦成立", "draw");
   });
   socket.on("room:state", (state) => {
     onlineMode = true;
     onlineState = state;
     onlinePlayerId = state.playerId;
+    if (state.playerToken) saveOnlineSession(state.roomId, state.playerToken);
     titleLobbyMode = state.started ? "menu" : "waiting";
     titleActive = !state.started && titleLobbyOpen;
     if (state.started && !lastOnlineStarted) {
@@ -2119,6 +2207,23 @@ async function ensureSocket() {
     render();
   });
   return true;
+}
+
+function attemptOnlineReconnect() {
+  if (reconnectAttempted || onlineMode) return;
+  const session = loadOnlineSession();
+  if (!session) return;
+  reconnectAttempted = true;
+  socket.emit("room:reconnect", session, (result) => {
+    if (!result?.ok) {
+      clearOnlineSession();
+      return;
+    }
+    onlineMode = true;
+    onlinePlayerId = result.playerId;
+    saveOnlineSession(result.roomId, result.playerToken);
+    showFloat("対戦に復帰しました", "draw");
+  });
 }
 
 function loadScript(src) {
@@ -2559,11 +2664,13 @@ function hardSummonChoices() {
   return player.hand
     .map((cardId, handIndex) => ({ cardId, handIndex, card: CARD_DEFINITIONS[cardId] }))
     .filter((entry) => entry.card.type === "unit")
-    .filter((entry) => !(entry.cardId === "tyranitar" && player.life <= 3))
+    .filter((entry) => !(entry.cardId === "tyranitar" && player.life <= 4))
     .map((entry) => {
       let score = 120 + hardUnitCardScore(entry.card);
       if (player.field.length === 0) score += 180;
       if (player.field.length === 2) score += 160;
+      if (entry.cardId === "tyranitar" && player.life <= 6) score -= 420;
+      if (entry.cardId === "quagsire") score += quagsireSummonAdjustment();
       if (entry.cardId === "pikachu" && player.hand.includes("lightBall")) score += 520;
       score += bestItemComboBonusForUnit(entry.cardId);
       if (entry.card.effectKey === "mustBeAttacked") score += game.players[0].field.length * 85;
@@ -2584,6 +2691,27 @@ function hardActionChoices() {
     .map((cardId, handIndex) => ({ cardId, handIndex, card: CARD_DEFINITIONS[cardId] }))
     .filter((entry) => entry.card.type === "action")
     .flatMap((entry) => hardActionCandidates(entry.handIndex, entry.cardId));
+}
+
+function quagsireSummonAdjustment() {
+  const cpu = game.players[1];
+  const opponent = game.players[0];
+  const ownBestBuff = strongestPowerIncrease(cpu.field);
+  const enemyBestBuff = strongestPowerIncrease(opponent.field);
+  const enemyThreat = opponent.field.reduce((sum, unit) => sum + Math.max(0, unit.power), 0);
+  const lethalRisk = enemyThreat >= cpu.life || opponent.field.some((unit) => unit.power >= 5 || unit.cardId === "mimikyu");
+  let score = 0;
+  if (ownBestBuff > 0 && enemyBestBuff <= ownBestBuff && !lethalRisk) score -= 1200 + ownBestBuff * 180;
+  if (enemyBestBuff > ownBestBuff) score += 520 + (enemyBestBuff - ownBestBuff) * 180;
+  if (lethalRisk) score += 760;
+  return score;
+}
+
+function strongestPowerIncrease(field) {
+  return field.reduce((best, unit) => {
+    const base = unit.basePower ?? CARD_DEFINITIONS[unit.cardId]?.power ?? 0;
+    return Math.max(best, Math.max(0, unit.power - base));
+  }, 0);
 }
 
 function hardActionCandidates(handIndex, cardId) {
@@ -3398,5 +3526,6 @@ function initializeFromUrl() {
 
 setupProfileControls();
 initializeFromUrl();
+if (loadOnlineSession()) ensureSocket();
 render();
 })();
