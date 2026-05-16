@@ -133,15 +133,6 @@ const RULE_PAGES = [
 ];
 const UPDATE_HISTORY = [
   {
-    version: "v0.63",
-    title: "カードビジュアル改善",
-    items: [
-      "手札、場、捨札、詳細表示のカードを、種類欄、カード名、イラスト枠、効果欄に分かれたカード型レイアウトに変更。",
-      "モンスターカードのパワーとHPを、カード下部の左右に丸いステータス窓として表示するように変更。",
-      "モンスター、持ち物、アクションの色分けを保ちながら、カード枠、影、中央イラスト枠を強調する見た目に変更。"
-    ]
-  },
-  {
     version: "v0.62",
     title: "タイトル画面とマルチ対戦メニューの整理",
     items: [
@@ -1159,13 +1150,8 @@ function renderField(container, field, maxFieldSize, view, playerId) {
 
     const card = CARD_DEFINITIONS[unit.cardId];
     slot.innerHTML = `
-      <div class="card-head">
-        ${typeBadge(card.type)}
-        <div class="card-name">${card.name}</div>
-      </div>
-      <div class="card-art field-art ${card.type}" aria-hidden="true">
-        <span>${cardSymbol(card)}</span>
-      </div>
+      ${typeBadge(card.type)}
+      <div class="card-name">${card.name}</div>
       <div class="unit-stats">
         <span class="stat-pill hp">HP ${unit.hp}/${unit.maxHp}</span>
         <span class="stat-pill pow">PW ${unit.power}</span>
@@ -1270,13 +1256,8 @@ function renderDetail() {
   elements.detailContent.innerHTML = `
     <div class="detail-card ${card.type}">
       <p class="eyebrow">${zone}</p>
-      <div class="card-head">
-        ${typeBadge(card.type)}
-        <h2>${card.name}</h2>
-      </div>
-      <div class="card-art detail-art ${card.type}" aria-hidden="true">
-        <span>${cardSymbol(card)}</span>
-      </div>
+      ${typeBadge(card.type)}
+      <h2>${card.name}</h2>
       ${card.type === "unit" ? `
         <div class="detail-stats">
           <span class="stat-pill hp">HP ${unit ? `${unit.hp}/${unit.maxHp}` : card.hp}</span>
@@ -1882,13 +1863,8 @@ function renderWinnerOverlay(view) {
 
 function cardMarkup(card) {
   return `
-    <div class="card-head">
-      ${typeBadge(card.type)}
-      <div class="card-name">${card.name}</div>
-    </div>
-    <div class="card-art ${card.type}" aria-hidden="true">
-      <span>${cardSymbol(card)}</span>
-    </div>
+    ${typeBadge(card.type)}
+    <div class="card-name">${card.name}</div>
     ${card.type === "unit" ? `
       <div class="unit-stats">
         <span class="stat-pill hp">HP ${card.hp}</span>
@@ -1912,20 +1888,11 @@ function itemBadgeMarkup(item) {
 
 function compactCardMarkup(card) {
   return `
-    <div class="card-head">
-      ${typeBadge(card.type)}
-      <div class="card-name">${card.name}</div>
-    </div>
-    <div class="card-art compact ${card.type}" aria-hidden="true">
-      <span>${cardSymbol(card)}</span>
-    </div>
+    ${typeBadge(card.type)}
+    <div class="card-name">${card.name}</div>
     ${card.type === "unit" ? `<div class="unit-stats"><span class="stat-pill hp">HP ${card.hp}</span><span class="stat-pill pow">PW ${card.power}</span></div>` : ""}
     <small>${card.text}</small>
   `;
-}
-
-function cardSymbol(card) {
-  return (card.name || "?").trim().slice(0, 1);
 }
 
 function typeBadge(type) {
