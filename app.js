@@ -35,6 +35,8 @@ let previousView = null;
 let animationLock = false;
 let hardCpuMatchActive = false;
 let hardCpuResultHandled = false;
+let restoredCpuBattle = false;
+let suppressCpuBattleSave = false;
 const pendingFx = new Map();
 const AVATAR_OPTIONS = (window.HarapekoAvatars || []).map((avatar) => avatar.src);
 const AVATAR_FALLBACK_OPTIONS = [
@@ -126,6 +128,31 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.60",
+    title: "CPU戦の連勝記録と対戦放棄対策",
+    items: [
+      "バトル中オプションからリセットボタンを削除。",
+      "CPU戦中にタイトルへ戻る場合、対戦終了確認を表示し、承認した場合は敗北扱いで連勝を0に戻すように変更。",
+      "CPU戦中のgameState、CPU難易度、連勝記録、battleStartedAtをlocalStorageのcurrentCpuBattleへ保存するように変更。",
+      "CPU戦中にページをリロードした場合、新しいゲームを開始せず保存された途中状態を復元するように変更。",
+      "CPU戦中にページを閉じる、または移動しようとした場合、「対戦を終了すると敗北になります」と警告するように変更。",
+      "降参、タイトルへ戻る、不正終了、abandonCpuBattleをCPU戦の敗北扱いとして統一。",
+      "CPU（強い）戦は勝利時だけ連勝数を+1し、敗北時や対戦放棄時は連勝数を0に戻すように変更。"
+    ]
+  },
+  {
+    version: "v0.59",
+    title: "オンライン対戦の予期しない初期化防止",
+    items: [
+      "進行中のオンライン部屋でstartGameやinitializeGameが再実行されないよう、サーバー側にgameStartedによる初期化ガードを追加。",
+      "連戦開始は決着後だけ許可するように変更し、対戦中の連戦要求では既存gameStateを維持してエラーを返すように変更。",
+      "再接続処理はゲームを初期化せず、保存済みのroomIdとplayerTokenに一致する既存gameStateだけを返すように確認・補強。",
+      "部屋作成、参加、ゲーム開始、初期化実行、初期化ブロック、再接続、切断、部屋削除のサーバーログを追加。",
+      "部屋データにcreatedAt、lastUpdatedAt、resetReason、lastStartCaller、lastInitializeCallerを追加。",
+      "リロード直後の再接続待ち中に、クライアントがローカル新規ゲームの初期状態を表示しないように変更。"
+    ]
+  },
   {
     version: "v0.58",
     title: "オンライン対戦の安定性強化",
@@ -373,6 +400,124 @@ function resetHardCpuStreakForInterrupt() {
   hardCpuResultHandled = true;
 }
 
+function saveCurrentCpuBattle() {
+  if (suppressCpuBattleSave || onlineMode || !cpuEnabled || titleActive || !game || game.winner !== null) return;
+  const snapshot = {
+    gameState: game,
+    cpuDifficulty,
+    hardCpuRecords: loadHardCpuRecords(),
+    hardCpuMatchActive,
+    hardCpuResultHandled,
+    battleStartedAt: loadCurrentCpuBattle()?.battleStartedAt || Date.now(),
+    savedAt: Date.now(),
+  };
+  try {
+    localStorage.setItem("currentCpuBattle", JSON.stringify(snapshot));
+  } catch {
+    // localStorage is optional.
+  }
+}
+
+function loadCurrentCpuBattle() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("currentCpuBattle") || "{}");
+    if (!saved.gameState || saved.gameState.winner !== null) return null;
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
+function clearCurrentCpuBattle() {
+  try {
+    localStorage.removeItem("currentCpuBattle");
+  } catch {
+    // localStorage is optional.
+  }
+}
+
+function restoreCpuBattleIfNeeded() {
+  const saved = loadCurrentCpuBattle();
+  if (!saved) return false;
+  suppressCpuBattleSave = true;
+  game = saved.gameState;
+  cpuDifficulty = saved.cpuDifficulty === "hard" ? "hard" : "normal";
+  cpuEnabled = true;
+  cpuThinking = false;
+  onlineMode = false;
+  onlineState = null;
+  onlinePlayerId = 0;
+  lastOnlineStarted = false;
+  hardCpuMatchActive = Boolean(saved.hardCpuMatchActive);
+  hardCpuResultHandled = Boolean(saved.hardCpuResultHandled);
+  titleActive = false;
+  titleLobbyOpen = false;
+  titleRulesOpen = false;
+  titleCardsOpen = false;
+  titleUpdatesOpen = false;
+  titleRecordsOpen = false;
+  titleCpuOpen = false;
+  optionsOpen = false;
+  clearSelection();
+  previousView = null;
+  restoredCpuBattle = true;
+  suppressCpuBattleSave = false;
+  return true;
+}
+
+function isCpuBattleInProgress() {
+  return !onlineMode && cpuEnabled && !titleActive && game && game.winner === null;
+}
+
+function abandonCpuBattle(reason = "abandon") {
+  if (!isCpuBattleInProgress()) return false;
+  if (cpuDifficulty === "hard") {
+    const records = loadHardCpuRecords();
+    records.current = 0;
+    saveHardCpuRecords(records);
+  }
+  hardCpuMatchActive = false;
+  hardCpuResultHandled = true;
+  cpuThinking = false;
+  clearCurrentCpuBattle();
+  console.warn("CPU battle abandoned as defeat", { reason, difficulty: cpuDifficulty });
+  return true;
+}
+
+function completeCpuBattleIfNeeded(view) {
+  if (onlineMode || !cpuEnabled || !game || view.winner === null) return null;
+  const result = resolveHardCpuResultIfNeeded(view);
+  clearCurrentCpuBattle();
+  return result;
+}
+
+function confirmCpuBattleExit() {
+  if (!isCpuBattleInProgress()) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const node = document.createElement("div");
+    node.className = "confirm-overlay";
+    node.innerHTML = `
+      <div class="confirm-card">
+        <h2>対戦を終了しますか？</h2>
+        <p>CPU戦では敗北扱いになり、連勝記録が途切れます。</p>
+        <div class="confirm-actions">
+          <button type="button" class="danger-button" id="confirmCpuExitYes">はい</button>
+          <button type="button" id="confirmCpuExitNo">いいえ</button>
+        </div>
+      </div>
+    `;
+    document.body.append(node);
+    node.querySelector("#confirmCpuExitYes").addEventListener("click", () => {
+      node.remove();
+      resolve(true);
+    });
+    node.querySelector("#confirmCpuExitNo").addEventListener("click", () => {
+      node.remove();
+      resolve(false);
+    });
+  });
+}
+
 function setupProfileControls() {
   if (elements.playerNameInput) {
     elements.playerNameInput.value = playerProfile.name;
@@ -480,11 +625,59 @@ function render() {
   renderWinnerOverlay(view);
   flushFx();
   previousView = view;
+  saveCurrentCpuBattle();
   if (!onlineMode) scheduleCpuTurn();
 }
 
 function getView() {
-  return onlineMode && onlineState?.view ? onlineState.view : engine.getPublicState(game, getSelfId());
+  if (onlineMode) return onlineState?.view || createOnlinePlaceholderView();
+  return engine.getPublicState(game, getSelfId());
+}
+
+function createOnlinePlaceholderView() {
+  const profile = playerProfile || {};
+  return {
+    activePlayer: 0,
+    firstPlayer: 0,
+    turn: 0,
+    winner: null,
+    doubleNextAction: null,
+    pendingQuickReplay: null,
+    pendingOpponentHandCheck: null,
+    pendingDiscardSelection: null,
+    pendingDiscardTake: null,
+    pendingPileDrawSelection: null,
+    pendingPileSearch: null,
+    lastPlayedAction: null,
+    maxFieldSize: 3,
+    maxHandSize: 10,
+    lastMessage: "オンライン対戦に再接続中です。既存の対戦状態を取得しています。",
+    log: ["再接続中です。ゲームは初期化しません。"],
+    discard: [],
+    piles: PILE_DEFINITIONS.map((pile) => ({ id: pile.id, name: pile.name, count: 0, topCardId: null })),
+    players: [
+      {
+        name: profile.name || "あなた",
+        avatar: profile.avatar || AVATAR_OPTIONS[0],
+        life: 12,
+        actions: 0,
+        hasDrawnThisTurn: false,
+        handCount: 0,
+        hand: [],
+        field: [],
+      },
+      {
+        name: "相手",
+        avatar: AVATAR_OPTIONS[1] || AVATAR_OPTIONS[0],
+        life: 12,
+        actions: 0,
+        hasDrawnThisTurn: false,
+        handCount: 0,
+        hand: [],
+        field: [],
+      },
+    ],
+  };
 }
 
 function getSelfId() {
@@ -586,7 +779,6 @@ function updateOptionsVisibility() {
     if (node) node.classList.toggle("hidden", !showRoomControls);
   });
   if (elements.leaveRoomButton) elements.leaveRoomButton.classList.toggle("hidden", !onlineMode);
-  if (elements.resetButton) elements.resetButton.classList.toggle("hidden", onlineMode || !cpuEnabled);
   if (elements.surrenderButton) elements.surrenderButton.classList.toggle("hidden", titleActive || getView().winner !== null);
 }
 
@@ -1528,7 +1720,7 @@ function renderWinnerOverlay(view) {
     return;
   }
   if (node) return;
-  const hardResult = resolveHardCpuResultIfNeeded(view);
+  const hardResult = completeCpuBattleIfNeeded(view);
   const winner = view.players[view.winner];
   const selfWon = view.winner === getSelfId();
   const hardStreakLine = hardResult
@@ -1564,7 +1756,7 @@ function renderWinnerOverlay(view) {
   });
   node.querySelector("#winnerTitle").addEventListener("click", () => {
     node.remove();
-    backToTitle();
+    backToTitle({ skipCpuConfirm: true });
   });
 }
 
@@ -1766,7 +1958,10 @@ function runGameAction(type, payload, localAction, afterResult = null) {
   if (!onlineMode) {
     const result = localAction();
     if (result && result.ok === false) showFloat(result.message || "操作できません", "damage");
-    else if (afterResult) afterResult(result);
+    else {
+      if (afterResult) afterResult(result);
+      saveCurrentCpuBattle();
+    }
     return result;
   }
   if (!socket || !socket.connected) {
@@ -1791,6 +1986,12 @@ function startCpuSetup() {
 }
 
 function startCpuGame(difficulty = "normal") {
+  if (loadCurrentCpuBattle()) {
+    restoreCpuBattleIfNeeded();
+    render();
+    showFloat("進行中のCPU戦に復帰しました", "draw");
+    return;
+  }
   if (socket) socket.emit("room:leave");
   clearOnlineSession();
   cpuDifficulty = difficulty;
@@ -1819,13 +2020,15 @@ function startCpuGame(difficulty = "normal") {
   optionsOpen = false;
   clearSelection();
   previousView = null;
+  clearCurrentCpuBattle();
+  saveCurrentCpuBattle();
   render();
   showBattleStart(engine.getPublicState(game, 0), 0);
   setTimeout(() => showTurnBanner(`${game.players[game.activePlayer].name}のターン`), 1300);
 }
 
 function startMultiSetup() {
-  resetHardCpuStreakForInterrupt();
+  abandonCpuBattle("start-multi");
   if (socket) socket.emit("room:leave");
   clearOnlineSession();
   onlineMode = false;
@@ -1848,8 +2051,12 @@ function startMultiSetup() {
   render();
 }
 
-function backToTitle() {
-  resetHardCpuStreakForInterrupt();
+async function backToTitle(options = {}) {
+  if (!options.skipCpuConfirm) {
+    const accepted = await confirmCpuBattleExit();
+    if (!accepted) return;
+  }
+  abandonCpuBattle("back-to-title");
   if (socket) socket.emit("room:leave");
   clearOnlineSession();
   onlineMode = false;
@@ -2008,32 +2215,15 @@ elements.closeOptionsButton?.addEventListener("click", () => {
 });
 elements.backTitleButton?.addEventListener("click", backToTitle);
 
-elements.resetButton.addEventListener("click", () => {
-  if (onlineMode) {
-    showFloat("オンライン中はリセット不可", "damage");
-    return;
-  }
-  resetHardCpuStreakForInterrupt();
-  game = engine.createGame();
-  const selfProfile = currentPlayerProfile();
-  const opponentProfile = cpuProfile(cpuDifficulty);
-  game.players[0].name = selfProfile.name;
-  game.players[0].avatar = selfProfile.avatar;
-  game.players[1].name = opponentProfile.name;
-  game.players[1].avatar = opponentProfile.avatar;
-  hardCpuMatchActive = cpuDifficulty === "hard";
-  hardCpuResultHandled = false;
-  cpuThinking = false;
-  clearSelection();
-  render();
-});
-
 elements.surrenderButton?.addEventListener("click", () => {
   if (getView().winner !== null) return;
   const accepted = typeof window.confirm === "function" ? window.confirm("降参しますか？") : true;
   if (!accepted) return;
-  resetHardCpuStreakForInterrupt();
   runGameAction("surrender", {}, () => engine.surrender(game, getSelfId()));
+  if (!onlineMode) {
+    completeCpuBattleIfNeeded(engine.getPublicState(game, 0));
+    clearCurrentCpuBattle();
+  }
   optionsOpen = false;
   clearSelection();
   if (!onlineMode) render();
@@ -2142,7 +2332,7 @@ async function copyText(text, message) {
 }
 
 elements.leaveRoomButton?.addEventListener("click", () => {
-  resetHardCpuStreakForInterrupt();
+  abandonCpuBattle("leave-room");
   if (socket) socket.emit("room:leave");
   clearOnlineSession();
   onlineMode = false;
@@ -2152,6 +2342,13 @@ elements.leaveRoomButton?.addEventListener("click", () => {
   optionsOpen = true;
   clearSelection();
   render();
+});
+
+window.addEventListener("beforeunload", (event) => {
+  if (!isCpuBattleInProgress()) return;
+  saveCurrentCpuBattle();
+  event.preventDefault();
+  event.returnValue = "対戦を終了すると敗北になります";
 });
 
 async function ensureSocket() {
@@ -2177,6 +2374,7 @@ async function ensureSocket() {
     if (onlineMode && onlineState) {
       onlineState = { ...onlineState, opponentConnected: false, gameStatus: "disconnected" };
     }
+    reconnectAttempted = false;
     render();
   });
   socket.on("room:matched", (result) => {
@@ -2210,13 +2408,37 @@ async function ensureSocket() {
 }
 
 function attemptOnlineReconnect() {
-  if (reconnectAttempted || onlineMode) return;
+  if (reconnectAttempted) return;
   const session = loadOnlineSession();
   if (!session) return;
   reconnectAttempted = true;
+  onlineMode = true;
+  onlineState ||= {
+    roomId: session.roomId,
+    playerId: onlinePlayerId,
+    playerToken: session.playerToken,
+    started: false,
+    gameStarted: false,
+    gameStatus: "reconnecting",
+    opponentConnected: false,
+    reconnectRemainingMs: 0,
+    turnRemainingMs: 0,
+    turnLimitMs: 90000,
+    timeoutCounts: [0, 0],
+    connected: [false, false],
+    pending: null,
+    view: createOnlinePlaceholderView(),
+  };
+  titleActive = false;
+  render();
   socket.emit("room:reconnect", session, (result) => {
     if (!result?.ok) {
+      showFloat(result?.message || "対戦に復帰できませんでした", "damage");
       clearOnlineSession();
+      onlineMode = false;
+      onlineState = null;
+      titleActive = true;
+      render();
       return;
     }
     onlineMode = true;
@@ -3503,6 +3725,7 @@ async function cpuStep(label, action, sound) {
   playSound(sound);
   const result = await action();
   render();
+  saveCurrentCpuBattle();
   await delay(1450);
   return result;
 }
@@ -3526,6 +3749,29 @@ function initializeFromUrl() {
 
 setupProfileControls();
 initializeFromUrl();
-if (loadOnlineSession()) ensureSocket();
+const savedOnlineSession = loadOnlineSession();
+if (restoreCpuBattleIfNeeded()) {
+  showFloat("CPU戦を復元しました", "draw");
+} else if (savedOnlineSession) {
+  onlineMode = true;
+  onlineState = {
+    roomId: savedOnlineSession.roomId,
+    playerId: 0,
+    playerToken: savedOnlineSession.playerToken,
+    started: false,
+    gameStarted: false,
+    gameStatus: "reconnecting",
+    opponentConnected: false,
+    reconnectRemainingMs: 0,
+    turnRemainingMs: 0,
+    turnLimitMs: 90000,
+    timeoutCounts: [0, 0],
+    connected: [false, false],
+    pending: null,
+    view: createOnlinePlaceholderView(),
+  };
+  titleActive = false;
+  ensureSocket();
+}
 render();
 })();

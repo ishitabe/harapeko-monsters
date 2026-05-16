@@ -1222,6 +1222,60 @@ p {
   font-weight: 900;
 }
 
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1900;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 8, 16, 0.76);
+  backdrop-filter: blur(4px);
+}
+
+.confirm-card {
+  width: min(520px, 88vw);
+  padding: 30px;
+  border: 1px solid rgba(255, 138, 138, 0.5);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(19, 28, 40, 0.98), rgba(8, 14, 24, 0.98));
+  color: #f5efe2;
+  text-align: center;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.62), 0 0 45px rgba(255, 95, 95, 0.18);
+}
+
+.confirm-card h2 {
+  margin: 0 0 12px;
+  font-size: 1.8rem;
+}
+
+.confirm-card p {
+  margin: 0 0 24px;
+  color: #d7deea;
+  line-height: 1.7;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+}
+
+.confirm-actions button {
+  min-width: 128px;
+  min-height: 48px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #74c8ff, #3d8ac5);
+  color: #06101a;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.confirm-actions .danger-button {
+  background: linear-gradient(180deg, #ff8d8d, #c84646);
+  color: #1b0505;
+}
+
 .turn-banner {
   padding: 24px 54px;
   border: 1px solid rgba(242, 189, 92, 0.45);

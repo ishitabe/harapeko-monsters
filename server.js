@@ -75,7 +75,8 @@ io.on("connection", (socket) => {
       joinRoom(socket, room, 1, token1);
       setPlayerMeta(room, 0, waitingSocket.data.playerMeta || {});
       setPlayerMeta(room, 1, payload.player || {});
-      startRoomGame(room);
+      const started = startRoomGame(room, { caller: "room:random", reason: "initial-random-match" });
+      if (!started.ok) return reply?.({ ok: false, message: started.message });
       io.to(waitingSocket.id).emit("room:matched", { ok: true, roomId: room.id, playerId: 0, playerToken: token0, random: true });
       reply?.({ ok: true, roomId: room.id, playerId: 1, playerToken: token1, random: true });
       broadcastRoom(room);
@@ -96,7 +97,8 @@ io.on("connection", (socket) => {
     joinRoom(socket, room, seat, token);
     setPlayerMeta(room, seat, payload.player || {});
     if (room.players[0].token && room.players[1].token && room.gameStatus === "waiting") {
-      startRoomGame(room);
+      const started = startRoomGame(room, { caller: "room:join", reason: "initial-two-players-ready" });
+      if (!started.ok) return reply?.({ ok: false, message: started.message });
     }
     reply?.({ ok: true, roomId: room.id, password: room.id, playerId: seat, playerToken: token });
     broadcastRoom(room);
@@ -117,7 +119,9 @@ io.on("connection", (socket) => {
     player.disconnectedAt = null;
     player.reconnectDeadline = null;
     room.gameStatus = room.game?.winner === null ? "playing" : room.gameStatus;
+    roomAudit(room, "reconnect", { playerId, socketId: socket.id });
     addRoomLog(room, `${room.playerMeta[playerId].name}が復帰しました。`);
+    touchRoom(room, "reconnect");
     reply?.({ ok: true, roomId: room.id, playerId, playerToken: token });
     broadcastRoom(room);
   });
@@ -125,7 +129,8 @@ io.on("connection", (socket) => {
   socket.on("room:rematch", (_payload, reply) => {
     const room = getSocketRoom(socket);
     if (!room || !room.players[0].token || !room.players[1].token) return reply?.({ ok: false, message: "連戦できる相手がいません。" });
-    startRoomGame(room);
+    const started = startRoomGame(room, { caller: "room:rematch", reason: "rematch" });
+    if (!started.ok) return reply?.({ ok: false, message: started.message });
     reply?.({ ok: true, roomId: room.id, playerToken: room.players[socket.data.playerId].token });
     broadcastRoom(room);
   });
@@ -146,6 +151,7 @@ io.on("connection", (socket) => {
       room.players[playerId].timeoutCount = 0;
       if (room.game.activePlayer !== activeBefore) room.turnStartedAt = Date.now();
       refreshRoomTimers(room);
+      touchRoom(room, `action:${payload.type || "unknown"}`);
     }
     reply?.({
       ok: result.ok,
@@ -165,6 +171,7 @@ function createRoom() {
   do {
     id = Math.random().toString(36).slice(2, 8).toUpperCase();
   } while (rooms.has(id));
+  const now = Date.now();
   const room = {
     id,
     roomId: id,
@@ -175,12 +182,20 @@ function createRoom() {
     gameLog: [],
     gameStatus: "waiting",
     started: false,
-    lastActionAt: Date.now(),
+    gameStarted: false,
+    createdAt: now,
+    lastUpdatedAt: now,
+    resetReason: "not-started",
+    lastStartCaller: null,
+    lastInitializeCaller: null,
+    lastUpdateReason: "created",
+    lastActionAt: now,
     turnStartedAt: null,
     pendingStartedAt: null,
-    updatedAt: Date.now(),
+    updatedAt: now,
   };
   rooms.set(id, room);
+  roomAudit(room, "room created", { createdAt: room.createdAt });
   return room;
 }
 
@@ -200,8 +215,44 @@ function createPlayerToken() {
   return crypto.randomBytes(24).toString("hex");
 }
 
-function startRoomGame(room) {
+function startRoomGame(room, options = {}) {
+  const caller = options.caller || "unknown";
+  const reason = options.reason || "initial";
+  room.lastStartCaller = caller;
+  roomAudit(room, "startGame requested", { caller, reason, winner: room.game?.winner ?? null });
+
+  const isRematch = reason === "rematch";
+  const playingOrReconnecting = room.gameStatus === "playing" || room.gameStatus === "reconnecting";
+  if (playingOrReconnecting) {
+    const message = "進行中の部屋ではゲームを初期化できません。";
+    room.resetReason = `blocked:${reason}`;
+    roomAudit(room, "initializeGame blocked: gameStatus is active", { caller, reason });
+    return { ok: false, message };
+  }
+  if (room.gameStarted && room.game && room.game.winner === null) {
+    const message = "進行中の部屋ではゲームを初期化できません。";
+    room.resetReason = `blocked:${reason}`;
+    roomAudit(room, "initializeGame blocked: game already started", { caller, reason });
+    return { ok: false, message };
+  }
+  if (isRematch && room.gameStatus !== "finished" && room.game?.winner === null) {
+    const message = "決着前に連戦開始はできません。";
+    room.resetReason = `blocked:${reason}`;
+    roomAudit(room, "initializeGame blocked: rematch before finish", { caller, reason });
+    return { ok: false, message };
+  }
+  if (!isRematch && room.gameStarted) {
+    const message = "この部屋はすでに開始済みです。復帰してください。";
+    room.resetReason = `blocked:${reason}`;
+    roomAudit(room, "initializeGame blocked: unexpected second start", { caller, reason });
+    return { ok: false, message };
+  }
+
+  room.lastInitializeCaller = caller;
+  room.resetReason = reason;
+  roomAudit(room, "initializeGame executed", { caller, reason });
   room.started = true;
+  room.gameStarted = true;
   room.gameStatus = "playing";
   room.game = engine.createGame();
   room.game.players[0].name = room.playerMeta[0].name;
@@ -210,6 +261,7 @@ function startRoomGame(room) {
   room.game.players[1].avatar = room.playerMeta[1].avatar;
   room.game.lastMessage = "2人そろいました。山札を選んでドローしてください。";
   room.game.log.unshift("オンライン対戦を開始しました。");
+  room.game.log.unshift(`初期化理由: ${reason} / 呼び出し元: ${caller}`);
   room.players.forEach((player) => {
     player.timeoutCount = 0;
     player.disconnectedAt = null;
@@ -218,7 +270,8 @@ function startRoomGame(room) {
   room.lastActionAt = Date.now();
   room.turnStartedAt = Date.now();
   room.pendingStartedAt = null;
-  room.updatedAt = Date.now();
+  touchRoom(room, `initialize:${reason}`);
+  return { ok: true };
 }
 
 function joinRoom(socket, room, playerId, token) {
@@ -233,7 +286,8 @@ function joinRoom(socket, room, playerId, token) {
     reconnectDeadline: null,
   };
   attachSocketToPlayer(socket, room, playerId);
-  room.updatedAt = Date.now();
+  roomAudit(room, "player joined", { playerId, socketId: socket.id, hasToken: Boolean(token) });
+  touchRoom(room, `join:${playerId}`);
 }
 
 function attachSocketToPlayer(socket, room, playerId) {
@@ -278,6 +332,13 @@ function leaveSocketRoom(socket, options = {}) {
   socket.data.playerId = null;
   if (!seat || seat.socketId !== socket.id) return;
 
+  roomAudit(room, options.intentional ? "player leave" : "player disconnect", {
+    playerId,
+    socketId: socket.id,
+    intentional: Boolean(options.intentional),
+    silent: Boolean(options.silent),
+  });
+
   if (options.intentional && room.gameStatus === "playing" && room.game?.winner === null) {
     engine.surrender(room.game, playerId);
     room.gameStatus = "finished";
@@ -295,9 +356,15 @@ function leaveSocketRoom(socket, options = {}) {
     addRoomLog(room, `${room.playerMeta[playerId].name}が切断しました。60秒待機中です。`);
   }
 
-  room.updatedAt = Date.now();
-  if (!room.players[0].token && !room.players[1].token) rooms.delete(room.id);
+  touchRoom(room, options.intentional ? "leave" : "disconnect");
+  if (!room.players[0].token && !room.players[1].token) deleteRoom(room, "no players remaining");
   else if (!options.silent) broadcastRoom(room);
+}
+
+function deleteRoom(room, reason) {
+  room.resetReason = `room-delete:${reason}`;
+  roomAudit(room, "room delete", { reason, lastUpdatedAt: room.lastUpdatedAt, createdAt: room.createdAt });
+  rooms.delete(room.id);
 }
 
 function getSocketRoom(socket) {
@@ -448,6 +515,7 @@ function processRoomTimers(room) {
   }
 
   refreshRoomTimers(room);
+  if (changed) touchRoom(room, "timer");
   if (changed || room.players.some((player) => player.connected)) broadcastRoom(room);
 }
 
@@ -457,7 +525,7 @@ function filterDrawnCards(drawnCards, playerId) {
 
 function broadcastRoom(room) {
   refreshRoomTimers(room);
-  room.updatedAt = Date.now();
+  touchRoom(room, "broadcast");
   [0, 1].forEach((playerId) => {
     const player = room.players[playerId];
     if (!player.socketId || !player.connected) return;
@@ -479,7 +547,13 @@ function buildRoomState(room, playerId) {
     playerId,
     playerToken: room.players[playerId].token,
     started: room.started,
+    gameStarted: room.gameStarted,
     gameStatus: room.gameStatus,
+    createdAt: room.createdAt,
+    lastUpdatedAt: room.lastUpdatedAt,
+    resetReason: room.resetReason,
+    lastStartCaller: room.lastStartCaller,
+    lastInitializeCaller: room.lastInitializeCaller,
     opponentConnected: Boolean(room.players[opponentId].connected),
     reconnectRemainingMs,
     turnRemainingMs,
@@ -533,7 +607,7 @@ setInterval(() => {
 setInterval(() => {
   const deadline = Date.now() - cleanupMs;
   for (const [id, room] of rooms) {
-    if (room.updatedAt < deadline) rooms.delete(id);
+    if (room.updatedAt < deadline) deleteRoom(room, "cleanup timeout");
   }
 }, 1000 * 60 * 30).unref();
 
