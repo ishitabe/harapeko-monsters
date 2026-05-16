@@ -137,7 +137,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       return ok(game, { drawnCards: [], discardedDrawCards: [drawn.cardId] });
     }
     game.lastMessage = `${player.name}が${cards[drawn.cardId].name}をドローしました。`;
-    addLog(game, `${player.name}が${getPile(game, pileId).name}から${cards[drawn.cardId].name}をドロー。`);
+    addLog(game, `${getPile(game, pileId).name}から「${cards[drawn.cardId].name}」をドロー`);
     return ok(game, { drawnCards: [drawn.cardId] });
   }
 
@@ -155,20 +155,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     player.hand.splice(Number(handIndex), 1);
 
     player.actions -= 1;
-    const unit = createUnit(cardId, game.turn);
-    if (card.effectKey === "mustBeAttacked") unit.power += game.players[opponentOf(playerId)].field.length;
-    if (card.effectKey === "useTargetPowerAsHpNoSummonSick" || hasItemEffect(unit, "canActOnSummon")) unit.canAct = true;
-    player.field.push(unit);
-    if (card.effectKey === "enemyPowerMinusOneOnSummon") {
-      game.players[opponentOf(playerId)].field.forEach((target) => lowerPower(game, opponentOf(playerId), target, 1, playerId));
-    }
-    if (card.effectKey === "damageOnSummonZeroPowerAndReturn" && payload.targetUnitId) {
-      const target = findUnit(game.players[opponentOf(playerId)], payload.targetUnitId);
-      if (target) {
-        applyDamage(game, opponentOf(playerId), target, 1);
-        discardDeadUnits(game);
-      }
-    }
+    enterField(game, playerId, cardId, "summon", payload);
     game.lastMessage = `${player.name}が${card.name}を召喚しました。`;
     addLog(game, game.lastMessage);
     return ok(game);
@@ -286,6 +273,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
     if (card.effectKey === "drawOneEachDiscardOne") {
       const drawResults = game.piles.map((pile) => drawCard(game, playerId, pile.id, { silent: true })).filter(Boolean);
+      logTopDrawResults(game, card.name, drawResults);
       const drawnCards = drawResults.filter((drawn) => drawn.added).map((drawn) => drawn.cardId);
       const discardedDrawCards = drawResults.filter((drawn) => !drawn.added).map((drawn) => drawn.cardId);
       return ok(game, { drawnCards, discardedDrawCards });
@@ -297,18 +285,19 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       const reviveCardId = game.discard[discardIndex];
       if (!cards[reviveCardId] || cards[reviveCardId].type !== "unit") return fail(game, "捨札のモンスターを選んでください。");
       game.discard.splice(discardIndex, 1);
-      player.field.push(createUnit(reviveCardId, game.turn));
+      enterField(game, playerId, reviveCardId, "revive", payload);
       return ok(game);
     }
 
     if (card.effectKey === "drawTwoGainAction") {
       if (!payload.pileId) return fail(game, "山札を選んでください。");
-      const { drawnCards, discardedDrawCards } = drawMultipleDetailed(game, playerId, payload.pileId, 2);
+      const ownDraw = drawMultipleDetailed(game, playerId, payload.pileId, 2);
       const opponentDraw = drawMultipleDetailed(game, opponentId, payload.pileId, 2);
+      logTopDrawResults(game, card.name, [...ownDraw.drawResults, ...opponentDraw.drawResults]);
       player.actions += 1;
       return ok(game, {
-        drawnCards,
-        discardedDrawCards: [...discardedDrawCards, ...opponentDraw.discardedDrawCards],
+        drawnCards: ownDraw.drawnCards,
+        discardedDrawCards: [...ownDraw.discardedDrawCards, ...opponentDraw.discardedDrawCards],
       });
     }
 
@@ -359,7 +348,8 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (card.effectKey === "redCard") {
       game.discard.push(...opponent.hand);
       opponent.hand = [];
-      game.piles.forEach((pile) => drawCard(game, opponentId, pile.id, { silent: true }));
+      const drawResults = game.piles.map((pile) => drawCard(game, opponentId, pile.id, { silent: true })).filter(Boolean);
+      logTopDrawResults(game, card.name, drawResults);
       return ok(game);
     }
 
@@ -390,7 +380,8 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (card.effectKey === "drawPileDiscardTwo") {
       if (!payload.pileId) return fail(game, "山札を選んでください。");
       const pile = getPile(game, payload.pileId);
-      const { drawnCards, discardedDrawCards } = drawMultipleDetailed(game, playerId, pile.id, 6);
+      const { drawnCards, discardedDrawCards, drawResults } = drawMultipleDetailed(game, playerId, pile.id, 6);
+      logTopDrawResults(game, card.name, drawResults);
       const discardCount = Math.min(3, player.hand.length);
       if (discardCount > 0) game.pendingDiscardSelection = { playerId, count: discardCount };
       return ok(game, { drawnCards, discardedDrawCards });
@@ -405,6 +396,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       player.life += 4;
       const pile = payload.pileId ? getPile(game, payload.pileId) : game.piles.find((candidate) => candidate.deck.length > 0);
       const drawn = pile ? drawCard(game, playerId, pile.id, { silent: true }) : null;
+      logTopDrawResults(game, card.name, [drawn]);
       return ok(game, {
         drawnCards: drawn && drawn.added ? [drawn.cardId] : [],
         discardedDrawCards: drawn && !drawn.added ? [drawn.cardId] : [],
@@ -420,6 +412,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (card.effectKey === "drawOneBuffOwnField") {
       const pile = payload.pileId ? getPile(game, payload.pileId) : game.piles.find((candidate) => candidate.deck.length > 0);
       const drawn = pile ? drawCard(game, playerId, pile.id, { silent: true }) : null;
+      logTopDrawResults(game, card.name, [drawn]);
       player.field.forEach((unit) => { unit.power += 2; });
       return ok(game, {
         drawnCards: drawn && drawn.added ? [drawn.cardId] : [],
@@ -441,6 +434,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       player.damageReductionUntilTurn = game.turn + 2;
       const pile = payload.pileId ? getPile(game, payload.pileId) : game.piles.find((candidate) => candidate.deck.length > 0);
       const drawn = pile ? drawCard(game, playerId, pile.id, { silent: true }) : null;
+      logTopDrawResults(game, card.name, [drawn]);
       return ok(game, {
         drawnCards: drawn && drawn.added ? [drawn.cardId] : [],
         discardedDrawCards: drawn && !drawn.added ? [drawn.cardId] : [],
@@ -499,6 +493,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       game.pendingPileSearch = null;
       reshuffleDecks(game);
       rebalanceDecksIfNeeded(game);
+      addLog(game, `ザ・サーチでカードを${drawnCards.length}枚手札に加えた。`);
       return ok(game, { drawnCards, discardedDrawCards });
     }
     const pile = getPile(game, pending.pileId);
@@ -521,6 +516,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     game.pendingPileSearch = null;
     if (pending.discardAfter) game.pendingDiscardSelection = { playerId, count: pending.discardAfter, source: "preparation" };
     rebalanceDecksIfNeeded(game);
+    addLog(game, `下準備でカードを${drawnCards.length}枚手札に加えた。`);
     return ok(game, { drawnCards, discardedDrawCards });
   }
 
@@ -531,14 +527,17 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (selectedPileIds.length < pending.count) return fail(game, `山札を${pending.count}回分選んでください。`);
     const drawnCards = [];
     const discardedDrawCards = [];
+    const drawResults = [];
     selectedPileIds.slice(0, pending.count).forEach((pileId) => {
       const drawn = drawCard(game, playerId, pileId, { silent: true });
+      if (drawn) drawResults.push(drawn);
       if (drawn?.added) drawnCards.push(drawn.cardId);
       else if (drawn) discardedDrawCards.push(drawn.cardId);
     });
     game.pendingPileDrawSelection = null;
     game.lastMessage = `${game.players[playerId].name}が構えて${drawnCards.length}枚ドローしました。`;
     addLog(game, game.lastMessage);
+    logTopDrawResults(game, "構える", drawResults);
     return ok(game, { drawnCards, discardedDrawCards });
   }
 
@@ -667,6 +666,25 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       unit.canAct = false;
       return ok(game);
     }
+    if (payload.ability === "swapAllHpPower" && unit.cardId === "farigiraf") {
+      const changes = [];
+      game.players.forEach((targetPlayer) => targetPlayer.field.forEach((target) => {
+        const oldHp = target.hp;
+        const oldMaxHp = target.maxHp;
+        const oldPower = getEffectivePower(game, target, null, "status");
+        target.maxHp = Math.max(0, oldPower);
+        target.hp = Math.max(0, oldPower);
+        target.power = oldMaxHp;
+        changes.push(`${cards[target.cardId].name}: HP${target.hp}/${target.maxHp} パワー${target.power}`);
+        addLog(game, `[debug] swapHpPower unit=${cards[target.cardId].name} hp=${oldHp}/${oldMaxHp}->${target.hp}/${target.maxHp} power=${oldPower}->${target.power}`);
+      }));
+      unit.canAct = false;
+      game.lastMessage = "リキキリンが場全体のHPとパワーを入れ替えた。";
+      addLog(game, game.lastMessage);
+      changes.forEach((line) => addLog(game, line));
+      discardDeadUnits(game);
+      return ok(game);
+    }
     return fail(game, "使える能力がありません。");
   }
 
@@ -736,12 +754,12 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       game.discard.push(cardId);
       if (!options.silent) addLog(game, `${game.players[playerId].name}の手札が10枚のため、${cards[cardId].name}を捨札へ送りました。`);
       if (!options.skipRebalance) rebalanceDecksIfNeeded(game);
-      return { cardId, added: false };
+      return { cardId, added: false, pileId: pile.id, pileName: pile.name };
     }
     player.hand.push(cardId);
     if (!options.silent) addLog(game, `${game.players[playerId].name}が${cards[cardId].name}をドロー。`);
     if (!options.skipRebalance) rebalanceDecksIfNeeded(game);
-    return { cardId, added: true };
+    return { cardId, added: true, pileId: pile.id, pileName: pile.name };
   }
 
   function drawMultiple(game, playerId, pileId, amount) {
@@ -751,12 +769,20 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   function drawMultipleDetailed(game, playerId, pileId, amount) {
     const drawnCards = [];
     const discardedDrawCards = [];
+    const drawResults = [];
     for (let index = 0; index < amount; index += 1) {
       const drawn = drawCard(game, playerId, pileId, { silent: true });
+      if (drawn) drawResults.push(drawn);
       if (drawn?.added) drawnCards.push(drawn.cardId);
       else if (drawn) discardedDrawCards.push(drawn.cardId);
     }
-    return { drawnCards, discardedDrawCards };
+    return { drawnCards, discardedDrawCards, drawResults };
+  }
+
+  function logTopDrawResults(game, sourceName, results) {
+    const entries = (results || []).filter(Boolean).map((drawn) => `${drawn.pileName || getPile(game, drawn.pileId)?.name || "山札"}から「${cards[drawn.cardId].name}」`);
+    if (entries.length === 0) return;
+    addLog(game, `${sourceName}で${entries.join("、")}をドロー`);
   }
 
   function drawAllFromPile(game, playerId, pile) {
@@ -785,15 +811,16 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     const unitOwnerId = ownerOfUnit(game, unit.id);
     const targetOwnerId = targetUnit ? ownerOfUnit(game, targetUnit.id) : opponentOf(unitOwnerId);
     const powerIncreaseBlocked = hasAnyEffect(game, "ignorePowerIncreases");
-    if ((reason === "attack" || reason === "lifeAttack" || reason === "counter") && unit.item && cards[unit.item.cardId].effectKey === "powerEqualsHp" && !powerIncreaseBlocked) {
+    const powerContext = reason === "attack" || reason === "lifeAttack" || reason === "counter" || reason === "status";
+    if (powerContext && unit.item && cards[unit.item.cardId].effectKey === "powerEqualsHp" && !powerIncreaseBlocked) {
       revealItem(game, unit, "ライフパワーでパワーがHPと同じ値になります。");
       power = unit.hp;
     }
-    if ((reason === "attack" || reason === "lifeAttack" || reason === "counter") && powerIncreaseBlocked) {
+    if (powerContext && powerIncreaseBlocked) {
       power = Math.min(power, unit.basePower ?? cards[unit.cardId].power);
     }
 
-    if ((reason === "attack" || reason === "lifeAttack") && !powerIncreaseBlocked) {
+    if ((reason === "attack" || reason === "lifeAttack" || reason === "status") && !powerIncreaseBlocked) {
       if (card.effectKey === "attackPowerPlusThree") power += 3;
       if (reason === "attack" && targetUnit && hasEffect(game.players[unitOwnerId], "allyMonsterAttackPowerPlusTwo")) power += 2;
       if (card.effectKey === "powerPlusIfLifeTen" && game.players[unitOwnerId].life >= 10) power += 4;
@@ -808,9 +835,10 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     return power;
   }
 
-  function applyDamage(game, ownerId, unit, amount) {
+  function applyDamage(game, ownerId, unit, amount, context = {}) {
     amount = reduceDamageForPlayer(game, ownerId, amount);
     if (amount <= 0) return false;
+    const beforeHp = unit.hp;
     if (unit.item && cards[unit.item.cardId].effectKey === "maxHpPlusTwo") revealItem(game, unit, "突撃チョッキのHP+2が影響しました。");
     if (unit.item && cards[unit.item.cardId].effectKey === "pikachuPowerPlusSix" && unit.cardId === "pikachu") revealItem(game, unit, "でんきだまのHP+6が影響しました。");
     if (unit.hp === unit.maxHp && unit.hp - amount <= 0 && unit.item && cards[unit.item.cardId].effectKey === "surviveLethalAtOne") {
@@ -819,9 +847,11 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       addLog(game, game.lastMessage);
       discardItem(game, unit);
       unit.hp = 1;
+      addLog(game, `[debug] applyDamage target=${cards[unit.cardId].name} amount=${amount} hpBefore=${beforeHp} hpAfter=${unit.hp} survivedBy=focusSash source=${context.source || ""}`);
       return false;
     }
     unit.hp = Math.max(0, unit.hp - amount);
+    addLog(game, `[debug] applyDamage target=${cards[unit.cardId].name} amount=${amount} hpBefore=${beforeHp} hpAfter=${unit.hp} source=${context.source || ""}`);
     return unit.hp <= 0;
   }
 
@@ -862,13 +892,16 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   }
 
   function resolveCombat(game, attackerOwnerId, attacker, defenderOwnerId, defender) {
-    if (["useTargetPowerAsHp", "useTargetPowerAsHpNoSummonSick"].includes(cards[attacker.cardId].effectKey)) {
-      defender.hp = Math.min(defender.hp, Math.max(0, defender.power));
-    }
-    const defenderDamage = getEffectivePower(game, attacker, defender, "attack");
+    const gorillaAttack = ["useTargetPowerAsHp", "useTargetPowerAsHpNoSummonSick"].includes(cards[attacker.cardId].effectKey);
+    const defenderDamage = gorillaAttack
+      ? Math.max(0, getEffectivePower(game, defender, attacker, "counter"))
+      : getEffectivePower(game, attacker, defender, "attack");
     const attackerDamage = game.players[attackerOwnerId].noCounterThisTurn ? 0 : getEffectivePower(game, defender, attacker, "counter");
-    applyDamage(game, defenderOwnerId, defender, defenderDamage);
-    applyDamage(game, attackerOwnerId, attacker, attackerDamage);
+    const defenderBefore = defender.hp;
+    const attackerBefore = attacker.hp;
+    applyDamage(game, defenderOwnerId, defender, defenderDamage, { source: cards[attacker.cardId].name });
+    applyDamage(game, attackerOwnerId, attacker, attackerDamage, { source: cards[defender.cardId].name });
+    addLog(game, `[debug] attack attacker=${cards[attacker.cardId].name} target=${cards[defender.cardId].name} effectivePower=${getEffectivePower(game, attacker, defender, "attack")} damage=${defenderDamage} targetHP=${defenderBefore}->${defender.hp} counterDamage=${attackerDamage} attackerHP=${attackerBefore}->${attacker.hp}`);
     resolveDestinyCloak(game, defender, attacker);
     resolveDestinyCloak(game, attacker, defender);
     return { attackerDamage, defenderDamage };
@@ -912,6 +945,41 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       item: itemCardId ? { cardId: itemCardId, revealed: false } : null,
       sleepUntilTurn: 0,
     };
+  }
+
+  function enterField(game, playerId, cardId, enterReason = "summon", payload = {}) {
+    const player = game.players[playerId];
+    const opponentId = opponentOf(playerId);
+    const card = cards[cardId];
+    const unit = createUnit(cardId, game.turn);
+    let onSummonEffect = "none";
+
+    if (card.effectKey === "mustBeAttacked") {
+      unit.power += game.players[opponentId].field.length;
+      onSummonEffect = "mustBeAttackedPower";
+    }
+    if (card.effectKey === "useTargetPowerAsHpNoSummonSick" || hasItemEffect(unit, "canActOnSummon")) {
+      unit.canAct = true;
+    }
+    player.field.push(unit);
+
+    if (card.effectKey === "enemyPowerMinusOneOnSummon") {
+      game.players[opponentId].field.forEach((target) => lowerPower(game, opponentId, target, 1, playerId));
+      onSummonEffect = "enemyPowerMinusOneOnSummon";
+      addLog(game, `${card.name}の召喚時効果で相手モンスター全体のパワー-1。`);
+    }
+    if (card.effectKey === "damageOnSummonZeroPowerAndReturn") {
+      const target = findUnit(game.players[opponentId], payload.targetUnitId)
+        || game.players[opponentId].field.slice().sort((a, b) => a.hp - b.hp)[0];
+      if (target) {
+        applyDamage(game, opponentId, target, 1, { source: card.name });
+        discardDeadUnits(game);
+        onSummonEffect = "damageOnSummon";
+        addLog(game, `${card.name}の召喚時効果で${cards[target.cardId].name}に1ダメージ。`);
+      }
+    }
+    addLog(game, `[debug] enterField cardId=${cardId} owner=${playerId} enterReason=${enterReason} summoningSickness=${!unit.canAct} canAct=${unit.canAct} onSummonEffect=${onSummonEffect}`);
+    return unit;
   }
 
   function publicUnit(game, unit, ownerId, viewerId) {
@@ -1128,7 +1196,12 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
   function canTargetDefender(defenderPlayer, defender) {
     const blockers = defenderPlayer.field.filter((unit) => cards[unit.cardId].effectKey === "mustBeAttacked");
-    return blockers.length === 0 || blockers.some((unit) => unit.id === defender.id);
+    const allowed = blockers.length === 0 || blockers.some((unit) => unit.id === defender.id);
+    if (blockers.length > 0) {
+      const names = blockers.map((unit) => cards[unit.cardId].name).join("、");
+      console.log("[debug] snorlax target restriction", { blockers: names, defender: cards[defender.cardId].name, allowed });
+    }
+    return allowed;
   }
 
   function isProtectedFromOpponentEffects(game, ownerId, sourcePlayerId) {
@@ -1257,6 +1330,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   function drawAnyAvailableCard(game, playerId) {
     const pile = game.piles.find((candidate) => candidate.deck.length > 0);
     const drawn = pile ? drawCard(game, playerId, pile.id, { silent: true }) : null;
+    if (drawn) logTopDrawResults(game, "黒バド", [drawn]);
     return drawn?.added ? drawn.cardId : null;
   }
 

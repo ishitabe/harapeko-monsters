@@ -4,17 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>はらぺこモンスターズ</title>
-    <link rel="stylesheet" href="styles.css?v=60">
+    <link rel="stylesheet" href="styles.css?v=61">
     <script>
       window.addEventListener("error", (event) => {
         const message = document.querySelector("#messageText");
         if (message) message.textContent = `読み込みエラー: ${event.message}`;
       });
     </script>
-    <script src="avatars.js?v=60" defer></script>
-    <script src="cards.js?v=60" defer></script>
-    <script src="gameEngine.js?v=60" defer></script>
-    <script src="app.js?v=60" defer></script>
+    <script src="avatars.js?v=61" defer></script>
+    <script src="cards.js?v=61" defer></script>
+    <script src="gameEngine.js?v=61" defer></script>
+    <script src="app.js?v=61" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -103,7 +103,7 @@
           <button class="small-button" id="titleBackButton" type="button">戻る</button>
         </div>
         <p class="title-note">山札を選び、モンスターを出して、相手のHPを0にしよう。</p>
-        <p class="version-label">v0.60</p>
+        <p class="version-label">v0.61</p>
       </div>
     </section>
     <main class="battle-shell">
@@ -129,10 +129,7 @@
           <button class="options-button" id="optionsButton" type="button">オプション</button>
         </header>
         <section class="options-panel hidden" id="optionsPanel" aria-label="オプション">
-          <div>
-            <strong id="onlineStatus">ローカル対戦</strong>
-            <small id="onlineRoomLabel">Socket.IO未接続</small>
-          </div>
+          <button class="small-button" id="battleCardListButton" type="button">カード一覧</button>
           <button class="small-button" id="createRoomButton" type="button">部屋作成</button>
           <input id="roomIdInput" type="text" maxlength="8" placeholder="部屋ID">
           <button class="small-button" id="joinRoomButton" type="button">参加</button>

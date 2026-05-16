@@ -13,7 +13,7 @@ const CARD_DEFINITIONS = {
   eternatus: { id: "eternatus", name: "ムゲンダイナ", type: "unit", hp: 3, power: 2, effectKey: "maxHpPlusOneOnTurnEnd", text: "自分のターンが終わるたびに最大HPを+1する。" },
   landorus: { id: "landorus", name: "ランドロス", type: "unit", hp: 2, power: 3, effectKey: "enemyPowerMinusOneOnSummon", text: "召喚時、相手モンスター全員のパワー-1。" },
   incineroar: { id: "incineroar", name: "ガオガエン", type: "unit", hp: 2, power: 2, effectKey: "damageOnSummonZeroPowerAndReturn", text: "召喚時、好きな相手モンスター1体に1ダメージ。攻撃の代わりに相手モンスター1体のパワーを0にして、このカードを手札に戻せる。" },
-  farigiraf: { id: "farigiraf", name: "リキキリン", type: "unit", hp: 1, power: 1, effectKey: "allyMonsterAttackPowerPlusTwo", text: "味方はモンスターに攻撃するときパワー+2。" },
+  farigiraf: { id: "farigiraf", name: "リキキリン", type: "unit", hp: 1, power: 1, effectKey: "allyMonsterAttackPowerPlusTwo", text: "味方はモンスターに攻撃するときパワー+2。攻撃の代わりに、場全体のHPとパワーを入れ替えられる。" },
   calyrexIce: { id: "calyrexIce", name: "白バド", type: "unit", hp: 4, power: 2, effectKey: "attackAllEnemies", text: "相手モンスター全体に攻撃する。" },
   mimikyu: { id: "mimikyu", name: "ミミッキュ", type: "unit", hp: 2, power: 2, effectKey: "doubleOwnPower", text: "攻撃の代わりに自分のパワーを2倍にできる。" },
   urshifu: { id: "urshifu", name: "ウーラオス", type: "unit", hp: 2, power: 4, effectKey: "ignoreWallLifeAttack", text: "このモンスターは相手のウォールを無視してライフを攻撃できる。" },

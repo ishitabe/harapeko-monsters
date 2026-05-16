@@ -26,6 +26,7 @@ let titleCardsOpen = false;
 let titleUpdatesOpen = false;
 let titleRecordsOpen = false;
 let titleCpuOpen = false;
+let titleCardsFromBattle = false;
 let cpuDifficulty = "normal";
 let rulesPageIndex = 0;
 let selectedKey = null;
@@ -37,6 +38,8 @@ let hardCpuMatchActive = false;
 let hardCpuResultHandled = false;
 let restoredCpuBattle = false;
 let suppressCpuBattleSave = false;
+let sharedLeaderboard = [];
+let sharedLeaderboardLoaded = false;
 const pendingFx = new Map();
 const AVATAR_OPTIONS = (window.HarapekoAvatars || []).map((avatar) => avatar.src);
 const AVATAR_FALLBACK_OPTIONS = [
@@ -128,6 +131,22 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.61",
+    title: "ランキング、リキキリン新能力、召喚と攻撃処理の整理",
+    items: [
+      "CPU戦の記録をlocalStorageだけでなく、PostgreSQLのleaderboardテーブルにも保存できるように変更。",
+      "RenderのDATABASE_URLが設定されている場合、GET /api/leaderboardで上位50件を取得し、POST /api/leaderboardでCPU戦の連勝記録を保存するように変更。",
+      "タイトルの記録画面にオンライン共通ランキングTOP5を追加。",
+      "リキキリンに、攻撃の代わりに場全体のHPとパワーを入れ替える能力を追加。",
+      "モンスターが場に出る処理をenterFieldにまとめ、通常召喚と元気の塊で召喚酔いしない効果や召喚時効果が同じように処理されるように変更。",
+      "ガオガエンの召喚時1ダメージが、通常召喚やCPU召喚で漏れにくいように変更。",
+      "ゴリラの攻撃を通常のapplyDamage経由に変更し、気合いのタスキなど致死時持ち物が発動するように変更。",
+      "カビゴンの攻撃誘導を対象制限として扱い、ダメージ軽減として混ざらないようにデバッグログを追加。",
+      "バトルオプションにカード一覧を追加し、対戦中でも全カードを確認できるように変更。",
+      "山札トップから引くドローは、ログに山とカード名を表示するように変更。山札を見て選ぶ効果はカード名をログに出さないように変更。"
+    ]
+  },
   {
     version: "v0.60",
     title: "CPU戦の連勝記録と対戦放棄対策",
@@ -229,6 +248,7 @@ const elements = {
   optionsPanel: document.querySelector("#optionsPanel"),
   closeOptionsButton: document.querySelector("#closeOptionsButton"),
   backTitleButton: document.querySelector("#backTitleButton"),
+  battleCardListButton: document.querySelector("#battleCardListButton"),
   titleScreen: document.querySelector("#titleScreen"),
   startCpuButton: document.querySelector("#startCpuButton"),
   playerNameInput: document.querySelector("#playerNameInput"),
@@ -487,8 +507,42 @@ function abandonCpuBattle(reason = "abandon") {
 function completeCpuBattleIfNeeded(view) {
   if (onlineMode || !cpuEnabled || !game || view.winner === null) return null;
   const result = resolveHardCpuResultIfNeeded(view);
+  if (result?.selfWon && result.streak >= 1) submitLeaderboard(result.streak);
   clearCurrentCpuBattle();
   return result;
+}
+
+async function submitLeaderboard(streak) {
+  try {
+    const profile = currentPlayerProfile();
+    await fetch("/api/leaderboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        player_name: profile.name,
+        avatar_id: profile.avatar,
+        mode: "cpu",
+        difficulty: cpuDifficulty,
+        win_streak: streak,
+      }),
+    });
+  } catch {
+    // Online ranking is optional during local/offline play.
+  }
+}
+
+async function loadSharedLeaderboard() {
+  try {
+    const response = await fetch("/api/leaderboard");
+    if (!response.ok) throw new Error("leaderboard failed");
+    const body = await response.json();
+    sharedLeaderboard = Array.isArray(body.entries) ? body.entries : [];
+    sharedLeaderboardLoaded = true;
+  } catch {
+    sharedLeaderboard = [];
+    sharedLeaderboardLoaded = true;
+  }
+  renderRecords();
 }
 
 function confirmCpuBattleExit() {
@@ -774,11 +828,11 @@ function updateOptionsVisibility() {
     elements.roomIdInput,
     elements.joinRoomButton,
   ];
-  const showRoomControls = !cpuEnabled && (!onlineMode || !onlineState?.started);
+  const showRoomControls = false;
   roomControls.forEach((node) => {
     if (node) node.classList.toggle("hidden", !showRoomControls);
   });
-  if (elements.leaveRoomButton) elements.leaveRoomButton.classList.toggle("hidden", !onlineMode);
+  if (elements.leaveRoomButton) elements.leaveRoomButton.classList.add("hidden");
   if (elements.surrenderButton) elements.surrenderButton.classList.toggle("hidden", titleActive || getView().winner !== null);
 }
 
@@ -917,6 +971,11 @@ function renderRecords() {
   const rankingItems = records.ranking.length > 0
     ? records.ranking.map((entry, index) => `<li><b>${index + 1}位</b> ${entry.name} ${entry.best}連勝</li>`).join("")
     : "<li>まだ記録がありません。</li>";
+  const sharedItems = !sharedLeaderboardLoaded
+    ? "<li>読み込み中です。</li>"
+    : sharedLeaderboard.length > 0
+      ? sharedLeaderboard.slice(0, 5).map((entry, index) => `<li><b>${index + 1}位</b> ${entry.player_name} ${entry.win_streak}連勝 <small>${entry.difficulty === "hard" ? "強い" : "普通"}</small></li>`).join("")
+      : "<li>まだ共有記録がありません。</li>";
   elements.recordListBody.innerHTML = `
     <section class="record-summary">
       <div><span>現在</span><strong>${records.current}連勝</strong></div>
@@ -925,6 +984,10 @@ function renderRecords() {
     <section class="record-ranking">
       <h3>ローカルランキング TOP5</h3>
       <ol>${rankingItems}</ol>
+    </section>
+    <section class="record-ranking">
+      <h3>オンライン共通ランキング TOP5</h3>
+      <ol>${sharedItems}</ol>
     </section>
   `;
 }
@@ -1393,6 +1456,15 @@ function renderDetailActions(container, data) {
         container.append(createSmallButton("自分のパワーを2倍", disabled || !unit.canAct, () => {
           runGameAction("unitAbility", { ability: "doubleOwnPower", unitId: unit.id }, () => engine.useUnitAbility(game, game.activePlayer, { ability: "doubleOwnPower", unitId: unit.id }));
           addFx(`field:${view.activePlayer}:${unit.id}`, "fx-stat-up");
+          clearSelection();
+          if (!onlineMode) render();
+        }));
+      }
+      if (unit.cardId === "farigiraf") {
+        container.append(createSmallButton("場全体のHPとパワーを入れ替える", disabled || !unit.canAct, () => {
+          getAllUnits(view).forEach((entry) => addFx(`field:${entry.ownerId}:${entry.unit.id}`, "fx-stat-up"));
+          runGameAction("unitAbility", { ability: "swapAllHpPower", unitId: unit.id }, () => engine.useUnitAbility(game, game.activePlayer, { ability: "swapAllHpPower", unitId: unit.id }));
+          showFloat("HP / パワー入れ替え！", "action");
           clearSelection();
           if (!onlineMode) render();
         }));
@@ -2102,6 +2174,7 @@ elements.showRulesButton?.addEventListener("click", () => {
   render();
 });
 elements.showCardsButton?.addEventListener("click", () => {
+  titleCardsFromBattle = false;
   titleCardsOpen = true;
   titleRulesOpen = false;
   titleUpdatesOpen = false;
@@ -2112,6 +2185,22 @@ elements.showCardsButton?.addEventListener("click", () => {
 });
 elements.cardsCloseButton?.addEventListener("click", () => {
   titleCardsOpen = false;
+  if (titleCardsFromBattle) {
+    titleActive = false;
+    titleCardsFromBattle = false;
+  }
+  render();
+});
+elements.battleCardListButton?.addEventListener("click", () => {
+  titleCardsFromBattle = true;
+  titleActive = true;
+  titleCardsOpen = true;
+  titleRulesOpen = false;
+  titleUpdatesOpen = false;
+  titleRecordsOpen = false;
+  titleCpuOpen = false;
+  titleLobbyOpen = false;
+  optionsOpen = false;
   render();
 });
 elements.showUpdatesButton?.addEventListener("click", () => {
@@ -2134,6 +2223,8 @@ elements.showRecordsButton?.addEventListener("click", () => {
   titleRulesOpen = false;
   titleCpuOpen = false;
   titleLobbyOpen = false;
+  sharedLeaderboardLoaded = false;
+  loadSharedLeaderboard();
   render();
 });
 elements.recordsCloseButton?.addEventListener("click", () => {

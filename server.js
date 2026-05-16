@@ -2,6 +2,12 @@ const crypto = require("crypto");
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
+let Pool = null;
+try {
+  ({ Pool } = require("pg"));
+} catch (_error) {
+  Pool = null;
+}
 
 const { CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL } = require("./cards");
 const createGameEngine = require("./gameEngine");
@@ -16,6 +22,7 @@ const io = new Server(server, {
 const engine = createGameEngine(CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL);
 const rooms = new Map();
 let randomWaitingSocketId = null;
+const db = createDbPool();
 
 const reconnectMs = 60_000;
 const turnLimitMs = 90_000;
@@ -44,10 +51,105 @@ function touchRoom(room, reason = "updated") {
   room.lastUpdateReason = reason;
 }
 
+function createDbPool() {
+  if (!process.env.DATABASE_URL || !Pool) {
+    if (process.env.DATABASE_URL && !Pool) console.warn("DATABASE_URL is set, but pg is not installed.");
+    return null;
+  }
+  return new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL.includes("localhost") ? false : { rejectUnauthorized: false },
+  });
+}
+
+let leaderboardReady = false;
+async function ensureLeaderboardTable() {
+  if (!db || leaderboardReady) return;
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS leaderboard (
+      id SERIAL PRIMARY KEY,
+      player_name VARCHAR(16) NOT NULL,
+      avatar_id TEXT NOT NULL,
+      mode VARCHAR(32) NOT NULL,
+      difficulty VARCHAR(16) NOT NULL,
+      win_streak INTEGER NOT NULL CHECK (win_streak >= 1),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  leaderboardReady = true;
+}
+
+function sanitizeLeaderboardEntry(body) {
+  const playerName = sanitizeText(body.player_name || body.playerName || "").slice(0, 16);
+  const avatarId = sanitizeText(body.avatar_id || body.avatarId || "").slice(0, 3000);
+  const mode = sanitizeText(body.mode || "");
+  const difficulty = sanitizeText(body.difficulty || "");
+  const winStreak = Number(body.win_streak ?? body.winStreak);
+  if (!playerName) return { ok: false, message: "プレイヤー名が不正です。" };
+  if (!avatarId) return { ok: false, message: "アイコンが不正です。" };
+  if (mode !== "cpu") return { ok: false, message: "モードが不正です。" };
+  if (!["normal", "hard"].includes(difficulty)) return { ok: false, message: "難易度が不正です。" };
+  if (!Number.isInteger(winStreak) || winStreak < 1 || winStreak > 9999) return { ok: false, message: "連勝数が不正です。" };
+  return {
+    ok: true,
+    entry: {
+      player_name: playerName,
+      avatar_id: avatarId,
+      mode,
+      difficulty,
+      win_streak: winStreak,
+    },
+  };
+}
+
+function sanitizeText(value) {
+  return String(value || "")
+    .replace(/[<>\r\n\t]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+app.use(express.json({ limit: "16kb" }));
 app.use(express.static(__dirname));
 
 app.get("/healthz", (_req, res) => {
   res.json({ ok: true, rooms: rooms.size });
+});
+
+app.get("/api/leaderboard", async (_req, res) => {
+  if (!db) return res.json({ entries: [] });
+  try {
+    await ensureLeaderboardTable();
+    const result = await db.query(`
+      SELECT id, player_name, avatar_id, mode, difficulty, win_streak, created_at
+      FROM leaderboard
+      ORDER BY win_streak DESC, created_at ASC
+      LIMIT 50
+    `);
+    res.json({ entries: result.rows });
+  } catch (error) {
+    console.error("leaderboard get failed", error);
+    res.status(500).json({ message: "ランキングを取得できません。" });
+  }
+});
+
+app.post("/api/leaderboard", async (req, res) => {
+  if (!db) return res.status(503).json({ message: "ランキングDBが設定されていません。" });
+  const parsed = sanitizeLeaderboardEntry(req.body || {});
+  if (!parsed.ok) return res.status(400).json({ message: parsed.message });
+  try {
+    await ensureLeaderboardTable();
+    const result = await db.query(
+      `INSERT INTO leaderboard (player_name, avatar_id, mode, difficulty, win_streak)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, player_name, avatar_id, mode, difficulty, win_streak, created_at`,
+      [parsed.entry.player_name, parsed.entry.avatar_id, parsed.entry.mode, parsed.entry.difficulty, parsed.entry.win_streak],
+    );
+    res.status(201).json({ entry: result.rows[0] });
+  } catch (error) {
+    console.error("leaderboard post failed", error);
+    res.status(500).json({ message: "ランキングを保存できません。" });
+  }
 });
 
 io.on("connection", (socket) => {
@@ -542,6 +644,11 @@ function buildRoomState(room, playerId) {
   const turnRemainingMs = room.turnStartedAt && room.gameStatus === "playing" && room.game?.winner === null
     ? Math.max(0, turnLimitMs - (now - room.turnStartedAt))
     : 0;
+  const view = room.started ? engine.getPublicState(room.game, playerId) : createWaitingView(room, playerId);
+  view.players.forEach((player, index) => {
+    player.name = room.playerMeta[index]?.name || player.name;
+    player.avatar = room.playerMeta[index]?.avatar || player.avatar || defaultPlayerMeta(index).avatar;
+  });
   return {
     roomId: room.id,
     playerId,
@@ -563,7 +670,8 @@ function buildRoomState(room, playerId) {
     pending: pendingInfo(room.game || {})?.kind || null,
     lastActionAt: room.lastActionAt,
     turnStartedAt: room.turnStartedAt,
-    view: room.started ? engine.getPublicState(room.game, playerId) : createWaitingView(room, playerId),
+    playerMeta: room.playerMeta,
+    view,
   };
 }
 
