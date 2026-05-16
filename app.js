@@ -27,6 +27,7 @@ let titleUpdatesOpen = false;
 let titleRecordsOpen = false;
 let titleCpuOpen = false;
 let titleCardsFromBattle = false;
+let profileEditorOpen = false;
 let cpuDifficulty = "normal";
 let rulesPageIndex = 0;
 let selectedKey = null;
@@ -131,6 +132,16 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.62",
+    title: "タイトル画面とマルチ対戦メニューの整理",
+    items: [
+      "タイトル画面でプレイヤー名入力欄とアバター選択欄を常時表示する方式から、現在の名前とアバターだけを表示する方式に変更。",
+      "タイトル画面にプロフィール編集ボタンを追加し、押した時だけ名前入力とアバター選択を表示するように変更。",
+      "マルチ対戦画面、ランダム対戦画面、友達と対戦画面で使わない入力欄やボタンが残らないよう表示条件を変更。",
+      "マルチ対戦メニューの入力欄配置を固定グリッドから必要なボタンだけが並ぶ表示に変更。"
+    ]
+  },
   {
     version: "v0.61",
     title: "ランキング、リキキリン新能力、召喚と攻撃処理の整理",
@@ -253,6 +264,12 @@ const elements = {
   startCpuButton: document.querySelector("#startCpuButton"),
   playerNameInput: document.querySelector("#playerNameInput"),
   avatarPicker: document.querySelector("#avatarPicker"),
+  profileSummary: document.querySelector("#profileSummary"),
+  profileSummaryAvatar: document.querySelector("#profileSummaryAvatar"),
+  profileSummaryName: document.querySelector("#profileSummaryName"),
+  editProfileButton: document.querySelector("#editProfileButton"),
+  closeProfileButton: document.querySelector("#closeProfileButton"),
+  profileEditor: document.querySelector("#profileEditor"),
   startMultiButton: document.querySelector("#startMultiButton"),
   showRulesButton: document.querySelector("#showRulesButton"),
   showCardsButton: document.querySelector("#showCardsButton"),
@@ -582,6 +599,7 @@ function setupProfileControls() {
       } catch {
         // localStorage is optional.
       }
+      renderProfileSummary();
     });
   }
   if (!elements.avatarPicker) return;
@@ -599,9 +617,16 @@ function setupProfileControls() {
         // localStorage is optional.
       }
       setupProfileControls();
+      renderProfileSummary();
     });
     elements.avatarPicker.append(button);
   });
+  renderProfileSummary();
+}
+
+function renderProfileSummary() {
+  if (elements.profileSummaryAvatar) elements.profileSummaryAvatar.src = playerProfile.avatar || AVATAR_OPTIONS[0];
+  if (elements.profileSummaryName) elements.profileSummaryName.textContent = playerProfile.name || "名前未設定";
 }
 
 function cpuProfile(difficulty) {
@@ -644,12 +669,15 @@ function render() {
   document.body.classList.toggle("title-updates-active", titleUpdatesOpen);
   document.body.classList.toggle("title-records-active", titleRecordsOpen);
   document.body.classList.toggle("title-cpu-active", titleCpuOpen);
+  document.body.classList.toggle("profile-editor-active", profileEditorOpen);
   elements.titleLobby?.classList.toggle("hidden", !titleLobbyOpen);
   elements.titleRules?.classList.toggle("hidden", !titleRulesOpen);
   elements.titleCards?.classList.toggle("hidden", !titleCardsOpen);
   elements.titleUpdates?.classList.toggle("hidden", !titleUpdatesOpen);
   elements.titleRecords?.classList.toggle("hidden", !titleRecordsOpen);
   elements.titleCpu?.classList.toggle("hidden", !titleCpuOpen);
+  elements.profileEditor?.classList.toggle("hidden", !profileEditorOpen);
+  elements.profileSummary?.classList.toggle("hidden", profileEditorOpen || titleLobbyOpen || titleRulesOpen || titleCardsOpen || titleUpdatesOpen || titleRecordsOpen || titleCpuOpen);
   elements.optionsPanel?.classList.toggle("hidden", !optionsOpen);
   updateOptionsVisibility();
 
@@ -842,7 +870,7 @@ function renderTitleLobby() {
   const waiting = onlineMode && onlineState && !onlineState.started;
   const createdRoom = waiting && onlinePlayerId === 0;
   const joinedRoom = waiting && onlinePlayerId === 1;
-  elements.titleRoomIdInput?.classList.toggle("hidden", titleLobbyMode !== "join");
+  elements.titleRoomIdInput?.classList.toggle("hidden", titleLobbyMode !== "join" || waiting);
   elements.titleRandomButton?.classList.toggle("hidden", waiting || titleLobbyMode === "join" || titleLobbyMode === "friend" || titleLobbyMode === "random");
   elements.titleCreateRoomButton?.classList.toggle("hidden", joinedRoom || titleLobbyMode === "random");
   elements.titleJoinRoomButton?.classList.toggle("hidden", waiting || titleLobbyMode === "random");
@@ -862,7 +890,8 @@ function renderTitleLobby() {
     if (elements.titleRandomButton) elements.titleRandomButton.textContent = "ランダム対戦";
     if (elements.titleCreateRoomButton) elements.titleCreateRoomButton.textContent = titleLobbyMode === "join" ? "戻る" : titleLobbyMode === "friend" ? "部屋を作る" : "友達と対戦";
     if (elements.titleJoinRoomButton) elements.titleJoinRoomButton.textContent = titleLobbyMode === "join" ? "入る" : "部屋に入る";
-    elements.titleJoinRoomButton?.classList.toggle("hidden", titleLobbyMode === "menu");
+    elements.titleCreateRoomButton?.classList.toggle("hidden", titleLobbyMode === "random");
+    elements.titleJoinRoomButton?.classList.toggle("hidden", titleLobbyMode === "menu" || titleLobbyMode === "random");
     if (elements.titleRoomIdInput) elements.titleRoomIdInput.placeholder = "パスワード";
     elements.titleShareLink.textContent = "";
     return;
@@ -2048,6 +2077,7 @@ function runGameAction(type, payload, localAction, afterResult = null) {
 }
 
 function startCpuSetup() {
+  profileEditorOpen = false;
   titleCpuOpen = true;
   titleLobbyOpen = false;
   titleRulesOpen = false;
@@ -2101,6 +2131,7 @@ function startCpuGame(difficulty = "normal") {
 
 function startMultiSetup() {
   abandonCpuBattle("start-multi");
+  profileEditorOpen = false;
   if (socket) socket.emit("room:leave");
   clearOnlineSession();
   onlineMode = false;
@@ -2117,6 +2148,7 @@ function startMultiSetup() {
   titleUpdatesOpen = false;
   titleRecordsOpen = false;
   titleCpuOpen = false;
+  profileEditorOpen = false;
   optionsOpen = false;
   clearSelection();
   previousView = null;
@@ -2145,6 +2177,7 @@ async function backToTitle(options = {}) {
   titleUpdatesOpen = false;
   titleRecordsOpen = false;
   titleCpuOpen = false;
+  profileEditorOpen = false;
   clearSelection();
   render();
 }
@@ -2163,7 +2196,22 @@ elements.cpuBackButton?.addEventListener("click", () => {
   render();
 });
 elements.startMultiButton?.addEventListener("click", startMultiSetup);
+elements.editProfileButton?.addEventListener("click", () => {
+  profileEditorOpen = true;
+  titleLobbyOpen = false;
+  titleRulesOpen = false;
+  titleCardsOpen = false;
+  titleUpdatesOpen = false;
+  titleRecordsOpen = false;
+  titleCpuOpen = false;
+  render();
+});
+elements.closeProfileButton?.addEventListener("click", () => {
+  profileEditorOpen = false;
+  render();
+});
 elements.showRulesButton?.addEventListener("click", () => {
+  profileEditorOpen = false;
   titleRulesOpen = true;
   titleCardsOpen = false;
   titleUpdatesOpen = false;
@@ -2174,6 +2222,7 @@ elements.showRulesButton?.addEventListener("click", () => {
   render();
 });
 elements.showCardsButton?.addEventListener("click", () => {
+  profileEditorOpen = false;
   titleCardsFromBattle = false;
   titleCardsOpen = true;
   titleRulesOpen = false;
@@ -2204,6 +2253,7 @@ elements.battleCardListButton?.addEventListener("click", () => {
   render();
 });
 elements.showUpdatesButton?.addEventListener("click", () => {
+  profileEditorOpen = false;
   titleUpdatesOpen = true;
   titleCardsOpen = false;
   titleRulesOpen = false;
@@ -2217,6 +2267,7 @@ elements.updatesCloseButton?.addEventListener("click", () => {
   render();
 });
 elements.showRecordsButton?.addEventListener("click", () => {
+  profileEditorOpen = false;
   titleRecordsOpen = true;
   titleUpdatesOpen = false;
   titleCardsOpen = false;

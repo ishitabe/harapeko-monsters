@@ -1629,6 +1629,48 @@ body:not(.title-active) .title-screen {
   margin-top: 34px;
 }
 
+.profile-summary {
+  width: min(520px, 100%);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+  margin: 26px auto 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(103,183,255,0.22);
+  border-radius: 16px;
+  background: rgba(8, 17, 30, 0.64);
+  text-align: left;
+  box-shadow: 0 18px 48px rgba(0,0,0,0.3);
+}
+
+.profile-summary.hidden {
+  display: none;
+}
+
+.profile-summary img {
+  width: 58px;
+  height: 58px;
+  object-fit: cover;
+  border: 2px solid rgba(242,189,92,0.58);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+}
+
+.profile-summary span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.profile-summary strong {
+  display: block;
+  margin-top: 3px;
+  color: #fff6df;
+  font-size: 1.22rem;
+}
+
 .profile-setup {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
@@ -1637,6 +1679,14 @@ body:not(.title-active) .title-screen {
   margin: 28px auto 0;
   max-width: 620px;
   text-align: left;
+}
+
+.profile-setup.hidden {
+  display: none;
+}
+
+.profile-setup .rules-head {
+  grid-column: 1 / -1;
 }
 
 .profile-setup label,
@@ -1710,6 +1760,10 @@ body.title-cards-active .profile-setup,
 body.title-updates-active .profile-setup,
 body.title-records-active .profile-setup,
 body.title-cpu-active .profile-setup {
+  display: none;
+}
+
+body.profile-editor-active .title-actions {
   display: none;
 }
 
@@ -1793,6 +1847,9 @@ body.title-cpu-active .version-label {
   display: grid;
   gap: 16px;
   margin-top: 30px;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .title-lobby.hidden {
@@ -2130,8 +2187,9 @@ body.title-cpu-active .version-label {
 }
 
 .title-lobby-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 140px 1fr;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
 }
@@ -2141,6 +2199,7 @@ body.title-cpu-active .version-label {
 }
 
 .title-lobby input {
+  width: min(220px, 100%);
   min-height: 58px;
   padding: 0 14px;
   border: 1px solid rgba(255,255,255,0.16);
@@ -2151,6 +2210,12 @@ body.title-cpu-active .version-label {
   font-weight: 900;
   text-align: center;
   text-transform: uppercase;
+}
+
+.title-lobby-row input.hidden,
+.title-lobby-row button.hidden,
+.title-copy-row button.hidden {
+  display: none;
 }
 
 .share-link {
