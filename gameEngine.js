@@ -564,8 +564,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     const attacker = findUnit(player, attackerId);
     if (!attacker || !attacker.canAct) return fail(game, "そのモンスターは行動できません。");
     const opponentId = opponentOf(playerId);
-    if (hasEffect(game.players[opponentId], "mustBeAttacked")) return fail(game, "カビゴンがいるため、ライフは攻撃できません。");
-    if (game.players[opponentId].field.length >= maxFieldSize && cards[attacker.cardId].effectKey !== "ignoreWallLifeAttack") return fail(game, "相手の場にモンスターが3体いるため、壁でライフ攻撃できません。");
+    if (!canAttackLifeTarget(game, opponentId, attacker)) return fail(game, "カビゴンまたはウォールにより、ライフは攻撃できません。");
 
     const damage = getEffectivePower(game, attacker, null, "lifeAttack");
     attacker.canAct = false;
@@ -585,8 +584,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     const player = game.players[playerId];
     if (!player.hasDrawnThisTurn) return fail(game, "先にターン開始ドローをしてください。");
     const opponentId = opponentOf(playerId);
-    if (hasEffect(game.players[opponentId], "mustBeAttacked")) return fail(game, "カビゴンがいるため、ライフは攻撃できません。");
-    const attackers = player.field.filter((unit) => unit.canAct && (game.players[opponentId].field.length < maxFieldSize || cards[unit.cardId].effectKey === "ignoreWallLifeAttack"));
+    const attackers = player.field.filter((unit) => unit.canAct && canAttackLifeTarget(game, opponentId, unit));
     if (attackers.length === 0) return fail(game, "ライフ攻撃できるモンスターがいません。");
     let totalDamage = 0;
     attackers.forEach((attacker) => {
@@ -612,7 +610,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     const defender = findUnit(game.players[defenderOwnerId], defenderId);
     if (!attacker || !attacker.canAct) return fail(game, "そのモンスターは行動できません。");
     if (!defender) return fail(game, "相手のモンスターを選んでください。");
-    if (!canTargetDefender(game.players[defenderOwnerId], defender)) return fail(game, "カビゴンがいるため、そのモンスターは攻撃できません。");
+    if (!canTargetDefender(game.players[defenderOwnerId], defender, attacker)) return fail(game, "カビゴンがいるため、そのモンスターは攻撃できません。");
 
     attacker.canAct = false;
     const result = resolveAttack(game, playerId, attacker, defenderOwnerId, defender);
@@ -676,7 +674,6 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
         target.hp = Math.max(0, oldPower);
         target.power = oldMaxHp;
         changes.push(`${cards[target.cardId].name}: HP${target.hp}/${target.maxHp} パワー${target.power}`);
-        addLog(game, `[debug] swapHpPower unit=${cards[target.cardId].name} hp=${oldHp}/${oldMaxHp}->${target.hp}/${target.maxHp} power=${oldPower}->${target.power}`);
       }));
       unit.canAct = false;
       game.lastMessage = "リキキリンが場全体のHPとパワーを入れ替えた。";
@@ -847,11 +844,9 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       addLog(game, game.lastMessage);
       discardItem(game, unit);
       unit.hp = 1;
-      addLog(game, `[debug] applyDamage target=${cards[unit.cardId].name} amount=${amount} hpBefore=${beforeHp} hpAfter=${unit.hp} survivedBy=focusSash source=${context.source || ""}`);
       return false;
     }
     unit.hp = Math.max(0, unit.hp - amount);
-    addLog(game, `[debug] applyDamage target=${cards[unit.cardId].name} amount=${amount} hpBefore=${beforeHp} hpAfter=${unit.hp} source=${context.source || ""}`);
     return unit.hp <= 0;
   }
 
@@ -881,7 +876,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       const counterDamage = target.id === defender.id && !game.players[attackerOwnerId].noCounterThisTurn
         ? getEffectivePower(game, target, attacker, "counter")
         : 0;
-      applyDamage(game, defenderOwnerId, target, defenderDamage);
+      applyAttackDamageToDefender(game, attacker, defenderOwnerId, target, defenderDamage);
       if (counterDamage > 0) applyDamage(game, attackerOwnerId, attacker, counterDamage);
       resolveDestinyCloak(game, target, attacker);
       if (target.id === defender.id) resolveDestinyCloak(game, attacker, target);
@@ -892,11 +887,17 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   }
 
   function resolveCombat(game, attackerOwnerId, attacker, defenderOwnerId, defender) {
-    const gorillaAttack = ["useTargetPowerAsHp", "useTargetPowerAsHpNoSummonSick"].includes(cards[attacker.cardId].effectKey);
     const defenderDamage = getEffectivePower(game, attacker, defender, "attack");
     const attackerDamage = game.players[attackerOwnerId].noCounterThisTurn ? 0 : getEffectivePower(game, defender, attacker, "counter");
-    const defenderBefore = defender.hp;
-    const attackerBefore = attacker.hp;
+    applyAttackDamageToDefender(game, attacker, defenderOwnerId, defender, defenderDamage);
+    applyDamage(game, attackerOwnerId, attacker, attackerDamage, { source: cards[defender.cardId].name });
+    resolveDestinyCloak(game, defender, attacker);
+    resolveDestinyCloak(game, attacker, defender);
+    return { attackerDamage, defenderDamage };
+  }
+
+  function applyAttackDamageToDefender(game, attacker, defenderOwnerId, defender, defenderDamage) {
+    const gorillaAttack = ["useTargetPowerAsHp", "useTargetPowerAsHpNoSummonSick"].includes(cards[attacker.cardId].effectKey);
     const originalDefenderMaxHp = defender.maxHp;
     if (gorillaAttack) {
       const treatedHp = Math.max(0, getEffectivePower(game, defender, attacker, "status"));
@@ -908,11 +909,6 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       defender.maxHp = originalDefenderMaxHp;
       defender.hp = Math.min(defender.hp, defender.maxHp);
     }
-    applyDamage(game, attackerOwnerId, attacker, attackerDamage, { source: cards[defender.cardId].name });
-    addLog(game, `[debug] attack attacker=${cards[attacker.cardId].name} target=${cards[defender.cardId].name} effectivePower=${getEffectivePower(game, attacker, defender, "attack")} damage=${defenderDamage} targetHP=${defenderBefore}->${defender.hp} counterDamage=${attackerDamage} attackerHP=${attackerBefore}->${attacker.hp}`);
-    resolveDestinyCloak(game, defender, attacker);
-    resolveDestinyCloak(game, attacker, defender);
-    return { attackerDamage, defenderDamage };
   }
 
   function onDeath(game, ownerId, unit) {
@@ -986,7 +982,6 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
         addLog(game, `${card.name}の召喚時効果で${cards[target.cardId].name}に1ダメージ。`);
       }
     }
-    addLog(game, `[debug] enterField cardId=${cardId} owner=${playerId} enterReason=${enterReason} summoningSickness=${!unit.canAct} canAct=${unit.canAct} onSummonEffect=${onSummonEffect}`);
     return unit;
   }
 
@@ -1202,14 +1197,22 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     return player.field.find((unit) => unit.id === unitId);
   }
 
-  function canTargetDefender(defenderPlayer, defender) {
+  function canAttackLifeTarget(game, defenderOwnerId, attacker) {
+    const defenderPlayer = game.players[defenderOwnerId];
+    if (canIgnoreAttackRestrictions(attacker)) return true;
+    if (hasEffect(defenderPlayer, "mustBeAttacked")) return false;
+    return defenderPlayer.field.length < maxFieldSize;
+  }
+
+  function canTargetDefender(defenderPlayer, defender, attacker = null) {
+    if (canIgnoreAttackRestrictions(attacker)) return true;
     const blockers = defenderPlayer.field.filter((unit) => cards[unit.cardId].effectKey === "mustBeAttacked");
     const allowed = blockers.length === 0 || blockers.some((unit) => unit.id === defender.id);
-    if (blockers.length > 0) {
-      const names = blockers.map((unit) => cards[unit.cardId].name).join("、");
-      console.log("[debug] snorlax target restriction", { blockers: names, defender: cards[defender.cardId].name, allowed });
-    }
     return allowed;
+  }
+
+  function canIgnoreAttackRestrictions(unit) {
+    return Boolean(unit && cards[unit.cardId]?.effectKey === "ignoreWallLifeAttack");
   }
 
   function isProtectedFromOpponentEffects(game, ownerId, sourcePlayerId) {

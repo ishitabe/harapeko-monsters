@@ -16,7 +16,7 @@ const CARD_DEFINITIONS = {
   farigiraf: { id: "farigiraf", name: "リキキリン", type: "unit", hp: 1, power: 1, effectKey: "allyMonsterAttackPowerPlusTwo", text: "味方はモンスターに攻撃するときパワー+2。攻撃の代わりに、場全体のHPとパワーを入れ替えられる。" },
   calyrexIce: { id: "calyrexIce", name: "白バド", type: "unit", hp: 4, power: 2, effectKey: "attackAllEnemies", text: "相手モンスター全体に攻撃する。" },
   mimikyu: { id: "mimikyu", name: "ミミッキュ", type: "unit", hp: 2, power: 2, effectKey: "doubleOwnPower", text: "攻撃の代わりに自分のパワーを2倍にできる。" },
-  urshifu: { id: "urshifu", name: "ウーラオス", type: "unit", hp: 2, power: 4, effectKey: "ignoreWallLifeAttack", text: "このモンスターは相手のウォールを無視してライフを攻撃できる。" },
+  urshifu: { id: "urshifu", name: "ウーラオス", type: "unit", hp: 2, power: 4, effectKey: "ignoreWallLifeAttack", text: "このモンスターは相手のウォールやカビゴンの攻撃制限を無視して、攻撃対象を自由に選べる。" },
   hippowdon: { id: "hippowdon", name: "カバルドン", type: "unit", hp: 4, power: 1, effectKey: "sleepTargetNextTurn", text: "攻撃の代わりに相手モンスター1体を選び、次ターン行動できなくする。" },
 
   focusSash: { id: "focusSash", name: "気合いのタスキ", type: "item", effectKey: "surviveLethalAtOne", text: "致死ダメージ時、HP1で耐える。発動後捨札。" },

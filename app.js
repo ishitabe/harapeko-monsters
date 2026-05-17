@@ -133,6 +133,24 @@ const RULE_PAGES = [
 ];
 const UPDATE_HISTORY = [
   {
+    version: "v0.64",
+    title: "ウーラオスとカビゴン周りの修正",
+    items: [
+      "ウーラオスは、相手のウォールやカビゴンの攻撃制限を無視して、ライフや好きな相手モンスターを攻撃できるようになりました。",
+      "カビゴンがいる時の攻撃対象表示を修正し、攻撃できる対象が正しく表示されるようにしました。",
+      "バトルログに不要な確認用メッセージが出ないようにしました。"
+    ]
+  },
+  {
+    version: "v0.63",
+    title: "バトルの不具合修正",
+    items: [
+      "ゴリラがモンスターを攻撃した時、相手のパワーをHPとして扱う効果が正しく働くように修正しました。",
+      "ゴリラにブーメランを持たせて全体攻撃した時も、ゴリラの効果が相手全体に正しく働くように修正しました。",
+      "CPUがゴリラで倒せる相手を判断しやすくなるようにしました。"
+    ]
+  },
+  {
     version: "v0.62",
     title: "タイトル画面とマルチ対戦メニューの整理",
     items: [
@@ -1388,8 +1406,7 @@ function renderDetailActions(container, data) {
 
   if (data.source === "opponentLife") {
     const opponentId = view.activePlayer === 0 ? 1 : 0;
-    const opponentHasSnorlax = view.players[opponentId].field.some((target) => CARD_DEFINITIONS[target.cardId].effectKey === "mustBeAttacked");
-    const attackers = activePlayer.field.filter((unit) => unit.canAct && !opponentHasSnorlax && (view.players[opponentId].field.length < view.maxFieldSize || CARD_DEFINITIONS[unit.cardId].effectKey === "ignoreWallLifeAttack"));
+    const attackers = activePlayer.field.filter((unit) => unit.canAct && canAttackLifeTargetView(view, opponentId, unit));
     container.append(createSmallButton("全員ライフ攻撃", disabled || attackers.length === 0, async () => {
       await playAttackSequence(null, null, opponentId);
       const result = runGameAction("attackLifeAll", {}, () => engine.attackLifeWithAll(game, getSelfId()));
@@ -1452,8 +1469,8 @@ function renderDetailActions(container, data) {
       if (!unit) return;
       const opponentHasWall = view.players[view.activePlayer === 0 ? 1 : 0].field.length >= view.maxFieldSize;
       const opponentHasSnorlax = view.players[view.activePlayer === 0 ? 1 : 0].field.some((target) => CARD_DEFINITIONS[target.cardId].effectKey === "mustBeAttacked");
-      const ignoresWall = CARD_DEFINITIONS[unit.cardId].effectKey === "ignoreWallLifeAttack";
-      container.append(createSmallButton(opponentHasSnorlax ? "カビゴンでライフ攻撃不可" : opponentHasWall && !ignoresWall ? "壁でライフ攻撃不可" : "ライフを攻撃", disabled || !unit.canAct || (opponentHasWall && !ignoresWall) || opponentHasSnorlax, async () => {
+      const ignoresRestrictions = canIgnoreAttackRestrictions(unit);
+      container.append(createSmallButton(opponentHasSnorlax && !ignoresRestrictions ? "カビゴンでライフ攻撃不可" : opponentHasWall && !ignoresRestrictions ? "壁でライフ攻撃不可" : "ライフを攻撃", disabled || !unit.canAct || !canAttackLifeTargetView(view, view.activePlayer === 0 ? 1 : 0, unit), async () => {
         await playAttackSequence(`field:${data.ownerId}:${unit.id}`, null, getOpponentId());
         playSound("attack");
         runGameAction("attackLife", { attackerId: unit.id }, () => engine.attackLife(game, game.activePlayer, unit.id));
@@ -1509,7 +1526,7 @@ function renderDetailActions(container, data) {
         });
       }
       const opponentId = view.activePlayer === 0 ? 1 : 0;
-      const defenders = filterAttackTargets(view.players[opponentId].field);
+      const defenders = filterAttackTargets(view.players[opponentId].field, unit);
       defenders.forEach((defender) => {
         container.append(createSmallButton(`${CARD_DEFINITIONS[defender.cardId].name}を攻撃`, disabled || !unit.canAct, async () => {
           await playAttackSequence(`field:${view.activePlayer}:${unit.id}`, `field:${opponentId}:${defender.id}`);
@@ -1521,7 +1538,8 @@ function renderDetailActions(container, data) {
         }));
       });
     } else {
-      const attackers = filterAttackTargets(activePlayer.field);
+      const targetUnit = view.players[data.ownerId]?.field.find((candidate) => candidate.id === data.unitId);
+      const attackers = activePlayer.field.filter((attacker) => targetUnit && canTargetDefenderView(view.players[data.ownerId].field, targetUnit, attacker));
       attackers.forEach((attacker) => {
         container.append(createSmallButton(`${CARD_DEFINITIONS[attacker.cardId].name}で攻撃`, disabled || !attacker.canAct, async () => {
           await playAttackSequence(`field:${view.activePlayer}:${attacker.id}`, `field:${data.ownerId}:${data.unitId}`);
@@ -1595,9 +1613,26 @@ function isActionUseDisabled(card, view) {
   return false;
 }
 
-function filterAttackTargets(field) {
+function filterAttackTargets(field, attacker = null) {
+  if (canIgnoreAttackRestrictions(attacker)) return field;
   const snorlax = field.filter((unit) => CARD_DEFINITIONS[unit.cardId].effectKey === "mustBeAttacked");
   return snorlax.length > 0 ? snorlax : field;
+}
+
+function canAttackLifeTargetView(view, opponentId, attacker) {
+  if (canIgnoreAttackRestrictions(attacker)) return true;
+  if (view.players[opponentId].field.some((target) => CARD_DEFINITIONS[target.cardId].effectKey === "mustBeAttacked")) return false;
+  return view.players[opponentId].field.length < view.maxFieldSize;
+}
+
+function canTargetDefenderView(defenderField, defender, attacker = null) {
+  if (canIgnoreAttackRestrictions(attacker)) return true;
+  const blockers = defenderField.filter((unit) => CARD_DEFINITIONS[unit.cardId].effectKey === "mustBeAttacked");
+  return blockers.length === 0 || blockers.some((unit) => unit.id === defender.id);
+}
+
+function canIgnoreAttackRestrictions(unit) {
+  return Boolean(unit && CARD_DEFINITIONS[unit.cardId]?.effectKey === "ignoreWallLifeAttack");
 }
 
 async function showDrawnCards(result) {
@@ -3084,7 +3119,7 @@ function hardActionCandidates(handIndex, cardId) {
   const card = CARD_DEFINITIONS[cardId];
   const choices = [];
   const add = (score, payload = {}) => choices.push({ type: "action", handIndex, payload, score });
-  const enemyTargets = filterAttackTargets(opponent.field);
+  const enemyTargets = opponent.field;
   const strongestEnemy = [...opponent.field].sort((a, b) => unitThreat(b) - unitThreat(a))[0];
   const bestOwn = [...player.field].sort((a, b) => unitThreat(b) - unitThreat(a))[0];
   const bestPile = chooseBestCpuPile();
@@ -3388,11 +3423,11 @@ function bestItemComboBonusForUnit(cardId) {
 
 function immediateAttackValue(unit) {
   if (!unit.canAct && !game.players[1].hand.includes("choiceScarf")) return 0;
-  const targets = filterAttackTargets(game.players[0].field);
+  const targets = filterAttackTargets(game.players[0].field, unit);
   const bestKill = targets
     .map((target) => {
       const damage = engine.getEffectivePower(game, unit, target, "attack");
-      return target.hp <= damage ? 450 + unitThreat(target) : damage * 35;
+      return effectiveDefenderHpForAttack(unit, target) <= damage ? 450 + unitThreat(target) : damage * 35;
     })
     .sort((a, b) => b - a)[0] || 0;
   const lifeDamage = canCpuAttackLifeNow(unit) ? engine.getEffectivePower(game, unit, null, "lifeAttack") * 95 : 0;
@@ -3406,9 +3441,9 @@ function totalPossibleLifeDamage(extraPower = 0) {
 }
 
 function canCpuAttackLifeNow(attacker = null) {
-  if (hasCpuMustAttackTarget()) return false;
+  if (hasCpuMustAttackTarget(attacker)) return false;
   if (game.players[0].field.length < 3) return true;
-  return attacker ? CARD_DEFINITIONS[attacker.cardId]?.effectKey === "ignoreWallLifeAttack" : game.players[1].field.some((unit) => CARD_DEFINITIONS[unit.cardId]?.effectKey === "ignoreWallLifeAttack");
+  return attacker ? canIgnoreAttackRestrictions(attacker) : game.players[1].field.some((unit) => canIgnoreAttackRestrictions(unit));
 }
 
 function keepComboBonus(cardId) {
@@ -3500,6 +3535,15 @@ function unitThreat(unit) {
   const card = CARD_DEFINITIONS[unit.cardId] || {};
   const displayedPower = unit.item?.cardId === "lifePower" ? Math.max(unit.power, unit.hp) : unit.power;
   return Math.max(0, unit.hp) * 45 + Math.max(0, displayedPower) * 80 + hardUnitCardScore(card) * 0.45 + (unit.item ? 100 : 0);
+}
+
+function effectiveDefenderHpForAttack(attacker, target) {
+  if (!target) return 0;
+  const attackerEffect = attacker ? CARD_DEFINITIONS[attacker.cardId]?.effectKey : null;
+  if (["useTargetPowerAsHp", "useTargetPowerAsHpNoSummonSick"].includes(attackerEffect)) {
+    return Math.max(0, engine.getEffectivePower(game, target, attacker, "status"));
+  }
+  return target.hp;
 }
 
 function chooseCpuAction() {
@@ -3692,8 +3736,8 @@ function chooseHardCpuAttack() {
   const choices = [];
   player.field.filter((unit) => unit.canAct).forEach((attacker) => {
     const lifeDamage = engine.getEffectivePower(game, attacker, null, "lifeAttack");
-    const ignoresWall = CARD_DEFINITIONS[attacker.cardId]?.effectKey === "ignoreWallLifeAttack";
-    const canAttackLife = !hasCpuMustAttackTarget() && (opponent.field.length < 3 || ignoresWall);
+    const ignoresWall = canIgnoreAttackRestrictions(attacker);
+    const canAttackLife = !hasCpuMustAttackTarget(attacker) && (opponent.field.length < 3 || ignoresWall);
     if (canAttackLife) {
       choices.push({
         attackerId: attacker.id,
@@ -3701,10 +3745,10 @@ function chooseHardCpuAttack() {
         label: "CPU ライフ攻撃",
       });
     }
-    filterAttackTargets(opponent.field).forEach((target) => {
+    filterAttackTargets(opponent.field, attacker).forEach((target) => {
       const damage = engine.getEffectivePower(game, attacker, target, "attack");
       const counter = player.noCounterThisTurn ? 0 : engine.getEffectivePower(game, target, attacker, "counter");
-      const kills = target.hp <= damage;
+      const kills = effectiveDefenderHpForAttack(attacker, target) <= damage;
       const survives = attacker.hp > counter;
       const targetMustBeAttacked = CARD_DEFINITIONS[target.cardId]?.effectKey === "mustBeAttacked";
       let score = damage * 45 - counter * 35 + unitThreat(target) * (kills ? 0.75 : 0.18);
@@ -3721,7 +3765,7 @@ function chooseHardCpuAttack() {
       if (targetMustBeAttacked && !kills && !dangerousTargetPlan(target).canKill) score -= 1800;
       if (kills && !survives && unitThreat(target) > unitThreat(attacker) + 160) score += 260;
       if (CARD_DEFINITIONS[attacker.cardId]?.effectKey === "attackAllEnemies" || attacker.item?.cardId === "boomerang") {
-        const allKills = opponent.field.filter((unit) => unit.hp <= damage).length;
+        const allKills = opponent.field.filter((unit) => effectiveDefenderHpForAttack(attacker, unit) <= damage).length;
         score += opponent.field.length * 80 + allKills * 330;
       }
       choices.push({
@@ -3762,7 +3806,7 @@ function isSuicideIntoUnkillableWall(choice) {
   if (CARD_DEFINITIONS[defender.cardId]?.effectKey !== "mustBeAttacked") return false;
   const damage = engine.getEffectivePower(game, attacker, defender, "attack");
   const counter = game.players[1].noCounterThisTurn ? 0 : engine.getEffectivePower(game, defender, attacker, "counter");
-  const kills = defender.hp <= damage;
+  const kills = effectiveDefenderHpForAttack(attacker, defender) <= damage;
   const survives = attacker.hp > counter;
   return !kills && !survives && !dangerousTargetPlan(defender).canKill;
 }
@@ -3781,9 +3825,9 @@ function dangerousTargetPlan(target) {
   for (const entry of attackers) {
     total += entry.damage;
     used.push(entry.id);
-    if (total >= target.hp) break;
+    if (total >= effectiveDefenderHpForAttack(null, target)) break;
   }
-  return { canKill: total >= target.hp && dangerScore(target) >= 420, attackers: used, totalDamage: total };
+  return { canKill: total >= effectiveDefenderHpForAttack(null, target) && dangerScore(target) >= 420, attackers: used, totalDamage: total };
 }
 
 function dangerScore(unit) {
@@ -3800,8 +3844,8 @@ function dangerScore(unit) {
   return score;
 }
 
-function hasCpuMustAttackTarget() {
-  return game.players[0].field.some((unit) => CARD_DEFINITIONS[unit.cardId]?.effectKey === "mustBeAttacked");
+function hasCpuMustAttackTarget(attacker = null) {
+  return !canIgnoreAttackRestrictions(attacker) && game.players[0].field.some((unit) => CARD_DEFINITIONS[unit.cardId]?.effectKey === "mustBeAttacked");
 }
 
 async function runCpuAttacks() {
@@ -3842,21 +3886,22 @@ async function runCpuAttacks() {
 }
 
 function chooseCpuOneSidedKill(attacker) {
-  const targets = filterAttackTargets(game.players[0].field);
+  const targets = filterAttackTargets(game.players[0].field, attacker);
   return targets.find((target) => {
     const damage = engine.getEffectivePower(game, attacker, target, "attack");
     const counter = game.players[1].noCounterThisTurn ? 0 : engine.getEffectivePower(game, target, attacker, "counter");
-    return target.hp <= damage && attacker.hp > counter;
+    return effectiveDefenderHpForAttack(attacker, target) <= damage && attacker.hp > counter;
   });
 }
 
 function chooseCpuAttackTarget(attacker) {
-  const targets = filterAttackTargets(game.players[0].field);
+  const targets = filterAttackTargets(game.players[0].field, attacker);
   if (targets.length === 0) return null;
   return [...targets].sort((a, b) => {
-    const damage = engine.getEffectivePower(game, attacker, a, "attack");
-    const aKill = a.hp <= damage ? 1 : 0;
-    const bKill = b.hp <= damage ? 1 : 0;
+    const aDamage = engine.getEffectivePower(game, attacker, a, "attack");
+    const bDamage = engine.getEffectivePower(game, attacker, b, "attack");
+    const aKill = effectiveDefenderHpForAttack(attacker, a) <= aDamage ? 1 : 0;
+    const bKill = effectiveDefenderHpForAttack(attacker, b) <= bDamage ? 1 : 0;
     if (aKill !== bKill) return bKill - aKill;
     return (a.hp + a.power) - (b.hp + b.power);
   })[0];
