@@ -133,6 +133,14 @@ const RULE_PAGES = [
 ];
 const UPDATE_HISTORY = [
   {
+    version: "v0.65",
+    title: "ライフクリック時の修正",
+    items: [
+      "相手ライフをクリックした時に画面が止まることがある不具合を修正しました。",
+      "相手ライフの詳細パネルでは、全員ライフ攻撃の操作だけを分かりやすく表示するようにしました。"
+    ]
+  },
+  {
     version: "v0.64",
     title: "ウーラオスとカビゴン周りの修正",
     items: [
@@ -1270,7 +1278,25 @@ function renderDetail() {
     return;
   }
 
+  if (detailData.source === "opponentLife") {
+    elements.detailContent.innerHTML = `
+      <div class="detail-card">
+        <p class="eyebrow">${detailData.zone || "相手ライフ"}</p>
+        <h2>相手ライフ</h2>
+        <p class="card-text">行動可能なモンスター全員で、相手ライフへ攻撃できます。</p>
+        <div class="detail-actions" id="detailActions"></div>
+      </div>
+    `;
+    renderDetailActions(elements.detailContent.querySelector("#detailActions"), detailData);
+    return;
+  }
+
   const { card, zone, unit } = detailData;
+  if (!card) {
+    clearSelection();
+    renderDetail();
+    return;
+  }
   elements.detailContent.innerHTML = `
     <div class="detail-card ${card.type}">
       <p class="eyebrow">${zone}</p>
