@@ -893,13 +893,21 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
   function resolveCombat(game, attackerOwnerId, attacker, defenderOwnerId, defender) {
     const gorillaAttack = ["useTargetPowerAsHp", "useTargetPowerAsHpNoSummonSick"].includes(cards[attacker.cardId].effectKey);
-    const defenderDamage = gorillaAttack
-      ? Math.max(0, getEffectivePower(game, defender, attacker, "counter"))
-      : getEffectivePower(game, attacker, defender, "attack");
+    const defenderDamage = getEffectivePower(game, attacker, defender, "attack");
     const attackerDamage = game.players[attackerOwnerId].noCounterThisTurn ? 0 : getEffectivePower(game, defender, attacker, "counter");
     const defenderBefore = defender.hp;
     const attackerBefore = attacker.hp;
+    const originalDefenderMaxHp = defender.maxHp;
+    if (gorillaAttack) {
+      const treatedHp = Math.max(0, getEffectivePower(game, defender, attacker, "status"));
+      defender.maxHp = treatedHp;
+      defender.hp = Math.min(defender.hp, treatedHp);
+    }
     applyDamage(game, defenderOwnerId, defender, defenderDamage, { source: cards[attacker.cardId].name });
+    if (gorillaAttack && defender.hp > 0) {
+      defender.maxHp = originalDefenderMaxHp;
+      defender.hp = Math.min(defender.hp, defender.maxHp);
+    }
     applyDamage(game, attackerOwnerId, attacker, attackerDamage, { source: cards[defender.cardId].name });
     addLog(game, `[debug] attack attacker=${cards[attacker.cardId].name} target=${cards[defender.cardId].name} effectivePower=${getEffectivePower(game, attacker, defender, "attack")} damage=${defenderDamage} targetHP=${defenderBefore}->${defender.hp} counterDamage=${attackerDamage} attackerHP=${attackerBefore}->${attacker.hp}`);
     resolveDestinyCloak(game, defender, attacker);
