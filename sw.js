@@ -1,9 +1,11 @@
-const CACHE_NAME = "harapeko-pwa-v1";
+const CACHE_NAME = "harapeko-pwa-v2";
 const OFFLINE_URL = "offline.html";
 const PRECACHE_URLS = [
   OFFLINE_URL,
   "manifest.json",
-  "pwa-icon.png"
+  "apple-touch-icon.png",
+  "pwa-icon-192.png",
+  "pwa-icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {

@@ -138,6 +138,14 @@ const RULE_PAGES = [
 ];
 const UPDATE_HISTORY = [
   {
+    version: "v0.75",
+    title: "ホーム画面アイコンを調整",
+    items: [
+      "iPhoneのホーム画面追加でアシガタコのアイコンが選ばれやすいよう、専用の180pxアイコンを追加しました。",
+      "PWA用の192px、512pxアイコンもアシガタコ画像で作り直しました。"
+    ]
+  },
+  {
     version: "v0.74",
     title: "ホーム画面追加に対応",
     items: [
