@@ -70,6 +70,8 @@ const AVATAR_FALLBACK_OPTIONS = [
   "assets/avatars/avatar-genius-slime.png",
 ];
 if (AVATAR_OPTIONS.length === 0) AVATAR_OPTIONS.push(...AVATAR_FALLBACK_OPTIONS);
+const AVATAR_ASSET_BY_ID = new Map(AVATAR_DEFINITIONS.map((avatar, index) => [avatar.id, AVATAR_FALLBACK_OPTIONS[index] || AVATAR_FALLBACK_OPTIONS[0]]));
+const DEFAULT_LEADERBOARD_AVATAR = AVATAR_FALLBACK_OPTIONS[0];
 const RANDOM_NAMES = ["アオイ", "ヒナタ", "レン", "ミナト", "ユウ", "ソラ", "ナギ", "ハル"];
 let playerProfile = loadPlayerProfile();
 const RULE_PAGES = [
@@ -135,6 +137,14 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.71",
+    title: "ランキングのアバター表示を再修正",
+    items: [
+      "オンラインランキングのアバター表示に、壊れた画像データを使わないようにしました。",
+      "タイトル画面に表示されるバージョン表記を最新の内容に合わせました。"
+    ]
+  },
   {
     version: "v0.70",
     title: "ランキングのアバター保存を修正",
@@ -1128,13 +1138,13 @@ function escapeHtml(value) {
 
 function leaderboardAvatar(entry) {
   const value = String(entry.avatar_id || entry.avatarId || "");
-  if (AVATAR_BY_ID.has(value)) return escapeHtml(AVATAR_BY_ID.get(value));
-  if (value.startsWith("assets/avatars/") || value.startsWith("data:image/")) return escapeHtml(value);
-  return escapeHtml(AVATAR_OPTIONS[0]);
+  if (AVATAR_ASSET_BY_ID.has(value)) return escapeHtml(AVATAR_ASSET_BY_ID.get(value));
+  if (value.startsWith("assets/avatars/")) return escapeHtml(value);
+  return escapeHtml(DEFAULT_LEADERBOARD_AVATAR);
 }
 
 function defaultLeaderboardAvatar() {
-  return escapeHtml(AVATAR_OPTIONS[0]);
+  return escapeHtml(DEFAULT_LEADERBOARD_AVATAR);
 }
 
 function renderRecords() {

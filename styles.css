@@ -1646,7 +1646,7 @@ body:not(.title-active) .title-screen {
 .profile-summary {
   width: min(520px, 100%);
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
   margin: 26px auto 0;
@@ -1683,6 +1683,10 @@ body:not(.title-active) .title-screen {
   margin-top: 3px;
   color: #fff6df;
   font-size: 1.22rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .profile-setup {
@@ -2719,6 +2723,15 @@ body.title-cpu-active .version-label {
     grid-template-columns: 1fr;
     gap: 12px;
     margin-top: 20px;
+  }
+
+  .profile-summary {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .profile-summary .small-button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .title-button {
