@@ -2004,6 +2004,48 @@ body.title-cpu-active .version-label {
   color: var(--ink);
 }
 
+.record-ranking ol.shared-ranking-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.shared-rank-row {
+  display: grid;
+  grid-template-columns: 44px 38px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+}
+
+.shared-rank-avatar {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+}
+
+.shared-rank-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 900;
+}
+
+.shared-rank-row strong {
+  color: #fff6df;
+}
+
+.shared-rank-row small {
+  color: var(--muted);
+  font-weight: 900;
+}
+
 .winner-streak {
   margin: -12px 0 22px;
   color: #9fffc3 !important;

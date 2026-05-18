@@ -133,6 +133,22 @@ const RULE_PAGES = [
 ];
 const UPDATE_HISTORY = [
   {
+    version: "v0.67",
+    title: "ランキング表示の調整",
+    items: [
+      "オンライン共通ランキングを10位まで表示するようにしました。",
+      "ランキングの名前の左に、登録時に使っていたアバターを表示するようにしました。"
+    ]
+  },
+  {
+    version: "v0.66",
+    title: "オンラインランキングの記録方法を調整",
+    items: [
+      "CPU（強い）のオンラインランキングは、同じ連勝中の途中経過を何件も並べず、その挑戦の最高連勝だけを更新するようにしました。",
+      "同じプレイヤーでも、別の挑戦で出した記録は別の記録として残ります。"
+    ]
+  },
+  {
     version: "v0.65",
     title: "ライフクリック時の修正",
     items: [
@@ -429,6 +445,49 @@ function saveHardCpuRecords(records) {
   }
 }
 
+function createHardCpuRunId() {
+  const random = Math.random().toString(36).slice(2, 10);
+  return `hard-${Date.now()}-${random}`;
+}
+
+function loadHardCpuRunId() {
+  try {
+    const saved = localStorage.getItem("harapekoHardCpuRunId");
+    return saved && saved.length <= 80 ? saved : "";
+  } catch {
+    return "";
+  }
+}
+
+function ensureHardCpuRunId() {
+  const current = loadHardCpuRunId();
+  if (current) return current;
+  const next = createHardCpuRunId();
+  try {
+    localStorage.setItem("harapekoHardCpuRunId", next);
+  } catch {
+    // localStorage is optional.
+  }
+  return next;
+}
+
+function saveHardCpuRunId(runId) {
+  if (!runId) return;
+  try {
+    localStorage.setItem("harapekoHardCpuRunId", runId);
+  } catch {
+    // localStorage is optional.
+  }
+}
+
+function clearHardCpuRunId() {
+  try {
+    localStorage.removeItem("harapekoHardCpuRunId");
+  } catch {
+    // localStorage is optional.
+  }
+}
+
 function updateHardCpuRanking(records, name, streak) {
   const ranking = [...records.ranking];
   const existing = ranking.find((entry) => entry.name === name);
@@ -447,6 +506,7 @@ function resolveHardCpuResultIfNeeded(view) {
     updateHardCpuRanking(records, view.players[0].name, records.current);
   } else {
     records.current = 0;
+    clearHardCpuRunId();
   }
   saveHardCpuRecords(records);
   hardCpuResultHandled = true;
@@ -459,6 +519,7 @@ function resetHardCpuStreakForInterrupt() {
   const records = loadHardCpuRecords();
   records.current = 0;
   saveHardCpuRecords(records);
+  clearHardCpuRunId();
   hardCpuMatchActive = false;
   hardCpuResultHandled = true;
 }
@@ -469,6 +530,7 @@ function saveCurrentCpuBattle() {
     gameState: game,
     cpuDifficulty,
     hardCpuRecords: loadHardCpuRecords(),
+    hardCpuRunId: loadHardCpuRunId(),
     hardCpuMatchActive,
     hardCpuResultHandled,
     battleStartedAt: loadCurrentCpuBattle()?.battleStartedAt || Date.now(),
@@ -513,6 +575,7 @@ function restoreCpuBattleIfNeeded() {
   lastOnlineStarted = false;
   hardCpuMatchActive = Boolean(saved.hardCpuMatchActive);
   hardCpuResultHandled = Boolean(saved.hardCpuResultHandled);
+  if (saved.hardCpuRunId) saveHardCpuRunId(saved.hardCpuRunId);
   titleActive = false;
   titleLobbyOpen = false;
   titleRulesOpen = false;
@@ -538,6 +601,7 @@ function abandonCpuBattle(reason = "abandon") {
     const records = loadHardCpuRecords();
     records.current = 0;
     saveHardCpuRecords(records);
+    clearHardCpuRunId();
   }
   hardCpuMatchActive = false;
   hardCpuResultHandled = true;
@@ -567,6 +631,7 @@ async function submitLeaderboard(streak) {
         mode: "cpu",
         difficulty: cpuDifficulty,
         win_streak: streak,
+        run_id: cpuDifficulty === "hard" ? ensureHardCpuRunId() : "",
       }),
     });
   } catch {
@@ -1020,16 +1085,37 @@ function renderUpdateHistory() {
   });
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function leaderboardAvatar(entry) {
+  return escapeHtml(entry.avatar_id || entry.avatarId || AVATAR_OPTIONS[0]);
+}
+
 function renderRecords() {
   if (!elements.titleRecords || !titleRecordsOpen) return;
   const records = loadHardCpuRecords();
   const rankingItems = records.ranking.length > 0
-    ? records.ranking.map((entry, index) => `<li><b>${index + 1}位</b> ${entry.name} ${entry.best}連勝</li>`).join("")
+    ? records.ranking.map((entry, index) => `<li><b>${index + 1}位</b> ${escapeHtml(entry.name)} ${entry.best}連勝</li>`).join("")
     : "<li>まだ記録がありません。</li>";
   const sharedItems = !sharedLeaderboardLoaded
     ? "<li>読み込み中です。</li>"
     : sharedLeaderboard.length > 0
-      ? sharedLeaderboard.slice(0, 5).map((entry, index) => `<li><b>${index + 1}位</b> ${entry.player_name} ${entry.win_streak}連勝 <small>${entry.difficulty === "hard" ? "強い" : "普通"}</small></li>`).join("")
+      ? sharedLeaderboard.slice(0, 10).map((entry, index) => `
+        <li class="shared-rank-row">
+          <b>${index + 1}位</b>
+          <img class="shared-rank-avatar" src="${leaderboardAvatar(entry)}" alt="">
+          <span class="shared-rank-name">${escapeHtml(entry.player_name)}</span>
+          <strong>${Number(entry.win_streak) || 0}連勝</strong>
+          <small>${entry.difficulty === "hard" ? "強い" : "普通"}</small>
+        </li>
+      `).join("")
       : "<li>まだ共有記録がありません。</li>";
   elements.recordListBody.innerHTML = `
     <section class="record-summary">
@@ -1041,8 +1127,8 @@ function renderRecords() {
       <ol>${rankingItems}</ol>
     </section>
     <section class="record-ranking">
-      <h3>オンライン共通ランキング TOP5</h3>
-      <ol>${sharedItems}</ol>
+      <h3>オンライン共通ランキング TOP10</h3>
+      <ol class="shared-ranking-list">${sharedItems}</ol>
     </section>
   `;
 }

@@ -73,9 +73,12 @@ async function ensureLeaderboardTable() {
       mode VARCHAR(32) NOT NULL,
       difficulty VARCHAR(16) NOT NULL,
       win_streak INTEGER NOT NULL CHECK (win_streak >= 1),
+      run_id TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await db.query("ALTER TABLE leaderboard ADD COLUMN IF NOT EXISTS run_id TEXT");
+  await db.query("CREATE UNIQUE INDEX IF NOT EXISTS leaderboard_run_id_unique ON leaderboard (run_id) WHERE run_id IS NOT NULL");
   leaderboardReady = true;
 }
 
@@ -85,6 +88,8 @@ function sanitizeLeaderboardEntry(body) {
   const mode = sanitizeText(body.mode || "");
   const difficulty = sanitizeText(body.difficulty || "");
   const winStreak = Number(body.win_streak ?? body.winStreak);
+  const rawRunId = sanitizeText(body.run_id || body.runId || "").slice(0, 80);
+  const runId = /^[A-Za-z0-9:_-]{8,80}$/.test(rawRunId) ? rawRunId : "";
   if (!playerName) return { ok: false, message: "プレイヤー名が不正です。" };
   if (!avatarId) return { ok: false, message: "アイコンが不正です。" };
   if (mode !== "cpu") return { ok: false, message: "モードが不正です。" };
@@ -98,6 +103,7 @@ function sanitizeLeaderboardEntry(body) {
       mode,
       difficulty,
       win_streak: winStreak,
+      run_id: runId,
     },
   };
 }
@@ -121,7 +127,7 @@ app.get("/api/leaderboard", async (_req, res) => {
   try {
     await ensureLeaderboardTable();
     const result = await db.query(`
-      SELECT id, player_name, avatar_id, mode, difficulty, win_streak, created_at
+      SELECT id, player_name, avatar_id, mode, difficulty, win_streak, run_id, created_at
       FROM leaderboard
       ORDER BY win_streak DESC, created_at ASC
       LIMIT 50
@@ -139,12 +145,25 @@ app.post("/api/leaderboard", async (req, res) => {
   if (!parsed.ok) return res.status(400).json({ message: parsed.message });
   try {
     await ensureLeaderboardTable();
-    const result = await db.query(
-      `INSERT INTO leaderboard (player_name, avatar_id, mode, difficulty, win_streak)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, player_name, avatar_id, mode, difficulty, win_streak, created_at`,
-      [parsed.entry.player_name, parsed.entry.avatar_id, parsed.entry.mode, parsed.entry.difficulty, parsed.entry.win_streak],
-    );
+    const result = parsed.entry.run_id
+      ? await db.query(
+        `INSERT INTO leaderboard (player_name, avatar_id, mode, difficulty, win_streak, run_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (run_id) WHERE run_id IS NOT NULL DO UPDATE SET
+           player_name = EXCLUDED.player_name,
+           avatar_id = EXCLUDED.avatar_id,
+           mode = EXCLUDED.mode,
+           difficulty = EXCLUDED.difficulty,
+           win_streak = GREATEST(leaderboard.win_streak, EXCLUDED.win_streak)
+         RETURNING id, player_name, avatar_id, mode, difficulty, win_streak, run_id, created_at`,
+        [parsed.entry.player_name, parsed.entry.avatar_id, parsed.entry.mode, parsed.entry.difficulty, parsed.entry.win_streak, parsed.entry.run_id],
+      )
+      : await db.query(
+        `INSERT INTO leaderboard (player_name, avatar_id, mode, difficulty, win_streak)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, player_name, avatar_id, mode, difficulty, win_streak, run_id, created_at`,
+        [parsed.entry.player_name, parsed.entry.avatar_id, parsed.entry.mode, parsed.entry.difficulty, parsed.entry.win_streak],
+      );
     res.status(201).json({ entry: result.rows[0] });
   } catch (error) {
     console.error("leaderboard post failed", error);
