@@ -2039,13 +2039,16 @@ body.title-cpu-active .version-label {
 }
 
 .shared-rank-avatar {
+  display: block;
   width: 38px;
   height: 38px;
-  object-fit: contain;
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.84);
-  background: #fff7df;
-  box-shadow: inset 0 0 0 2px rgba(20, 24, 30, 0.1), 0 4px 10px rgba(0,0,0,0.24);
+  border: 2px solid rgba(255,255,255,0.45);
+  background-color: rgba(255,255,255,0.12);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.24);
 }
 
 .shared-rank-name {
@@ -2760,5 +2763,34 @@ body.title-cpu-active .version-label {
   .rules-nav {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .shared-rank-row {
+    grid-template-columns: 56px 56px minmax(0, 1fr);
+    grid-template-areas:
+      "rank avatar name"
+      "rank avatar streak";
+    gap: 6px 10px;
+    align-items: center;
+    padding: 12px;
+  }
+
+  .shared-rank-row b {
+    grid-area: rank;
+  }
+
+  .shared-rank-avatar {
+    grid-area: avatar;
+    width: 48px;
+    height: 48px;
+  }
+
+  .shared-rank-name {
+    grid-area: name;
+  }
+
+  .shared-rank-row strong {
+    grid-area: streak;
+    justify-self: start;
   }
 }

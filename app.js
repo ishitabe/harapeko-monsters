@@ -133,6 +133,14 @@ const RULE_PAGES = [
 ];
 const UPDATE_HISTORY = [
   {
+    version: "v0.69",
+    title: "スマホのランキング表示を修正",
+    items: [
+      "スマホでオンラインランキングのアバターが表示されないことがある不具合を修正しました。",
+      "スマホのランキングで長い名前と連勝数が読みやすくなるように配置を調整しました。"
+    ]
+  },
+  {
     version: "v0.68",
     title: "ランキング表示を見やすく調整",
     items: [
@@ -1119,7 +1127,7 @@ function renderRecords() {
       ? sharedLeaderboard.slice(0, 10).map((entry, index) => `
         <li class="shared-rank-row rank-${index + 1}">
           <b>${index + 1}位</b>
-          <img class="shared-rank-avatar" src="${leaderboardAvatar(entry)}" alt="">
+          <span class="shared-rank-avatar" style="background-image: url('${leaderboardAvatar(entry)}')" aria-hidden="true"></span>
           <span class="shared-rank-name">${escapeHtml(entry.player_name)}</span>
           <strong>${Number(entry.win_streak) || 0}連勝</strong>
         </li>
