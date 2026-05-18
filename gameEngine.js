@@ -181,10 +181,10 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (card.effectKey === "pikachuPowerPlusSix" && unit.cardId === "pikachu") {
       unit.maxHp += 6;
       unit.hp += 6;
-      unit.power += 6;
+      increasePower(game, unit, 6);
     }
     if (card.effectKey === "attackPowerPlusTwo") {
-      unit.power += 2;
+      increasePower(game, unit, 2);
     }
     if (card.effectKey === "canActOnSummon") {
       unit.canAct = true;
@@ -362,7 +362,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
         game.discard.push(cardId);
         return false;
       });
-      located.unit.power += 3;
+      increasePower(game, located.unit, 3);
       return ok(game);
     }
 
@@ -413,7 +413,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       const pile = payload.pileId ? getPile(game, payload.pileId) : game.piles.find((candidate) => candidate.deck.length > 0);
       const drawn = pile ? drawCard(game, playerId, pile.id, { silent: true }) : null;
       logTopDrawResults(game, card.name, [drawn]);
-      player.field.forEach((unit) => { unit.power += 2; });
+      player.field.forEach((unit) => increasePower(game, unit, 2));
       return ok(game, {
         drawnCards: drawn && drawn.added ? [drawn.cardId] : [],
         discardedDrawCards: drawn && !drawn.added ? [drawn.cardId] : [],
@@ -653,7 +653,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
         addLog(game, game.lastMessage);
         return ok(game);
       }
-      unit.power *= 2;
+      increasePower(game, unit, unit.power);
       unit.canAct = false;
       return ok(game);
     }
@@ -838,7 +838,10 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     const beforeHp = unit.hp;
     if (unit.item && cards[unit.item.cardId].effectKey === "maxHpPlusTwo") revealItem(game, unit, "突撃チョッキのHP+2が影響しました。");
     if (unit.item && cards[unit.item.cardId].effectKey === "pikachuPowerPlusSix" && unit.cardId === "pikachu") revealItem(game, unit, "でんきだまのHP+6が影響しました。");
-    if (unit.hp === unit.maxHp && unit.hp - amount <= 0 && unit.item && cards[unit.item.cardId].effectKey === "surviveLethalAtOne") {
+    const hpForDamage = Number.isFinite(context.effectiveHp) ? Math.max(0, Number(context.effectiveHp)) : unit.hp;
+    const wasFullHp = context.fullHpForSash ?? (unit.hp === unit.maxHp);
+    const remainingHp = hpForDamage - amount;
+    if (wasFullHp && remainingHp <= 0 && unit.item && cards[unit.item.cardId].effectKey === "surviveLethalAtOne") {
       revealItem(game, unit, `${cards[unit.cardId].name}は気合いのタスキで耐えた。`);
       game.lastMessage = `${cards[unit.cardId].name}は気合いのタスキで耐えた。`;
       addLog(game, game.lastMessage);
@@ -846,7 +849,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       unit.hp = 1;
       return false;
     }
-    unit.hp = Math.max(0, unit.hp - amount);
+    unit.hp = Math.max(0, Number.isFinite(context.effectiveHp) ? Math.min(unit.maxHp, remainingHp) : unit.hp - amount);
     return unit.hp <= 0;
   }
 
@@ -898,17 +901,12 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
 
   function applyAttackDamageToDefender(game, attacker, defenderOwnerId, defender, defenderDamage) {
     const gorillaAttack = ["useTargetPowerAsHp", "useTargetPowerAsHpNoSummonSick"].includes(cards[attacker.cardId].effectKey);
-    const originalDefenderMaxHp = defender.maxHp;
+    const context = { source: cards[attacker.cardId].name };
     if (gorillaAttack) {
-      const treatedHp = Math.max(0, getEffectivePower(game, defender, attacker, "status"));
-      defender.maxHp = treatedHp;
-      defender.hp = Math.min(defender.hp, treatedHp);
+      context.effectiveHp = Math.min(defender.hp, Math.max(0, getEffectivePower(game, defender, attacker, "status")));
+      context.fullHpForSash = defender.hp === defender.maxHp;
     }
-    applyDamage(game, defenderOwnerId, defender, defenderDamage, { source: cards[attacker.cardId].name });
-    if (gorillaAttack && defender.hp > 0) {
-      defender.maxHp = originalDefenderMaxHp;
-      defender.hp = Math.min(defender.hp, defender.maxHp);
-    }
+    applyDamage(game, defenderOwnerId, defender, defenderDamage, context);
   }
 
   function onDeath(game, ownerId, unit) {
@@ -959,7 +957,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     let onSummonEffect = "none";
 
     if (card.effectKey === "mustBeAttacked") {
-      unit.power += game.players[opponentId].field.length;
+      increasePower(game, unit, game.players[opponentId].field.length);
       onSummonEffect = "mustBeAttackedPower";
     }
     if (card.effectKey === "useTargetPowerAsHpNoSummonSick" || hasItemEffect(unit, "canActOnSummon")) {
@@ -1224,10 +1222,16 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (isProtectedFromOpponentEffects(game, ownerId, sourcePlayerId)) return;
     if (ownerId !== sourcePlayerId && hasItemEffect(unit, "powerDropTurnsToPlusFour")) {
       revealItem(game, unit, "天邪鬼マスクでパワー+4。");
-      unit.power += 4;
+      increasePower(game, unit, 4);
       return;
     }
     unit.power = Math.max(0, unit.power - amount);
+  }
+
+  function increasePower(game, unit, amount) {
+    if (amount <= 0) return;
+    if (hasAnyEffect(game, "ignorePowerIncreases")) return;
+    unit.power += amount;
   }
 
   function hasItemEffect(unit, effectKey) {

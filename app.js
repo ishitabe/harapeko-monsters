@@ -78,7 +78,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=81");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=82");
 }
 
 let game = engine.createGame();
@@ -214,6 +214,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.82",
+    title: "ゴリラとスマホ表示を調整",
+    items: [
+      "ゴリラが気合いのタスキ持ちを攻撃した時、タスキの発動判定が安定するようにしました。",
+      "ヌオーがいる時、バトルドラムなどのパワー上昇で下がっていたパワーが戻らないようにしました。",
+      "スマホで勝利画面やメッセージが細かく改行されすぎないように表示を調整しました。"
+    ]
+  },
   {
     version: "v0.81",
     title: "ホーム画面の名前を調整",

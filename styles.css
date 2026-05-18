@@ -1127,6 +1127,9 @@ p {
   font-size: 1.8rem;
   line-height: 1.15;
   text-align: center;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  line-break: strict;
   box-shadow: 0 24px 58px rgba(0,0,0,0.54), 0 0 34px rgba(242, 189, 92, 0.24);
   animation: floatUp 1250ms ease-out forwards;
 }
@@ -1208,6 +1211,9 @@ p {
   color: #fff5dd;
   font-size: 4rem;
   line-height: 1.05;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  line-break: strict;
   text-shadow: 0 0 34px rgba(242,189,92,0.56);
 }
 
@@ -1221,6 +1227,9 @@ p {
   color: #fff1bd !important;
   font-size: 1.45rem !important;
   line-height: 1.25;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  line-break: strict;
   box-shadow: 0 0 24px rgba(242, 189, 92, 0.24);
 }
 
@@ -2640,6 +2649,9 @@ body.title-cpu-active .version-label {
     max-width: 100%;
     font-size: 0.86rem;
     line-height: 1.35;
+    word-break: keep-all;
+    overflow-wrap: normal;
+    line-break: strict;
   }
 
   .field-line.wall-active::before {
@@ -2831,6 +2843,47 @@ body.title-cpu-active .version-label {
 
   .detail-panel.hidden {
     display: none;
+  }
+
+  .fx-float {
+    min-width: 0;
+    width: min(92vw, 520px);
+    max-width: 92vw;
+    padding: 14px 18px;
+    font-size: clamp(1.05rem, 5.4vw, 1.7rem);
+  }
+
+  .winner-card {
+    width: min(92vw, 680px);
+    padding: 26px 18px;
+  }
+
+  .winner-card h2 {
+    font-size: clamp(2.15rem, 9vw, 3.3rem);
+    line-height: 1.12;
+  }
+
+  .winner-streak {
+    font-size: clamp(1.3rem, 6vw, 2rem) !important;
+  }
+
+  .winner-coins {
+    max-width: 100%;
+    padding: 10px 14px;
+    font-size: clamp(1.15rem, 5.2vw, 1.55rem) !important;
+    border-radius: 22px;
+  }
+
+  .winner-actions {
+    gap: 10px;
+  }
+
+  .winner-actions button {
+    min-width: 0;
+    flex: 1 1 0;
+    padding-inline: 8px;
+    font-size: 1rem;
+    white-space: nowrap;
   }
 
   .title-screen {
