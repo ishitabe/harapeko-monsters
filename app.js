@@ -7,6 +7,79 @@ window.__CARD_APP_INITIALIZED = true;
 
 const { CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL } = window.CardGameCards;
 const engine = window.CardGameEngine(CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL);
+const APP_CONFIG = window.AppConstants || {
+  APP_INTERNAL_ID: "summon-happys",
+  APP_DISPLAY_NAME: "\u3057\u3087\u30fc\u304b\u3093\u30cf\u30c3\u30d4\u30fc\u30ba",
+  APP_SHORT_NAME: "\u30cf\u30c3\u30d4\u30fc\u30ba"
+};
+const { APP_INTERNAL_ID, APP_DISPLAY_NAME, APP_SHORT_NAME } = APP_CONFIG;
+const hapiCoinWallet = window.HapiCoinWallet
+  ? window.HapiCoinWallet(APP_CONFIG)
+  : { getHapiCoins: () => 0, addHapiCoins: () => ({ added: 0, total: 0 }) };
+const STORAGE_KEYS = {
+  player: `${APP_INTERNAL_ID}-player`,
+  onlineSession: `${APP_INTERNAL_ID}-online-session`,
+  records: `${APP_INTERNAL_ID}-records`,
+  hardCpuRun: `${APP_INTERNAL_ID}-hard-cpu-run`,
+  currentCpuBattle: `${APP_INTERNAL_ID}-current-cpu-battle`
+};
+const LEGACY_STORAGE_KEYS = {
+  player: ["hara" + "pekoPlayerProfile"],
+  onlineSession: ["hara" + "pekoOnlineSession"],
+  records: ["hara" + "pekoHardCpuRecords"],
+  hardCpuRun: ["hara" + "pekoHardCpuRunId"],
+  currentCpuBattle: ["currentCpuBattle"]
+};
+
+function migrateStorageKey(keyName) {
+  const newKey = STORAGE_KEYS[keyName];
+  const legacyKeys = LEGACY_STORAGE_KEYS[keyName] || [];
+  if (!newKey) return;
+  try {
+    if (localStorage.getItem(newKey) !== null) return;
+    const legacyKey = legacyKeys.find((key) => localStorage.getItem(key) !== null);
+    if (!legacyKey) return;
+    localStorage.setItem(newKey, localStorage.getItem(legacyKey));
+  } catch {
+    // localStorage is optional.
+  }
+}
+
+function readStorage(keyName, fallback = "") {
+  migrateStorageKey(keyName);
+  try {
+    return localStorage.getItem(STORAGE_KEYS[keyName]) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStorage(keyName, value) {
+  try {
+    localStorage.setItem(STORAGE_KEYS[keyName], value);
+  } catch {
+    // localStorage is optional.
+  }
+}
+
+function removeStorage(keyName) {
+  try {
+    localStorage.removeItem(STORAGE_KEYS[keyName]);
+  } catch {
+    // localStorage is optional.
+  }
+}
+
+function applyAppIdentity() {
+  document.title = APP_DISPLAY_NAME;
+  document.querySelectorAll("[data-app-display-name]").forEach((node) => {
+    node.textContent = APP_DISPLAY_NAME;
+  });
+  const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (appleTitle) appleTitle.setAttribute("content", APP_DISPLAY_NAME);
+  const manifestLink = document.querySelector('link[rel="manifest"]');
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=77");
+}
 
 let game = engine.createGame();
 let cpuEnabled = true;
@@ -37,12 +110,13 @@ let previousView = null;
 let animationLock = false;
 let hardCpuMatchActive = false;
 let hardCpuResultHandled = false;
+let cpuCoinRewardHandled = false;
 let restoredCpuBattle = false;
 let suppressCpuBattleSave = false;
 let sharedLeaderboard = [];
 let sharedLeaderboardLoaded = false;
 const pendingFx = new Map();
-const AVATAR_DEFINITIONS = window.HarapekoAvatars || [];
+const AVATAR_DEFINITIONS = window.AppAvatars || [];
 const AVATAR_OPTIONS = AVATAR_DEFINITIONS.map((avatar) => avatar.src);
 const AVATAR_BY_ID = new Map(AVATAR_DEFINITIONS.map((avatar) => [avatar.id, avatar.src]));
 const AVATAR_ID_BY_SRC = new Map(AVATAR_DEFINITIONS.map((avatar) => [avatar.src, avatar.id]));
@@ -137,6 +211,33 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.78",
+    title: "ハピコインを追加",
+    items: [
+      "ゲームタイトルを「しょーかんハッピーズ」に変更し、ブラウザ名、PWA名、READMEの表記を統一しました。",
+      "タイトル画面にハピコイン所持数を表示するようにしました。",
+      "CPU戦に勝利するとハピコインを獲得できるようにしました。通常CPUは10枚、CPU（強い）は勝利後の連勝数×10枚を獲得します。"
+    ]
+  },
+  {
+    version: "v0.77",
+    title: "ゲームタイトルを変更",
+    items: [
+      "ゲームタイトルを「しょーかんハッピーズ」に変更しました。",
+      "タイトル、ブラウザ名、PWA名、READMEのゲーム名を統一しました。",
+      "以前のプレイヤー設定や連勝記録は、新しい保存名へ自動で引き継ぐようにしました。"
+    ]
+  },
+  {
+    version: "v0.76",
+    title: "タイトル画面のレイアウト調整",
+    items: [
+      "タイトル画面をプロフィール、対戦、ルールやカード一覧に分けて見やすくしました。",
+      "スマホではスクロールしなくても主要メニューが見えるように配置を調整しました。",
+      "CPUの強さを選ぶ画面で、CPU（強い）の連勝中なら現在の連勝数を表示するようにしました。"
+    ]
+  },
   {
     version: "v0.75",
     title: "ホーム画面アイコンを調整",
@@ -373,6 +474,7 @@ const elements = {
   backTitleButton: document.querySelector("#backTitleButton"),
   battleCardListButton: document.querySelector("#battleCardListButton"),
   titleScreen: document.querySelector("#titleScreen"),
+  hapiCoinDisplay: document.querySelector("#hapiCoinDisplay"),
   startCpuButton: document.querySelector("#startCpuButton"),
   playerNameInput: document.querySelector("#playerNameInput"),
   avatarPicker: document.querySelector("#avatarPicker"),
@@ -388,6 +490,7 @@ const elements = {
   showUpdatesButton: document.querySelector("#showUpdatesButton"),
   showRecordsButton: document.querySelector("#showRecordsButton"),
   titleCpu: document.querySelector("#titleCpu"),
+  cpuStreakNote: document.querySelector("#cpuStreakNote"),
   cpuNormalButton: document.querySelector("#cpuNormalButton"),
   cpuHardButton: document.querySelector("#cpuHardButton"),
   cpuBackButton: document.querySelector("#cpuBackButton"),
@@ -437,7 +540,7 @@ const elements = {
 
 function loadPlayerProfile() {
   try {
-    const saved = JSON.parse(localStorage.getItem("harapekoPlayerProfile") || "{}");
+    const saved = JSON.parse(readStorage("player", "{}") || "{}");
     return {
       name: String(saved.name || "").slice(0, 16),
       avatar: AVATAR_OPTIONS.includes(saved.avatar) ? saved.avatar : AVATAR_OPTIONS[0],
@@ -452,7 +555,7 @@ function currentPlayerProfile() {
   const avatar = playerProfile.avatar || AVATAR_OPTIONS[0];
   playerProfile = { name: name.slice(0, 16), avatar };
   try {
-    localStorage.setItem("harapekoPlayerProfile", JSON.stringify(playerProfile));
+    writeStorage("player", JSON.stringify(playerProfile));
   } catch {
     // localStorage is optional in private/restricted browsers.
   }
@@ -466,7 +569,7 @@ function randomPlayerName() {
 function saveOnlineSession(roomId, playerToken) {
   if (!roomId || !playerToken) return;
   try {
-    localStorage.setItem("harapekoOnlineSession", JSON.stringify({ roomId, playerToken }));
+    writeStorage("onlineSession", JSON.stringify({ roomId, playerToken }));
   } catch {
     // localStorage is optional.
   }
@@ -474,7 +577,7 @@ function saveOnlineSession(roomId, playerToken) {
 
 function loadOnlineSession() {
   try {
-    const saved = JSON.parse(localStorage.getItem("harapekoOnlineSession") || "{}");
+    const saved = JSON.parse(readStorage("onlineSession", "{}") || "{}");
     if (!saved.roomId || !saved.playerToken) return null;
     return { roomId: String(saved.roomId).toUpperCase(), playerToken: String(saved.playerToken) };
   } catch {
@@ -483,16 +586,12 @@ function loadOnlineSession() {
 }
 
 function clearOnlineSession() {
-  try {
-    localStorage.removeItem("harapekoOnlineSession");
-  } catch {
-    // localStorage is optional.
-  }
+  removeStorage("onlineSession");
 }
 
 function loadHardCpuRecords() {
   try {
-    const saved = JSON.parse(localStorage.getItem("harapekoHardCpuRecords") || "{}");
+    const saved = JSON.parse(readStorage("records", "{}") || "{}");
     return {
       current: Math.max(0, Number(saved.current) || 0),
       best: Math.max(0, Number(saved.best) || 0),
@@ -508,11 +607,33 @@ function loadHardCpuRecords() {
 }
 
 function saveHardCpuRecords(records) {
-  try {
-    localStorage.setItem("harapekoHardCpuRecords", JSON.stringify(records));
-  } catch {
-    // localStorage is optional.
-  }
+  writeStorage("records", JSON.stringify(records));
+}
+
+function getHapiCoins() {
+  return hapiCoinWallet.getHapiCoins();
+}
+
+function addHapiCoins(amount, reason = "") {
+  return hapiCoinWallet.addHapiCoins(amount, reason);
+}
+
+function calculateCpuVictoryCoins(difficulty, streakAfterWin) {
+  return difficulty === "hard" ? 10 * Math.max(1, Number(streakAfterWin) || 1) : 10;
+}
+
+function awardCpuVictoryCoins(difficulty, streakAfterWin) {
+  if (cpuCoinRewardHandled) return null;
+  const amount = calculateCpuVictoryCoins(difficulty, streakAfterWin);
+  const reward = addHapiCoins(amount, `cpu-${difficulty}-victory`);
+  cpuCoinRewardHandled = true;
+  console.log("CPU victory hapi coin reward", {
+    difficulty,
+    streakAfterWin,
+    earnedHapiCoins: reward.added,
+    totalHapiCoins: reward.total
+  });
+  return reward;
 }
 
 function createHardCpuRunId() {
@@ -522,7 +643,7 @@ function createHardCpuRunId() {
 
 function loadHardCpuRunId() {
   try {
-    const saved = localStorage.getItem("harapekoHardCpuRunId");
+    const saved = readStorage("hardCpuRun", "");
     return saved && saved.length <= 80 ? saved : "";
   } catch {
     return "";
@@ -534,7 +655,7 @@ function ensureHardCpuRunId() {
   if (current) return current;
   const next = createHardCpuRunId();
   try {
-    localStorage.setItem("harapekoHardCpuRunId", next);
+    writeStorage("hardCpuRun", next);
   } catch {
     // localStorage is optional.
   }
@@ -544,18 +665,14 @@ function ensureHardCpuRunId() {
 function saveHardCpuRunId(runId) {
   if (!runId) return;
   try {
-    localStorage.setItem("harapekoHardCpuRunId", runId);
+    writeStorage("hardCpuRun", runId);
   } catch {
     // localStorage is optional.
   }
 }
 
 function clearHardCpuRunId() {
-  try {
-    localStorage.removeItem("harapekoHardCpuRunId");
-  } catch {
-    // localStorage is optional.
-  }
+  removeStorage("hardCpuRun");
 }
 
 function updateHardCpuRanking(records, name, streak) {
@@ -603,19 +720,16 @@ function saveCurrentCpuBattle() {
     hardCpuRunId: loadHardCpuRunId(),
     hardCpuMatchActive,
     hardCpuResultHandled,
+    cpuCoinRewardHandled,
     battleStartedAt: loadCurrentCpuBattle()?.battleStartedAt || Date.now(),
     savedAt: Date.now(),
   };
-  try {
-    localStorage.setItem("currentCpuBattle", JSON.stringify(snapshot));
-  } catch {
-    // localStorage is optional.
-  }
+  writeStorage("currentCpuBattle", JSON.stringify(snapshot));
 }
 
 function loadCurrentCpuBattle() {
   try {
-    const saved = JSON.parse(localStorage.getItem("currentCpuBattle") || "{}");
+    const saved = JSON.parse(readStorage("currentCpuBattle", "{}") || "{}");
     if (!saved.gameState || saved.gameState.winner !== null) return null;
     return saved;
   } catch {
@@ -624,11 +738,7 @@ function loadCurrentCpuBattle() {
 }
 
 function clearCurrentCpuBattle() {
-  try {
-    localStorage.removeItem("currentCpuBattle");
-  } catch {
-    // localStorage is optional.
-  }
+  removeStorage("currentCpuBattle");
 }
 
 function restoreCpuBattleIfNeeded() {
@@ -645,6 +755,7 @@ function restoreCpuBattleIfNeeded() {
   lastOnlineStarted = false;
   hardCpuMatchActive = Boolean(saved.hardCpuMatchActive);
   hardCpuResultHandled = Boolean(saved.hardCpuResultHandled);
+  cpuCoinRewardHandled = Boolean(saved.cpuCoinRewardHandled);
   if (saved.hardCpuRunId) saveHardCpuRunId(saved.hardCpuRunId);
   titleActive = false;
   titleLobbyOpen = false;
@@ -675,6 +786,7 @@ function abandonCpuBattle(reason = "abandon") {
   }
   hardCpuMatchActive = false;
   hardCpuResultHandled = true;
+  cpuCoinRewardHandled = true;
   cpuThinking = false;
   clearCurrentCpuBattle();
   console.warn("CPU battle abandoned as defeat", { reason, difficulty: cpuDifficulty });
@@ -683,7 +795,17 @@ function abandonCpuBattle(reason = "abandon") {
 
 function completeCpuBattleIfNeeded(view) {
   if (onlineMode || !cpuEnabled || !game || view.winner === null) return null;
-  const result = resolveHardCpuResultIfNeeded(view);
+  const result = resolveHardCpuResultIfNeeded(view) || {
+    selfWon: view.winner === 0,
+    streak: 0,
+    best: loadHardCpuRecords().best,
+    isHard: false
+  };
+  result.isHard = cpuDifficulty === "hard";
+  if (result.selfWon) {
+    const streakForReward = result.isHard ? result.streak : 1;
+    result.coinReward = awardCpuVictoryCoins(cpuDifficulty, streakForReward);
+  }
   if (result?.selfWon && result.streak >= 1) submitLeaderboard(result.streak);
   clearCurrentCpuBattle();
   return result;
@@ -759,11 +881,7 @@ function setupProfileControls() {
     elements.playerNameInput.value = playerProfile.name;
     elements.playerNameInput.addEventListener("input", () => {
       playerProfile.name = elements.playerNameInput.value.trim().slice(0, 16);
-      try {
-        localStorage.setItem("harapekoPlayerProfile", JSON.stringify(playerProfile));
-      } catch {
-        // localStorage is optional.
-      }
+      writeStorage("player", JSON.stringify(playerProfile));
       renderProfileSummary();
     });
   }
@@ -776,11 +894,7 @@ function setupProfileControls() {
     button.innerHTML = `<img src="${avatar}" alt="">`;
     button.addEventListener("click", () => {
       playerProfile.avatar = avatar;
-      try {
-        localStorage.setItem("harapekoPlayerProfile", JSON.stringify(playerProfile));
-      } catch {
-        // localStorage is optional.
-      }
+      writeStorage("player", JSON.stringify(playerProfile));
       setupProfileControls();
       renderProfileSummary();
     });
@@ -792,6 +906,11 @@ function setupProfileControls() {
 function renderProfileSummary() {
   if (elements.profileSummaryAvatar) elements.profileSummaryAvatar.src = playerProfile.avatar || AVATAR_OPTIONS[0];
   if (elements.profileSummaryName) elements.profileSummaryName.textContent = playerProfile.name || "名前未設定";
+}
+
+function updateHapiCoinDisplay() {
+  if (!elements.hapiCoinDisplay) return;
+  elements.hapiCoinDisplay.textContent = `ハピコイン：${getHapiCoins()}枚`;
 }
 
 function cpuProfile(difficulty) {
@@ -852,7 +971,9 @@ function render() {
   renderCardList();
   renderUpdateHistory();
   renderRecords();
+  renderCpuSetup();
   updateTitleRecordButton();
+  updateHapiCoinDisplay();
   renderPlayerInfo(view);
   renderOpponentHand(view.players[opponentId].handCount);
   renderDecks(view.piles, activePlayer, view.winner, locked);
@@ -1232,7 +1353,15 @@ function renderRecords() {
 function updateTitleRecordButton() {
   if (!elements.showRecordsButton) return;
   const records = loadHardCpuRecords();
-  elements.showRecordsButton.textContent = `記録 ${records.current}連勝中`;
+  elements.showRecordsButton.textContent = records.current > 0 ? `記録 ${records.current}連勝中` : "記録";
+}
+
+function renderCpuSetup() {
+  if (!elements.cpuStreakNote || !titleCpuOpen) return;
+  const records = loadHardCpuRecords();
+  elements.cpuStreakNote.textContent = records.current > 0
+    ? `CPU（強い） ${records.current}連勝中`
+    : "CPU（強い）の連勝記録に挑戦できます。";
 }
 
 function makeRoomUrl(roomId) {
@@ -2067,8 +2196,11 @@ function renderWinnerOverlay(view) {
   const hardResult = completeCpuBattleIfNeeded(view);
   const winner = view.players[view.winner];
   const selfWon = view.winner === getSelfId();
-  const hardStreakLine = hardResult
+  const hardStreakLine = hardResult?.isHard
     ? `<p class="winner-streak">${hardResult.selfWon ? `${hardResult.streak}連勝目！` : "連勝は0に戻りました。"}</p>`
+    : "";
+  const coinRewardLine = hardResult?.coinReward?.added > 0
+    ? `<p class="winner-coins">${hardResult.coinReward.added}ハピコイン獲得！<br><span>所持数：${hardResult.coinReward.total}枚</span></p>`
     : "";
   node = document.createElement("div");
   node.id = "winnerOverlay";
@@ -2079,6 +2211,7 @@ function renderWinnerOverlay(view) {
       <img class="winner-avatar" src="${winner.avatar || AVATAR_OPTIONS[view.winner] || AVATAR_OPTIONS[0]}" alt="">
       <h2>${winner.name}の勝ち！</h2>
       ${hardStreakLine}
+      ${coinRewardLine}
       <div class="winner-actions">
         <button type="button" id="winnerRematch">もう一度戦う</button>
         <button type="button" id="winnerTitle">タイトルへ</button>
@@ -2351,6 +2484,7 @@ function startCpuGame(difficulty = "normal") {
   const opponentProfile = cpuProfile(difficulty);
   hardCpuMatchActive = difficulty === "hard";
   hardCpuResultHandled = false;
+  cpuCoinRewardHandled = false;
   game.players[0].name = selfProfile.name;
   game.players[0].avatar = selfProfile.avatar;
   game.players[1].name = opponentProfile.name;
@@ -4154,6 +4288,7 @@ function registerServiceWorker() {
 
 setupProfileControls();
 initializeFromUrl();
+applyAppIdentity();
 registerServiceWorker();
 const savedOnlineSession = loadOnlineSession();
 if (restoreCpuBattleIfNeeded()) {

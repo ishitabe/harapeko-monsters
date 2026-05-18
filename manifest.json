@@ -1,6 +1,6 @@
 {
-  "name": "はらぺこモンスターズ",
-  "short_name": "はらモン",
+  "name": "しょーかんハッピーズ",
+  "short_name": "ハッピーズ",
   "description": "山札を選び、モンスターを出して、相手のHPを0にするカードバトル。",
   "start_url": "./?source=pwa",
   "scope": "./",

@@ -5,29 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#07101a">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="はらぺこモンスターズ">
+    <meta name="apple-mobile-web-app-title" content="しょーかんハッピーズ">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>はらぺこモンスターズ</title>
-    <link rel="manifest" href="manifest.json?v=75">
+    <title>しょーかんハッピーズ</title>
+    <link rel="manifest" href="manifest.json?v=77">
     <link rel="icon" type="image/png" sizes="192x192" href="pwa-icon-192.png">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-    <link rel="stylesheet" href="styles.css?v=65">
+    <link rel="stylesheet" href="styles.css?v=78">
+    <script src="constants.js?v=77"></script>
     <script>
+      document.title = window.AppConstants.APP_DISPLAY_NAME;
+      document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", window.AppConstants.APP_DISPLAY_NAME);
       window.addEventListener("error", (event) => {
         const message = document.querySelector("#messageText");
         if (message) message.textContent = `読み込みエラー: ${event.message}`;
       });
     </script>
-    <script src="avatars.js?v=62" defer></script>
+    <script src="avatars.js?v=77" defer></script>
+    <script src="currency.js?v=78" defer></script>
     <script src="cards.js?v=62" defer></script>
     <script src="gameEngine.js?v=62" defer></script>
-    <script src="app.js?v=75" defer></script>
+    <script src="app.js?v=78" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
+      <div class="hapi-coin-display" id="hapiCoinDisplay">ハピコイン：0枚</div>
       <div class="title-content">
         <p class="eyebrow">CARD BATTLE</p>
-        <h1>はらぺこモンスターズ</h1>
+        <h1 data-app-display-name>しょーかんハッピーズ</h1>
+        <p class="version-label">v0.78</p>
         <div class="profile-summary" id="profileSummary" aria-label="現在のプロフィール">
           <img id="profileSummaryAvatar" src="assets/player.png" alt="">
           <div>
@@ -51,12 +57,21 @@
           </div>
         </div>
         <div class="title-actions">
-          <button class="title-button primary" id="startCpuButton" type="button">CPU対戦</button>
-          <button class="title-button" id="startMultiButton" type="button">マルチ対戦</button>
-          <button class="title-button rules-button" id="showRulesButton" type="button">ルール</button>
-          <button class="title-button cards-button" id="showCardsButton" type="button">カード一覧</button>
-          <button class="title-button update-button" id="showUpdatesButton" type="button">アップデート履歴</button>
-          <button class="title-button record-button" id="showRecordsButton" type="button">記録</button>
+          <section class="title-action-group battle-menu" aria-label="対戦">
+            <h2>対戦</h2>
+            <div class="title-action-grid">
+              <button class="title-button primary" id="startCpuButton" type="button">CPU対戦</button>
+              <button class="title-button" id="startMultiButton" type="button">マルチ対戦</button>
+              <button class="title-button record-button" id="showRecordsButton" type="button">記録</button>
+            </div>
+          </section>
+          <section class="title-action-group info-menu" aria-label="情報">
+            <div class="title-action-grid">
+              <button class="title-button rules-button" id="showRulesButton" type="button">ルール</button>
+              <button class="title-button cards-button" id="showCardsButton" type="button">カード一覧</button>
+              <button class="title-button update-button" id="showUpdatesButton" type="button">アップデート履歴</button>
+            </div>
+          </section>
         </div>
         <div class="title-rules hidden" id="titleRules" aria-label="ルール説明">
           <div class="rules-head">
@@ -99,6 +114,7 @@
             <span>CPU対戦</span>
           </div>
           <h2>CPUの強さを選ぶ</h2>
+          <p class="cpu-streak-note" id="cpuStreakNote"></p>
           <div class="title-actions cpu-actions">
             <button class="title-button" id="cpuNormalButton" type="button">普通</button>
             <button class="title-button primary" id="cpuHardButton" type="button">強い</button>
@@ -122,7 +138,6 @@
           <button class="small-button" id="titleBackButton" type="button">戻る</button>
         </div>
         <p class="title-note">山札を選び、モンスターを出して、相手のHPを0にしよう。</p>
-        <p class="version-label">v0.75</p>
       </div>
     </section>
     <main class="battle-shell">

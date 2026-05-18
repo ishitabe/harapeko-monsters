@@ -1,4 +1,4 @@
-const CACHE_NAME = "harapeko-pwa-v2";
+const CACHE_NAME = "summon-happys-pwa-v3";
 const OFFLINE_URL = "offline.html";
 const PRECACHE_URLS = [
   OFFLINE_URL,
