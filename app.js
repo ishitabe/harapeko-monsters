@@ -42,7 +42,10 @@ let suppressCpuBattleSave = false;
 let sharedLeaderboard = [];
 let sharedLeaderboardLoaded = false;
 const pendingFx = new Map();
-const AVATAR_OPTIONS = (window.HarapekoAvatars || []).map((avatar) => avatar.src);
+const AVATAR_DEFINITIONS = window.HarapekoAvatars || [];
+const AVATAR_OPTIONS = AVATAR_DEFINITIONS.map((avatar) => avatar.src);
+const AVATAR_BY_ID = new Map(AVATAR_DEFINITIONS.map((avatar) => [avatar.id, avatar.src]));
+const AVATAR_ID_BY_SRC = new Map(AVATAR_DEFINITIONS.map((avatar) => [avatar.src, avatar.id]));
 const AVATAR_FALLBACK_OPTIONS = [
   "assets/avatars/avatar-akudaruma.png",
   "assets/avatars/avatar-ashigatako.png",
@@ -132,6 +135,14 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.70",
+    title: "ランキングのアバター保存を修正",
+    items: [
+      "オンラインランキングのアバターを、壊れにくい短いIDで保存するようにしました。",
+      "スマホでランキングのアバター画像が表示されない場合でも、デフォルトアイコンを表示するようにしました。"
+    ]
+  },
   {
     version: "v0.69",
     title: "スマホのランキング表示を修正",
@@ -644,7 +655,7 @@ async function submitLeaderboard(streak) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         player_name: profile.name,
-        avatar_id: profile.avatar,
+        avatar_id: avatarIdForLeaderboard(profile.avatar),
         mode: "cpu",
         difficulty: cpuDifficulty,
         win_streak: streak,
@@ -654,6 +665,10 @@ async function submitLeaderboard(streak) {
   } catch {
     // Online ranking is optional during local/offline play.
   }
+}
+
+function avatarIdForLeaderboard(avatarSrc) {
+  return AVATAR_ID_BY_SRC.get(avatarSrc) || avatarSrc || "akudaruma";
 }
 
 async function loadSharedLeaderboard() {
@@ -1112,7 +1127,14 @@ function escapeHtml(value) {
 }
 
 function leaderboardAvatar(entry) {
-  return escapeHtml(entry.avatar_id || entry.avatarId || AVATAR_OPTIONS[0]);
+  const value = String(entry.avatar_id || entry.avatarId || "");
+  if (AVATAR_BY_ID.has(value)) return escapeHtml(AVATAR_BY_ID.get(value));
+  if (value.startsWith("assets/avatars/") || value.startsWith("data:image/")) return escapeHtml(value);
+  return escapeHtml(AVATAR_OPTIONS[0]);
+}
+
+function defaultLeaderboardAvatar() {
+  return escapeHtml(AVATAR_OPTIONS[0]);
 }
 
 function renderRecords() {
@@ -1127,7 +1149,9 @@ function renderRecords() {
       ? sharedLeaderboard.slice(0, 10).map((entry, index) => `
         <li class="shared-rank-row rank-${index + 1}">
           <b>${index + 1}位</b>
-          <span class="shared-rank-avatar" style="background-image: url('${leaderboardAvatar(entry)}')" aria-hidden="true"></span>
+          <span class="shared-rank-avatar" aria-hidden="true">
+            <img src="${leaderboardAvatar(entry)}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${defaultLeaderboardAvatar()}';">
+          </span>
           <span class="shared-rank-name">${escapeHtml(entry.player_name)}</span>
           <strong>${Number(entry.win_streak) || 0}連勝</strong>
         </li>
