@@ -1660,6 +1660,41 @@ body:not(.title-active) .title-screen {
   pointer-events: none;
 }
 
+.title-menu-button {
+  position: fixed;
+  top: 16px;
+  right: 18px;
+  z-index: 2003;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(103, 183, 255, 0.34);
+  background: rgba(8, 17, 30, 0.92);
+  color: #fff6df;
+  font-size: 1.55rem;
+  font-weight: 1000;
+  box-shadow: 0 14px 36px rgba(0,0,0,0.34);
+}
+
+.title-menu-panel {
+  position: fixed;
+  top: 72px;
+  right: 18px;
+  z-index: 2003;
+  display: grid;
+  gap: 10px;
+  min-width: 210px;
+  padding: 12px;
+  border: 1px solid rgba(103, 183, 255, 0.26);
+  border-radius: 14px;
+  background: rgba(8, 17, 30, 0.96);
+  box-shadow: 0 22px 62px rgba(0,0,0,0.46);
+}
+
+.title-menu-panel.hidden {
+  display: none;
+}
+
 .title-content h1 {
   margin: 8px 0 0;
   color: #fff6df;
@@ -1673,6 +1708,23 @@ body:not(.title-active) .title-screen {
   grid-template-columns: 1fr 1fr;
   gap: 18px;
   margin-top: 24px;
+}
+
+.title-battle-menu {
+  display: grid;
+  gap: 18px;
+  margin-top: 26px;
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.title-battle-menu.hidden {
+  display: none;
+}
+
+.battle-choice-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .title-action-group {
@@ -1702,7 +1754,7 @@ body:not(.title-active) .title-screen {
 .profile-summary {
   width: min(760px, 100%);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 20px;
   align-items: center;
   margin: 20px auto 0;
@@ -1824,6 +1876,7 @@ body.title-rules-active .title-actions,
 body.title-cards-active .title-actions,
 body.title-updates-active .title-actions,
 body.title-records-active .title-actions,
+body.title-battle-active .title-actions,
 body.title-cpu-active .title-actions:not(.cpu-actions) {
   display: none;
 }
@@ -1833,6 +1886,7 @@ body.title-rules-active .profile-setup,
 body.title-cards-active .profile-setup,
 body.title-updates-active .profile-setup,
 body.title-records-active .profile-setup,
+body.title-battle-active .profile-setup,
 body.title-cpu-active .profile-setup {
   display: none;
 }
@@ -1884,6 +1938,19 @@ body.profile-editor-active .title-actions {
   border-color: rgba(166, 240, 255, 0.38);
 }
 
+.title-button.disabled-title-button,
+.title-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+}
+
+.title-button.disabled-title-button:hover,
+.title-button:disabled:hover {
+  transform: none;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.36);
+}
+
 .title-button:hover {
   transform: translateY(-8px) scale(1.04);
   box-shadow: 0 28px 58px rgba(0,0,0,0.46), 0 0 28px rgba(103, 183, 255, 0.18);
@@ -1914,12 +1981,14 @@ body.title-rules-active .title-note,
 body.title-cards-active .title-note,
 body.title-updates-active .title-note,
 body.title-records-active .title-note,
+body.title-battle-active .title-note,
 body.title-cpu-active .title-note,
 body.title-lobby-active .version-label,
 body.title-rules-active .version-label,
 body.title-cards-active .version-label,
 body.title-updates-active .version-label,
 body.title-records-active .version-label,
+body.title-battle-active .version-label,
 body.title-cpu-active .version-label {
   display: none;
 }
@@ -2030,6 +2099,9 @@ body.title-cpu-active .version-label {
 .record-list-body {
   display: grid;
   gap: 16px;
+  max-height: min(62vh, 640px);
+  overflow: auto;
+  padding-right: 8px;
 }
 
 .record-summary {
@@ -2772,6 +2844,21 @@ body.title-cpu-active .version-label {
     font-size: 0.78rem;
   }
 
+  .title-menu-button {
+    top: 8px;
+    right: 10px;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    font-size: 1.28rem;
+  }
+
+  .title-menu-panel {
+    top: 56px;
+    right: 10px;
+    min-width: 190px;
+  }
+
   .title-content {
     width: 100%;
     min-height: calc(100dvh - 16px);
@@ -2829,8 +2916,8 @@ body.title-cpu-active .version-label {
     gap: 8px;
   }
 
-  .battle-menu .title-action-grid {
-    grid-template-columns: 1fr 1fr 1fr;
+  .battle-choice-grid {
+    grid-template-columns: 1fr;
   }
 
   .profile-setup {
@@ -2913,6 +3000,11 @@ body.title-cpu-active .version-label {
   .card-list-body {
     max-height: 58dvh;
     padding: 14px;
+  }
+
+  .record-list-body {
+    max-height: 62dvh;
+    padding-right: 4px;
   }
 
   .card-list-grid {

@@ -8,10 +8,10 @@
     <meta name="apple-mobile-web-app-title" content="しょーかんハッピーズ">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>しょーかんハッピーズ</title>
-    <link rel="manifest" href="manifest.json?v=77">
+    <link rel="manifest" href="manifest.json?v=79">
     <link rel="icon" type="image/png" sizes="192x192" href="pwa-icon-192.png">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-    <link rel="stylesheet" href="styles.css?v=78">
+    <link rel="stylesheet" href="styles.css?v=79">
     <script src="constants.js?v=77"></script>
     <script>
       document.title = window.AppConstants.APP_DISPLAY_NAME;
@@ -25,22 +25,26 @@
     <script src="currency.js?v=78" defer></script>
     <script src="cards.js?v=62" defer></script>
     <script src="gameEngine.js?v=62" defer></script>
-    <script src="app.js?v=78" defer></script>
+    <script src="app.js?v=79" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
       <div class="hapi-coin-display" id="hapiCoinDisplay">ハピコイン：0枚</div>
+      <button class="title-menu-button" id="titleMenuButton" type="button" aria-label="メニュー">☰</button>
+      <div class="title-menu-panel hidden" id="titleMenuPanel">
+        <button class="small-button" id="menuUpdatesButton" type="button">アップデート履歴</button>
+        <button class="small-button" id="menuProfileButton" type="button">プロフィール編集</button>
+      </div>
       <div class="title-content">
         <p class="eyebrow">CARD BATTLE</p>
         <h1 data-app-display-name>しょーかんハッピーズ</h1>
-        <p class="version-label">v0.78</p>
+        <p class="version-label">v0.79</p>
         <div class="profile-summary" id="profileSummary" aria-label="現在のプロフィール">
           <img id="profileSummaryAvatar" src="assets/player.png" alt="">
           <div>
             <span>プレイヤー</span>
             <strong id="profileSummaryName">プレイヤー</strong>
           </div>
-          <button class="small-button" id="editProfileButton" type="button">プロフィール編集</button>
         </div>
         <div class="profile-setup hidden" id="profileEditor" aria-label="プレイヤー設定">
           <div class="rules-head">
@@ -56,22 +60,22 @@
             <div class="avatar-picker" id="avatarPicker"></div>
           </div>
         </div>
+        <div class="title-battle-menu hidden" id="titleBattleMenu" aria-label="対戦メニュー">
+          <div class="rules-head">
+            <span>対戦</span>
+            <button class="small-button" id="titleBattleBackButton" type="button">戻る</button>
+          </div>
+          <div class="title-action-grid battle-choice-grid">
+            <button class="title-button primary" id="titleBattleCpuButton" type="button">CPU</button>
+            <button class="title-button" id="titleBattleMultiButton" type="button">対人</button>
+            <button class="title-button record-button" id="titleBattleRecordsButton" type="button">記録</button>
+          </div>
+        </div>
         <div class="title-actions">
-          <section class="title-action-group battle-menu" aria-label="対戦">
-            <h2>対戦</h2>
-            <div class="title-action-grid">
-              <button class="title-button primary" id="startCpuButton" type="button">CPU対戦</button>
-              <button class="title-button" id="startMultiButton" type="button">マルチ対戦</button>
-              <button class="title-button record-button" id="showRecordsButton" type="button">記録</button>
-            </div>
-          </section>
-          <section class="title-action-group info-menu" aria-label="情報">
-            <div class="title-action-grid">
-              <button class="title-button rules-button" id="showRulesButton" type="button">ルール</button>
-              <button class="title-button cards-button" id="showCardsButton" type="button">カード一覧</button>
-              <button class="title-button update-button" id="showUpdatesButton" type="button">アップデート履歴</button>
-            </div>
-          </section>
+          <button class="title-button primary" id="startCpuButton" type="button">対戦</button>
+          <button class="title-button rules-button" id="showRulesButton" type="button">ルール</button>
+          <button class="title-button cards-button" id="showCardsButton" type="button">カード一覧</button>
+          <button class="title-button disabled-title-button" id="titleTodoButton" type="button" disabled>未定</button>
         </div>
         <div class="title-rules hidden" id="titleRules" aria-label="ルール説明">
           <div class="rules-head">
@@ -122,7 +126,7 @@
           <button class="small-button title-bottom-button" id="cpuBackButton" type="button">キャンセル</button>
         </div>
         <div class="title-lobby hidden" id="titleLobby">
-          <strong id="titleLobbyStatus">マルチ対戦</strong>
+          <strong id="titleLobbyStatus">対人</strong>
           <p id="titleLobbyNote">部屋を作るか、共有された部屋IDで参加してください。</p>
           <div class="title-lobby-row">
             <button class="title-button" id="titleRandomButton" type="button">ランダム対戦</button>

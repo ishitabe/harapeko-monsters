@@ -78,7 +78,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_DISPLAY_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=77");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=79");
 }
 
 let game = engine.createGame();
@@ -99,6 +99,8 @@ let titleCardsOpen = false;
 let titleUpdatesOpen = false;
 let titleRecordsOpen = false;
 let titleCpuOpen = false;
+let titleBattleOpen = false;
+let titleMenuOpen = false;
 let titleCardsFromBattle = false;
 let profileEditorOpen = false;
 let cpuDifficulty = "normal";
@@ -211,6 +213,17 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.79",
+    title: "タイトル画面を整理",
+    items: [
+      "タイトル画面の左上にハピコイン、右上にメニューボタンを表示するようにしました。",
+      "アップデート履歴とプロフィール編集は、右上メニューから開く形に変更しました。",
+      "タイトル画面のボタンを「対戦」「ルール」「カード一覧」「未定」に整理しました。",
+      "「対戦」を押した後に、CPU、対人、記録を選べるようにしました。",
+      "記録画面をスクロールできるようにし、下の順位まで確認しやすくしました。"
+    ]
+  },
   {
     version: "v0.78",
     title: "ハピコインを追加",
@@ -475,6 +488,10 @@ const elements = {
   battleCardListButton: document.querySelector("#battleCardListButton"),
   titleScreen: document.querySelector("#titleScreen"),
   hapiCoinDisplay: document.querySelector("#hapiCoinDisplay"),
+  titleMenuButton: document.querySelector("#titleMenuButton"),
+  titleMenuPanel: document.querySelector("#titleMenuPanel"),
+  menuUpdatesButton: document.querySelector("#menuUpdatesButton"),
+  menuProfileButton: document.querySelector("#menuProfileButton"),
   startCpuButton: document.querySelector("#startCpuButton"),
   playerNameInput: document.querySelector("#playerNameInput"),
   avatarPicker: document.querySelector("#avatarPicker"),
@@ -489,6 +506,11 @@ const elements = {
   showCardsButton: document.querySelector("#showCardsButton"),
   showUpdatesButton: document.querySelector("#showUpdatesButton"),
   showRecordsButton: document.querySelector("#showRecordsButton"),
+  titleBattleMenu: document.querySelector("#titleBattleMenu"),
+  titleBattleCpuButton: document.querySelector("#titleBattleCpuButton"),
+  titleBattleMultiButton: document.querySelector("#titleBattleMultiButton"),
+  titleBattleRecordsButton: document.querySelector("#titleBattleRecordsButton"),
+  titleBattleBackButton: document.querySelector("#titleBattleBackButton"),
   titleCpu: document.querySelector("#titleCpu"),
   cpuStreakNote: document.querySelector("#cpuStreakNote"),
   cpuNormalButton: document.querySelector("#cpuNormalButton"),
@@ -764,6 +786,8 @@ function restoreCpuBattleIfNeeded() {
   titleUpdatesOpen = false;
   titleRecordsOpen = false;
   titleCpuOpen = false;
+  titleBattleOpen = false;
+  titleMenuOpen = false;
   optionsOpen = false;
   clearSelection();
   previousView = null;
@@ -953,7 +977,10 @@ function render() {
   document.body.classList.toggle("title-updates-active", titleUpdatesOpen);
   document.body.classList.toggle("title-records-active", titleRecordsOpen);
   document.body.classList.toggle("title-cpu-active", titleCpuOpen);
+  document.body.classList.toggle("title-battle-active", titleBattleOpen);
   document.body.classList.toggle("profile-editor-active", profileEditorOpen);
+  elements.titleMenuPanel?.classList.toggle("hidden", !titleMenuOpen);
+  elements.titleBattleMenu?.classList.toggle("hidden", !titleBattleOpen);
   elements.titleLobby?.classList.toggle("hidden", !titleLobbyOpen);
   elements.titleRules?.classList.toggle("hidden", !titleRulesOpen);
   elements.titleCards?.classList.toggle("hidden", !titleCardsOpen);
@@ -961,7 +988,7 @@ function render() {
   elements.titleRecords?.classList.toggle("hidden", !titleRecordsOpen);
   elements.titleCpu?.classList.toggle("hidden", !titleCpuOpen);
   elements.profileEditor?.classList.toggle("hidden", !profileEditorOpen);
-  elements.profileSummary?.classList.toggle("hidden", profileEditorOpen || titleLobbyOpen || titleRulesOpen || titleCardsOpen || titleUpdatesOpen || titleRecordsOpen || titleCpuOpen);
+  elements.profileSummary?.classList.toggle("hidden", profileEditorOpen || titleLobbyOpen || titleRulesOpen || titleCardsOpen || titleUpdatesOpen || titleRecordsOpen || titleCpuOpen || titleBattleOpen);
   elements.optionsPanel?.classList.toggle("hidden", !optionsOpen);
   updateOptionsVisibility();
 
@@ -1116,7 +1143,7 @@ function renderPlayerInfo(view) {
 function renderOnlineStatus() {
   if (!elements.onlineStatus) return;
   if (!onlineMode) {
-    elements.onlineStatus.textContent = cpuEnabled ? "CPU対戦" : "マルチ対戦準備";
+    elements.onlineStatus.textContent = cpuEnabled ? "CPU対戦" : "対人準備";
     elements.onlineRoomLabel.textContent = window.io ? "部屋作成または参加ができます" : "オンラインは npm start で開いた時だけ使えます";
     elements.leaveRoomButton.disabled = true;
     return;
@@ -1163,7 +1190,7 @@ function renderTitleLobby() {
   elements.titleCopyPasswordButton?.classList.toggle("hidden", !createdRoom);
   elements.titleCopyUrlButton?.classList.toggle("hidden", !createdRoom);
   if (!onlineMode) {
-    elements.titleLobbyStatus.textContent = titleLobbyMode === "join" ? "部屋に入る" : titleLobbyMode === "friend" ? "友達と対戦" : titleLobbyMode === "random" ? "ランダム対戦" : "マルチ対戦";
+    elements.titleLobbyStatus.textContent = titleLobbyMode === "join" ? "部屋に入る" : titleLobbyMode === "friend" ? "友達と対戦" : titleLobbyMode === "random" ? "ランダム対戦" : "対人";
     elements.titleLobbyNote.textContent = window.location.protocol === "file:"
       ? "オンライン対戦は npm start で起動したURLから使えます。"
       : titleLobbyMode === "join"
@@ -1351,9 +1378,11 @@ function renderRecords() {
 }
 
 function updateTitleRecordButton() {
-  if (!elements.showRecordsButton) return;
   const records = loadHardCpuRecords();
-  elements.showRecordsButton.textContent = records.current > 0 ? `記録 ${records.current}連勝中` : "記録";
+  if (elements.showRecordsButton) elements.showRecordsButton.textContent = "ルール";
+  if (elements.titleBattleRecordsButton) {
+    elements.titleBattleRecordsButton.textContent = records.current > 0 ? `記録 ${records.current}連勝中` : "記録";
+  }
 }
 
 function renderCpuSetup() {
@@ -2455,6 +2484,8 @@ function runGameAction(type, payload, localAction, afterResult = null) {
 function startCpuSetup() {
   profileEditorOpen = false;
   titleCpuOpen = true;
+  titleBattleOpen = false;
+  titleMenuOpen = false;
   titleLobbyOpen = false;
   titleRulesOpen = false;
   titleCardsOpen = false;
@@ -2496,6 +2527,8 @@ function startCpuGame(difficulty = "normal") {
   titleUpdatesOpen = false;
   titleRecordsOpen = false;
   titleCpuOpen = false;
+  titleBattleOpen = false;
+  titleMenuOpen = false;
   optionsOpen = false;
   clearSelection();
   previousView = null;
@@ -2504,6 +2537,47 @@ function startCpuGame(difficulty = "normal") {
   render();
   showBattleStart(engine.getPublicState(game, 0), 0);
   setTimeout(() => showTurnBanner(`${game.players[game.activePlayer].name}のターン`), 1300);
+}
+
+function openProfileEditor() {
+  profileEditorOpen = true;
+  titleMenuOpen = false;
+  titleBattleOpen = false;
+  titleLobbyOpen = false;
+  titleRulesOpen = false;
+  titleCardsOpen = false;
+  titleUpdatesOpen = false;
+  titleRecordsOpen = false;
+  titleCpuOpen = false;
+  render();
+}
+
+function openUpdateHistory() {
+  profileEditorOpen = false;
+  titleMenuOpen = false;
+  titleBattleOpen = false;
+  titleUpdatesOpen = true;
+  titleCardsOpen = false;
+  titleRulesOpen = false;
+  titleRecordsOpen = false;
+  titleCpuOpen = false;
+  titleLobbyOpen = false;
+  render();
+}
+
+function openRecords() {
+  profileEditorOpen = false;
+  titleMenuOpen = false;
+  titleBattleOpen = false;
+  titleRecordsOpen = true;
+  titleUpdatesOpen = false;
+  titleCardsOpen = false;
+  titleRulesOpen = false;
+  titleCpuOpen = false;
+  titleLobbyOpen = false;
+  sharedLeaderboardLoaded = false;
+  loadSharedLeaderboard();
+  render();
 }
 
 function startMultiSetup() {
@@ -2525,6 +2599,8 @@ function startMultiSetup() {
   titleUpdatesOpen = false;
   titleRecordsOpen = false;
   titleCpuOpen = false;
+  titleBattleOpen = false;
+  titleMenuOpen = false;
   profileEditorOpen = false;
   optionsOpen = false;
   clearSelection();
@@ -2554,6 +2630,8 @@ async function backToTitle(options = {}) {
   titleUpdatesOpen = false;
   titleRecordsOpen = false;
   titleCpuOpen = false;
+  titleBattleOpen = false;
+  titleMenuOpen = false;
   profileEditorOpen = false;
   clearSelection();
   render();
@@ -2565,16 +2643,10 @@ elements.endTurnButton.addEventListener("click", () => {
   if (!onlineMode) render();
 });
 
-elements.startCpuButton?.addEventListener("click", startCpuSetup);
-elements.cpuNormalButton?.addEventListener("click", () => startCpuGame("normal"));
-elements.cpuHardButton?.addEventListener("click", () => startCpuGame("hard"));
-elements.cpuBackButton?.addEventListener("click", () => {
-  titleCpuOpen = false;
-  render();
-});
-elements.startMultiButton?.addEventListener("click", startMultiSetup);
-elements.editProfileButton?.addEventListener("click", () => {
-  profileEditorOpen = true;
+elements.startCpuButton?.addEventListener("click", () => {
+  profileEditorOpen = false;
+  titleMenuOpen = false;
+  titleBattleOpen = true;
   titleLobbyOpen = false;
   titleRulesOpen = false;
   titleCardsOpen = false;
@@ -2583,6 +2655,28 @@ elements.editProfileButton?.addEventListener("click", () => {
   titleCpuOpen = false;
   render();
 });
+elements.titleBattleCpuButton?.addEventListener("click", startCpuSetup);
+elements.titleBattleMultiButton?.addEventListener("click", startMultiSetup);
+elements.titleBattleRecordsButton?.addEventListener("click", openRecords);
+elements.titleBattleBackButton?.addEventListener("click", () => {
+  titleBattleOpen = false;
+  render();
+});
+elements.cpuNormalButton?.addEventListener("click", () => startCpuGame("normal"));
+elements.cpuHardButton?.addEventListener("click", () => startCpuGame("hard"));
+elements.cpuBackButton?.addEventListener("click", () => {
+  titleCpuOpen = false;
+  titleBattleOpen = true;
+  render();
+});
+elements.startMultiButton?.addEventListener("click", startMultiSetup);
+elements.titleMenuButton?.addEventListener("click", () => {
+  titleMenuOpen = !titleMenuOpen;
+  render();
+});
+elements.menuProfileButton?.addEventListener("click", openProfileEditor);
+elements.menuUpdatesButton?.addEventListener("click", openUpdateHistory);
+elements.editProfileButton?.addEventListener("click", openProfileEditor);
 elements.closeProfileButton?.addEventListener("click", () => {
   profileEditorOpen = false;
   render();
@@ -2595,6 +2689,8 @@ elements.showRulesButton?.addEventListener("click", () => {
   titleRecordsOpen = false;
   titleCpuOpen = false;
   titleLobbyOpen = false;
+  titleBattleOpen = false;
+  titleMenuOpen = false;
   rulesPageIndex = 0;
   render();
 });
@@ -2607,6 +2703,8 @@ elements.showCardsButton?.addEventListener("click", () => {
   titleRecordsOpen = false;
   titleCpuOpen = false;
   titleLobbyOpen = false;
+  titleBattleOpen = false;
+  titleMenuOpen = false;
   render();
 });
 elements.cardsCloseButton?.addEventListener("click", () => {
@@ -2629,32 +2727,12 @@ elements.battleCardListButton?.addEventListener("click", () => {
   optionsOpen = false;
   render();
 });
-elements.showUpdatesButton?.addEventListener("click", () => {
-  profileEditorOpen = false;
-  titleUpdatesOpen = true;
-  titleCardsOpen = false;
-  titleRulesOpen = false;
-  titleRecordsOpen = false;
-  titleCpuOpen = false;
-  titleLobbyOpen = false;
-  render();
-});
+elements.showUpdatesButton?.addEventListener("click", openUpdateHistory);
 elements.updatesCloseButton?.addEventListener("click", () => {
   titleUpdatesOpen = false;
   render();
 });
-elements.showRecordsButton?.addEventListener("click", () => {
-  profileEditorOpen = false;
-  titleRecordsOpen = true;
-  titleUpdatesOpen = false;
-  titleCardsOpen = false;
-  titleRulesOpen = false;
-  titleCpuOpen = false;
-  titleLobbyOpen = false;
-  sharedLeaderboardLoaded = false;
-  loadSharedLeaderboard();
-  render();
-});
+elements.showRecordsButton?.addEventListener("click", openRecords);
 elements.recordsCloseButton?.addEventListener("click", () => {
   titleRecordsOpen = false;
   render();
@@ -2679,6 +2757,8 @@ elements.titleBackButton?.addEventListener("click", () => {
   titleRulesOpen = false;
   titleCardsOpen = false;
   titleCpuOpen = false;
+  titleBattleOpen = false;
+  titleMenuOpen = false;
   onlineMode = false;
   onlineState = null;
   render();
@@ -4271,6 +4351,11 @@ function initializeFromUrl() {
   titleLobbyMode = "join";
   titleRulesOpen = false;
   titleCardsOpen = false;
+  titleUpdatesOpen = false;
+  titleRecordsOpen = false;
+  titleCpuOpen = false;
+  titleBattleOpen = false;
+  titleMenuOpen = false;
   cpuEnabled = false;
   if (elements.roomIdInput) elements.roomIdInput.value = roomId.toUpperCase();
   if (elements.titleRoomIdInput) elements.titleRoomIdInput.value = roomId.toUpperCase();
