@@ -133,6 +133,15 @@ const RULE_PAGES = [
 ];
 const UPDATE_HISTORY = [
   {
+    version: "v0.68",
+    title: "ランキング表示を見やすく調整",
+    items: [
+      "オンライン共通ランキングで長い名前も最後まで表示されるようにしました。",
+      "ランキングの難易度表示をなくし、1位から3位を目立つ色で表示するようにしました。",
+      "スマホでもアバターが見やすいように表示を調整しました。"
+    ]
+  },
+  {
     version: "v0.67",
     title: "ランキング表示の調整",
     items: [
@@ -1108,12 +1117,11 @@ function renderRecords() {
     ? "<li>読み込み中です。</li>"
     : sharedLeaderboard.length > 0
       ? sharedLeaderboard.slice(0, 10).map((entry, index) => `
-        <li class="shared-rank-row">
+        <li class="shared-rank-row rank-${index + 1}">
           <b>${index + 1}位</b>
           <img class="shared-rank-avatar" src="${leaderboardAvatar(entry)}" alt="">
           <span class="shared-rank-name">${escapeHtml(entry.player_name)}</span>
           <strong>${Number(entry.win_streak) || 0}連勝</strong>
-          <small>${entry.difficulty === "hard" ? "強い" : "普通"}</small>
         </li>
       `).join("")
       : "<li>まだ共有記録がありません。</li>";
