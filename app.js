@@ -138,6 +138,14 @@ const RULE_PAGES = [
 ];
 const UPDATE_HISTORY = [
   {
+    version: "v0.72",
+    title: "ランキングのアバター参照を修正",
+    items: [
+      "オンラインランキングのアバターが公開環境で壊れ画像になる不具合を修正しました。",
+      "ランキングのアバターは、タイトル画面と同じ画像データから表示するようにしました。"
+    ]
+  },
+  {
     version: "v0.71",
     title: "ランキングのアバター表示を再修正",
     items: [
@@ -1138,13 +1146,12 @@ function escapeHtml(value) {
 
 function leaderboardAvatar(entry) {
   const value = String(entry.avatar_id || entry.avatarId || "");
-  if (AVATAR_ASSET_BY_ID.has(value)) return escapeHtml(AVATAR_ASSET_BY_ID.get(value));
-  if (value.startsWith("assets/avatars/")) return escapeHtml(value);
-  return escapeHtml(DEFAULT_LEADERBOARD_AVATAR);
+  if (AVATAR_BY_ID.has(value)) return escapeHtml(AVATAR_BY_ID.get(value));
+  return escapeHtml(AVATAR_OPTIONS[0]);
 }
 
 function defaultLeaderboardAvatar() {
-  return escapeHtml(DEFAULT_LEADERBOARD_AVATAR);
+  return escapeHtml(AVATAR_OPTIONS[0]);
 }
 
 function renderRecords() {
