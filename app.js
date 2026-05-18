@@ -10,7 +10,7 @@ const engine = window.CardGameEngine(CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_PO
 const APP_CONFIG = window.AppConstants || {
   APP_INTERNAL_ID: "summon-happys",
   APP_DISPLAY_NAME: "\u3057\u3087\u30fc\u304b\u3093\u30cf\u30c3\u30d4\u30fc\u30ba",
-  APP_SHORT_NAME: "\u30cf\u30c3\u30d4\u30fc\u30ba"
+  APP_SHORT_NAME: "\u304b\u3093\u30cf\u30d4"
 };
 const { APP_INTERNAL_ID, APP_DISPLAY_NAME, APP_SHORT_NAME } = APP_CONFIG;
 const hapiCoinWallet = window.HapiCoinWallet
@@ -76,9 +76,9 @@ function applyAppIdentity() {
     node.textContent = APP_DISPLAY_NAME;
   });
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-  if (appleTitle) appleTitle.setAttribute("content", APP_DISPLAY_NAME);
+  if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=79");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=81");
 }
 
 let game = engine.createGame();
@@ -101,6 +101,7 @@ let titleRecordsOpen = false;
 let titleCpuOpen = false;
 let titleBattleOpen = false;
 let titleMenuOpen = false;
+let titleReturnTarget = "main";
 let titleCardsFromBattle = false;
 let profileEditorOpen = false;
 let cpuDifficulty = "normal";
@@ -213,6 +214,23 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.81",
+    title: "ホーム画面の名前を調整",
+    items: [
+      "スマホでホーム画面に追加するときの名前を「かんハピ」に変更しました。"
+    ]
+  },
+  {
+    version: "v0.80",
+    title: "タイトル画面の見やすさを調整",
+    items: [
+      "スマホでゲームタイトルが改行されないように表示サイズを調整しました。",
+      "ハピコインとメニューボタンがタイトルに重ならないように配置を調整しました。",
+      "各画面の戻るボタンは、できるだけ1つ前の画面へ戻るようにしました。",
+      "右上メニューに「タイトルに戻る」を追加しました。"
+    ]
+  },
   {
     version: "v0.79",
     title: "タイトル画面を整理",
@@ -492,6 +510,7 @@ const elements = {
   titleMenuPanel: document.querySelector("#titleMenuPanel"),
   menuUpdatesButton: document.querySelector("#menuUpdatesButton"),
   menuProfileButton: document.querySelector("#menuProfileButton"),
+  menuTitleButton: document.querySelector("#menuTitleButton"),
   startCpuButton: document.querySelector("#startCpuButton"),
   playerNameInput: document.querySelector("#playerNameInput"),
   avatarPicker: document.querySelector("#avatarPicker"),
@@ -2539,42 +2558,50 @@ function startCpuGame(difficulty = "normal") {
   setTimeout(() => showTurnBanner(`${game.players[game.activePlayer].name}のターン`), 1300);
 }
 
-function openProfileEditor() {
+function closeTitlePanels() {
+  profileEditorOpen = false;
+  titleLobbyOpen = false;
+  titleRulesOpen = false;
+  titleCardsOpen = false;
+  titleUpdatesOpen = false;
+  titleRecordsOpen = false;
+  titleCpuOpen = false;
+  titleBattleOpen = false;
+  titleMenuOpen = false;
+}
+
+function openBattleMenu() {
+  closeTitlePanels();
+  titleBattleOpen = true;
+  titleReturnTarget = "main";
+  render();
+}
+
+function returnToPreviousTitlePanel() {
+  closeTitlePanels();
+  if (titleReturnTarget === "battle") titleBattleOpen = true;
+  titleReturnTarget = "main";
+  render();
+}
+
+function openProfileEditor(returnTarget = "main") {
+  closeTitlePanels();
   profileEditorOpen = true;
-  titleMenuOpen = false;
-  titleBattleOpen = false;
-  titleLobbyOpen = false;
-  titleRulesOpen = false;
-  titleCardsOpen = false;
-  titleUpdatesOpen = false;
-  titleRecordsOpen = false;
-  titleCpuOpen = false;
+  titleReturnTarget = returnTarget;
   render();
 }
 
-function openUpdateHistory() {
-  profileEditorOpen = false;
-  titleMenuOpen = false;
-  titleBattleOpen = false;
+function openUpdateHistory(returnTarget = "main") {
+  closeTitlePanels();
   titleUpdatesOpen = true;
-  titleCardsOpen = false;
-  titleRulesOpen = false;
-  titleRecordsOpen = false;
-  titleCpuOpen = false;
-  titleLobbyOpen = false;
+  titleReturnTarget = returnTarget;
   render();
 }
 
-function openRecords() {
-  profileEditorOpen = false;
-  titleMenuOpen = false;
-  titleBattleOpen = false;
+function openRecords(returnTarget = "battle") {
+  closeTitlePanels();
   titleRecordsOpen = true;
-  titleUpdatesOpen = false;
-  titleCardsOpen = false;
-  titleRulesOpen = false;
-  titleCpuOpen = false;
-  titleLobbyOpen = false;
+  titleReturnTarget = returnTarget;
   sharedLeaderboardLoaded = false;
   loadSharedLeaderboard();
   render();
@@ -2643,21 +2670,10 @@ elements.endTurnButton.addEventListener("click", () => {
   if (!onlineMode) render();
 });
 
-elements.startCpuButton?.addEventListener("click", () => {
-  profileEditorOpen = false;
-  titleMenuOpen = false;
-  titleBattleOpen = true;
-  titleLobbyOpen = false;
-  titleRulesOpen = false;
-  titleCardsOpen = false;
-  titleUpdatesOpen = false;
-  titleRecordsOpen = false;
-  titleCpuOpen = false;
-  render();
-});
+elements.startCpuButton?.addEventListener("click", openBattleMenu);
 elements.titleBattleCpuButton?.addEventListener("click", startCpuSetup);
 elements.titleBattleMultiButton?.addEventListener("click", startMultiSetup);
-elements.titleBattleRecordsButton?.addEventListener("click", openRecords);
+elements.titleBattleRecordsButton?.addEventListener("click", () => openRecords("battle"));
 elements.titleBattleBackButton?.addEventListener("click", () => {
   titleBattleOpen = false;
   render();
@@ -2676,10 +2692,14 @@ elements.titleMenuButton?.addEventListener("click", () => {
 });
 elements.menuProfileButton?.addEventListener("click", openProfileEditor);
 elements.menuUpdatesButton?.addEventListener("click", openUpdateHistory);
+elements.menuTitleButton?.addEventListener("click", () => {
+  closeTitlePanels();
+  titleReturnTarget = "main";
+  render();
+});
 elements.editProfileButton?.addEventListener("click", openProfileEditor);
 elements.closeProfileButton?.addEventListener("click", () => {
-  profileEditorOpen = false;
-  render();
+  returnToPreviousTitlePanel();
 });
 elements.showRulesButton?.addEventListener("click", () => {
   profileEditorOpen = false;
@@ -2708,12 +2728,14 @@ elements.showCardsButton?.addEventListener("click", () => {
   render();
 });
 elements.cardsCloseButton?.addEventListener("click", () => {
-  titleCardsOpen = false;
   if (titleCardsFromBattle) {
+    titleCardsOpen = false;
     titleActive = false;
     titleCardsFromBattle = false;
+    render();
+  } else {
+    returnToPreviousTitlePanel();
   }
-  render();
 });
 elements.battleCardListButton?.addEventListener("click", () => {
   titleCardsFromBattle = true;
@@ -2729,17 +2751,14 @@ elements.battleCardListButton?.addEventListener("click", () => {
 });
 elements.showUpdatesButton?.addEventListener("click", openUpdateHistory);
 elements.updatesCloseButton?.addEventListener("click", () => {
-  titleUpdatesOpen = false;
-  render();
+  returnToPreviousTitlePanel();
 });
 elements.showRecordsButton?.addEventListener("click", openRecords);
 elements.recordsCloseButton?.addEventListener("click", () => {
-  titleRecordsOpen = false;
-  render();
+  returnToPreviousTitlePanel();
 });
 elements.rulesCloseButton?.addEventListener("click", () => {
-  titleRulesOpen = false;
-  render();
+  returnToPreviousTitlePanel();
 });
 elements.rulesPrevButton?.addEventListener("click", () => {
   rulesPageIndex = Math.max(0, rulesPageIndex - 1);
