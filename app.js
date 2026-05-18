@@ -138,6 +138,22 @@ const RULE_PAGES = [
 ];
 const UPDATE_HISTORY = [
   {
+    version: "v0.74",
+    title: "ホーム画面追加に対応",
+    items: [
+      "iPhoneのSafariでホーム画面に追加した時、アプリのように起動しやすい表示に対応しました。",
+      "オンライン接続がない時は、オンライン接続が必要であることを表示するようにしました。"
+    ]
+  },
+  {
+    version: "v0.73",
+    title: "ランキングの過去アバター復元を修正",
+    items: [
+      "以前ランキングに保存されたアバター画像データから、元のアバターをできるだけ復元して表示するようにしました。",
+      "復元できない場合だけデフォルトアバターを表示するようにしました。"
+    ]
+  },
+  {
     version: "v0.72",
     title: "ランキングのアバター参照を修正",
     items: [
@@ -1147,11 +1163,26 @@ function escapeHtml(value) {
 function leaderboardAvatar(entry) {
   const value = String(entry.avatar_id || entry.avatarId || "");
   if (AVATAR_BY_ID.has(value)) return escapeHtml(AVATAR_BY_ID.get(value));
+  const restored = restoreAvatarFromStoredValue(value);
+  if (restored) return escapeHtml(restored);
   return escapeHtml(AVATAR_OPTIONS[0]);
 }
 
 function defaultLeaderboardAvatar() {
   return escapeHtml(AVATAR_OPTIONS[0]);
+}
+
+function restoreAvatarFromStoredValue(value) {
+  if (!value) return "";
+  if (value.startsWith("data:image/")) {
+    return AVATAR_OPTIONS.find((avatar) => avatar.startsWith(value) || value.startsWith(avatar.slice(0, Math.min(800, avatar.length)))) || "";
+  }
+  if (value.startsWith("assets/avatars/")) {
+    const filename = value.split("/").pop();
+    const index = AVATAR_FALLBACK_OPTIONS.findIndex((avatar) => avatar.endsWith(filename));
+    return index >= 0 ? AVATAR_OPTIONS[index] || "" : "";
+  }
+  return "";
 }
 
 function renderRecords() {
@@ -4103,8 +4134,19 @@ function initializeFromUrl() {
   if (elements.titleRoomIdInput) elements.titleRoomIdInput.value = roomId.toUpperCase();
 }
 
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  if (!window.isSecureContext && !["localhost", "127.0.0.1"].includes(location.hostname)) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {
+      // PWA support is optional during local development.
+    });
+  });
+}
+
 setupProfileControls();
 initializeFromUrl();
+registerServiceWorker();
 const savedOnlineSession = loadOnlineSession();
 if (restoreCpuBattleIfNeeded()) {
   showFloat("CPU戦を復元しました", "draw");

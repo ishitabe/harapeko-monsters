@@ -3,7 +3,13 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#07101a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="はらぺこモンスターズ">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>はらぺこモンスターズ</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="pwa-icon.png">
     <link rel="stylesheet" href="styles.css?v=65">
     <script>
       window.addEventListener("error", (event) => {
@@ -14,7 +20,7 @@
     <script src="avatars.js?v=62" defer></script>
     <script src="cards.js?v=62" defer></script>
     <script src="gameEngine.js?v=62" defer></script>
-    <script src="app.js?v=73" defer></script>
+    <script src="app.js?v=74" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -115,7 +121,7 @@
           <button class="small-button" id="titleBackButton" type="button">戻る</button>
         </div>
         <p class="title-note">山札を選び、モンスターを出して、相手のHPを0にしよう。</p>
-        <p class="version-label">v0.73</p>
+        <p class="version-label">v0.74</p>
       </div>
     </section>
     <main class="battle-shell">

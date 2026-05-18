@@ -1,0 +1,31 @@
+{
+  "name": "はらぺこモンスターズ",
+  "short_name": "はらモン",
+  "description": "山札を選び、モンスターを出して、相手のHPを0にするカードバトル。",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#07101a",
+  "background_color": "#07101a",
+  "icons": [
+    {
+      "src": "pwa-icon.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "pwa-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "pwa-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

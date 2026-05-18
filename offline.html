@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#07101a">
+    <title>オンライン接続が必要です</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #07101a;
+        color: #fff6df;
+      }
+
+      body {
+        min-height: 100dvh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at 50% 18%, rgba(103, 183, 255, 0.18), transparent 34%),
+          linear-gradient(160deg, #07101a, #0f1c2a 58%, #05080d);
+      }
+
+      main {
+        width: min(520px, 100%);
+        padding: 28px;
+        border: 1px solid rgba(242, 189, 92, 0.36);
+        border-radius: 18px;
+        background: rgba(10, 18, 28, 0.92);
+        box-shadow: 0 22px 70px rgba(0,0,0,0.48);
+        text-align: center;
+      }
+
+      img {
+        width: 92px;
+        height: 92px;
+        object-fit: contain;
+        border-radius: 50%;
+        margin-bottom: 14px;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(1.8rem, 8vw, 2.7rem);
+      }
+
+      p {
+        margin: 0;
+        color: rgba(223, 235, 255, 0.78);
+        font-weight: 800;
+        line-height: 1.7;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="pwa-icon.png" alt="">
+      <h1>オンライン接続が必要です</h1>
+      <p>はらぺこモンスターズはオンライン対戦ゲームです。通信できる状態でもう一度開いてください。</p>
+    </main>
+  </body>
+</html>
