@@ -22,7 +22,8 @@ const STORAGE_KEYS = {
   records: `${APP_INTERNAL_ID}-records`,
   hardCpuRun: `${APP_INTERNAL_ID}-hard-cpu-run`,
   currentCpuBattle: `${APP_INTERNAL_ID}-current-cpu-battle`,
-  challengeRewards: `${APP_INTERNAL_ID}-challenge-rewards`
+  challengeRewards: `${APP_INTERNAL_ID}-challenge-rewards`,
+  loginBonus: `${APP_INTERNAL_ID}-login-bonus`
 };
 const LEGACY_STORAGE_KEYS = {
   player: ["hara" + "pekoPlayerProfile"],
@@ -79,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=90");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=91");
 }
 
 let game = engine.createGame();
@@ -246,6 +247,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.91",
+    title: "ログインボーナスを追加",
+    items: [
+      "1日1回、タイトル画面を開いた時に連続ログイン日数に応じたハピコインを受け取れるようにしました。",
+      "チャレンジ報酬がいつ更新されるか、チャレンジ画面に説明を追加しました。",
+      "スマホで新UIのカードに触れた時、中央に大きなカードプレビューが出ないようにしました。"
+    ]
+  },
   {
     version: "v0.90",
     title: "新UIドラッグ操作の調整",
@@ -1128,6 +1138,57 @@ function todayKey() {
   return `${year}-${month}-${day}`;
 }
 
+function localDateFromKey(key) {
+  const match = String(key || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function localDateDiffDays(fromKey, toKey) {
+  const from = localDateFromKey(fromKey);
+  const to = localDateFromKey(toKey);
+  if (!from || !to) return null;
+  const dayMs = 24 * 60 * 60 * 1000;
+  return Math.round((to.getTime() - from.getTime()) / dayMs);
+}
+
+function loadLoginBonusState() {
+  try {
+    const parsed = JSON.parse(readStorage("loginBonus", "{}") || "{}");
+    return {
+      lastDate: typeof parsed.lastDate === "string" ? parsed.lastDate : "",
+      streak: Math.max(0, Number(parsed.streak) || 0)
+    };
+  } catch {
+    return { lastDate: "", streak: 0 };
+  }
+}
+
+function saveLoginBonusState(state) {
+  writeStorage("loginBonus", JSON.stringify({
+    lastDate: state.lastDate,
+    streak: Math.max(0, Number(state.streak) || 0)
+  }));
+}
+
+function claimDailyLoginBonusIfNeeded() {
+  const today = todayKey();
+  const state = loadLoginBonusState();
+  if (state.lastDate === today) return null;
+  const diff = localDateDiffDays(state.lastDate, today);
+  const streak = diff === 1 ? state.streak + 1 : 1;
+  const amount = streak * 10;
+  const reward = addHapiCoins(amount, "daily-login-bonus");
+  saveLoginBonusState({ lastDate: today, streak });
+  console.log("Daily login bonus", {
+    loginDate: today,
+    streak,
+    earnedHapiCoins: reward.added,
+    totalHapiCoins: reward.total
+  });
+  return { streak, reward };
+}
+
 function loadChallengeRewards() {
   try {
     const parsed = JSON.parse(readStorage("challengeRewards", "{}") || "{}");
@@ -1622,6 +1683,26 @@ function renderChallengeList() {
   elements.suddenDeathStatus.innerHTML = claimed
     ? `<span class="challenge-clear">CLEAR</span><span class="challenge-claimed">報酬獲得済み</span>`
     : `<span class="challenge-reward-open">本日報酬あり</span>`;
+}
+
+function showLoginBonusOverlay(result) {
+  if (!result?.reward?.added) return;
+  document.querySelector("#loginBonusOverlay")?.remove();
+  const node = document.createElement("div");
+  node.id = "loginBonusOverlay";
+  node.className = "login-bonus-overlay";
+  const streakLine = result.streak > 1 ? `<p class="login-bonus-streak">連続ログイン${result.streak}日目</p>` : "";
+  node.innerHTML = `
+    <div class="login-bonus-card">
+      <p>ログインボーナス！</p>
+      ${streakLine}
+      <strong>${result.reward.added}ハピコイン獲得！</strong>
+      <span>所持数：${result.reward.total}枚</span>
+      <button type="button" id="loginBonusClose">OK</button>
+    </div>
+  `;
+  document.body.append(node);
+  node.querySelector("#loginBonusClose").addEventListener("click", () => node.remove());
 }
 
 function makeRoomUrl(roomId) {
@@ -2651,12 +2732,6 @@ function bindCardPreview(node, card, unit = null, item = null) {
     showCardPreview(card, unit, item);
   });
   node.addEventListener("pointerleave", hideCardPreview);
-  node.addEventListener("pointerdown", (event) => {
-    if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
-    showCardPreview(card, unit, item);
-  });
-  node.addEventListener("pointerup", hideCardPreview);
-  node.addEventListener("pointercancel", hideCardPreview);
 }
 
 function canUseModernDrag(view = getView()) {
@@ -5014,6 +5089,7 @@ initializeFromUrl();
 applyAppIdentity();
 registerServiceWorker();
 const savedOnlineSession = loadOnlineSession();
+let loginBonusResult = null;
 if (restoreCpuBattleIfNeeded()) {
   showFloat("CPU戦を復元しました", "draw");
 } else if (savedOnlineSession) {
@@ -5037,5 +5113,10 @@ if (restoreCpuBattleIfNeeded()) {
   titleActive = false;
   ensureSocket();
 }
+if (titleActive) loginBonusResult = claimDailyLoginBonusIfNeeded();
 render();
+if (loginBonusResult && titleActive) {
+  updateHapiCoinDisplay();
+  setTimeout(() => showLoginBonusOverlay(loginBonusResult), 260);
+}
 })();
