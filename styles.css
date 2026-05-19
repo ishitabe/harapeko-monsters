@@ -933,9 +933,9 @@ body.modern-card-ui .mini-card {
   aspect-ratio: 5 / 7;
   min-height: 0;
   display: grid;
-  grid-template-rows: 30px minmax(0, 1fr) 56px 20px;
+  grid-template-rows: 30px minmax(0, 1fr) 74px;
   gap: 6px;
-  padding: 8px 8px 18px;
+  padding: 8px 8px 20px;
   border: 3px solid var(--card-border);
   border-radius: 14px;
   background:
@@ -984,7 +984,7 @@ body.modern-card-ui .mini-card {
 
 .card-effect-box {
   min-height: 0;
-  height: 56px;
+  height: 74px;
   padding: 7px 8px;
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 8px;
@@ -997,7 +997,10 @@ body.modern-card-ui .mini-card {
 }
 
 .card-type-label {
-  justify-self: center;
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  transform: translateX(-50%);
   min-width: 74px;
   padding: 3px 10px;
   border-radius: 999px;
@@ -1006,9 +1009,11 @@ body.modern-card-ui .mini-card {
   font-size: 0.68rem;
   font-weight: 1000;
   text-align: center;
-  height: 20px;
-  line-height: 14px;
+  height: 24px;
+  line-height: 18px;
   overflow: hidden;
+  border: 2px solid var(--card-border);
+  box-shadow: 0 8px 14px rgba(0,0,0,0.36);
 }
 
 .stat-badge {
@@ -1117,8 +1122,8 @@ body.modern-card-ui .mini-card {
   aspect-ratio: 5 / 7;
   min-height: 0;
   margin: 0 auto;
-  grid-template-rows: 48px minmax(0, 1fr) 96px 28px;
-  padding: 14px 14px 28px;
+  grid-template-rows: 48px minmax(0, 1fr) 120px;
+  padding: 14px 14px 32px;
 }
 
 .game-card.large .card-title-band {
@@ -1131,7 +1136,7 @@ body.modern-card-ui .mini-card {
 }
 
 .game-card.large .card-effect-box {
-  height: 96px;
+  height: 120px;
   font-size: 1rem;
   line-height: 1.45;
 }
@@ -1153,8 +1158,8 @@ body.modern-card-ui .mini-card {
 .game-card.mini {
   aspect-ratio: 5 / 7;
   min-height: 0;
-  grid-template-rows: 24px minmax(0, 1fr) 40px 18px;
-  padding: 6px 6px 15px;
+  grid-template-rows: 24px minmax(0, 1fr) 56px;
+  padding: 6px 6px 17px;
 }
 
 .game-card.mini .card-title-band {
@@ -1163,7 +1168,7 @@ body.modern-card-ui .mini-card {
 }
 
 .game-card.mini .card-effect-box {
-  height: 40px;
+  height: 56px;
   font-size: 0.62rem;
 }
 
@@ -1176,6 +1181,39 @@ body.modern-card-ui .mini-card {
 
 .game-card.mini .stat-badge b {
   font-size: 0.78rem;
+}
+
+.card-hover-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: radial-gradient(circle at 50% 50%, rgba(12, 20, 31, 0.48), rgba(0, 0, 0, 0.12) 55%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.98);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.card-hover-preview.show {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.card-hover-preview .game-card {
+  width: min(330px, 72vw);
+  max-height: min(86vh, 480px);
+  filter: drop-shadow(0 28px 50px rgba(0,0,0,0.55));
+}
+
+.card-hover-detail {
+  width: min(340px, 76vw);
+  max-height: min(86vh, 520px);
+  overflow: auto;
+  padding: 18px;
+  box-shadow: 0 28px 50px rgba(0,0,0,0.55), 0 0 40px rgba(242,189,92,0.16);
 }
 
 .action-form label {
@@ -3182,8 +3220,8 @@ body.title-cpu-active .version-label {
 
   body.modern-card-ui .game-card {
     min-height: 0;
-    grid-template-rows: 24px minmax(0, 1fr) 40px 18px;
-    padding: 6px 6px 15px;
+    grid-template-rows: 24px minmax(0, 1fr) 56px;
+    padding: 6px 6px 17px;
     border-width: 2px;
     border-radius: 11px;
   }
@@ -3199,7 +3237,7 @@ body.title-cpu-active .version-label {
 
   body.modern-card-ui .card-effect-box {
     min-height: 0;
-    height: 40px;
+    height: 56px;
     padding: 5px 6px;
     font-size: 0.6rem;
     line-height: 1.22;
@@ -3209,6 +3247,8 @@ body.title-cpu-active .version-label {
     min-width: 58px;
     padding: 2px 7px;
     font-size: 0.56rem;
+    height: 20px;
+    bottom: -10px;
   }
 
   body.modern-card-ui .stat-badge {

@@ -79,7 +79,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=87");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=88");
 }
 
 let game = engine.createGame();
@@ -123,6 +123,7 @@ let sharedLeaderboard = [];
 let sharedLeaderboardLoaded = false;
 let activeChallenge = null;
 let challengeResultHandled = false;
+let cardPreviewNode = null;
 const pendingFx = new Map();
 const AVATAR_DEFINITIONS = window.AppAvatars || [];
 const AVATAR_OPTIONS = AVATAR_DEFINITIONS.map((avatar) => avatar.src);
@@ -243,6 +244,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.88",
+    title: "カード確認と新UI表示を調整",
+    items: [
+      "カードにカーソルを合わせた時、またはスマホで指を置いた時に、中央へ大きなカードプレビューを表示するようにしました。",
+      "新UIの分類タグをカード下部から少しはみ出すバッジ表示に変更しました。",
+      "新UIの効果テキスト欄を広げ、長い効果が読みやすくなるように調整しました。"
+    ]
+  },
   {
     version: "v0.87",
     title: "新カード表示の見やすさを調整",
@@ -1657,6 +1667,7 @@ function renderDecks(piles, activePlayer, winner, lockedForCpu) {
       }
       if (!onlineMode) render();
     });
+    bindCardPreview(button, topCard);
     elements.deckGrid.append(button);
   });
 }
@@ -1691,6 +1702,7 @@ function renderDiscard(discard) {
     item.className = `mini-card ${card.type} ${selectedKey === key ? "selected" : ""} ${index === 0 ? "fx-discard-pop" : ""}`;
     item.type = "button";
     item.innerHTML = compactCardMarkup(card);
+    bindCardPreview(item, card);
     item.addEventListener("click", () => {
       playSound("select");
       selectDetail(key, card, "捨札", null, { source: "discard" });
@@ -1738,6 +1750,7 @@ function renderField(container, field, maxFieldSize, view, playerId) {
         <p class="card-text">${card.text}</p>
       `;
     attachHeldItemClick(slot, unit.item, key);
+    bindCardPreview(slot, card, unit, unit.item);
     slot.addEventListener("click", () => {
       playSound("select");
       selectDetail(key, card, playerId === getSelfId() ? "自分の場" : "相手の場", unit, { source: "field", ownerId: playerId, unitId: unit.id });
@@ -1773,6 +1786,7 @@ function renderHand(hand, view, lockedForCpu) {
     article.dataset.key = key;
     article.className = `card-shell ${card.type} ${selectedKey === key ? "selected" : ""} ${fxClassFor(key)} ${lockedForCpu || isHandCardDisabled(card, handOwner, view) ? "disabled-card" : ""}`;
     article.innerHTML = cardMarkup(card);
+    bindCardPreview(article, card);
     article.addEventListener("click", () => {
       playSound("select");
       selectDetail(key, card, "自分の手札", null, { source: "hand", handIndex, cardId, locked: lockedForCpu });
@@ -1821,6 +1835,7 @@ function renderDetail() {
       item.className = `mini-card ${card.type}`;
       item.type = "button";
       item.innerHTML = compactCardMarkup(card);
+      bindCardPreview(item, card);
       item.addEventListener("click", () => {
         selectDetail(`discard-detail:${index}`, card, "捨札", null, { source: "discard" });
         render();
@@ -2564,6 +2579,52 @@ function deckTopCardMarkup(card) {
       <div class="card-art" aria-hidden="true"></div>
     </div>
   `;
+}
+
+function previewCardMarkup(card, unit = null, item = null) {
+  if (cardUiMode === "modern") {
+    return modernCardMarkup(card, { unit, item, large: true });
+  }
+  return `
+    <div class="detail-card ${card.type} card-hover-detail">
+      ${typeBadge(card.type)}
+      <h2>${card.name}</h2>
+      ${card.type === "unit" ? `<div class="unit-stats"><span class="stat-pill hp">HP ${unit ? `${unit.hp}/${unit.maxHp}` : card.hp}</span><span class="stat-pill pow">PW ${unit ? unit.power : card.power}</span></div>` : ""}
+      ${item?.hasItem ? itemBadgeMarkup(item) : ""}
+      <p>${card.text}</p>
+    </div>
+  `;
+}
+
+function showCardPreview(card, unit = null, item = null) {
+  if (!card) return;
+  if (!cardPreviewNode) {
+    cardPreviewNode = document.createElement("div");
+    cardPreviewNode.id = "cardHoverPreview";
+    cardPreviewNode.className = "card-hover-preview";
+    document.body.append(cardPreviewNode);
+  }
+  cardPreviewNode.innerHTML = previewCardMarkup(card, unit, item);
+  cardPreviewNode.classList.add("show");
+}
+
+function hideCardPreview() {
+  cardPreviewNode?.classList.remove("show");
+}
+
+function bindCardPreview(node, card, unit = null, item = null) {
+  if (!node || !card) return;
+  node.addEventListener("pointerenter", (event) => {
+    if (event.pointerType === "touch") return;
+    showCardPreview(card, unit, item);
+  });
+  node.addEventListener("pointerleave", hideCardPreview);
+  node.addEventListener("pointerdown", (event) => {
+    if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+    showCardPreview(card, unit, item);
+  });
+  node.addEventListener("pointerup", hideCardPreview);
+  node.addEventListener("pointercancel", hideCardPreview);
 }
 
 function heldItemIconMarkup(item) {
