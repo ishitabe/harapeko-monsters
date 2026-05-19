@@ -78,7 +78,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=83");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=84");
 }
 
 let game = engine.createGame();
@@ -224,6 +224,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.84",
+    title: "スマホのメッセージ表示を再調整",
+    items: [
+      "スマホで中央メッセージやターン表示が大きすぎたり、横に見切れたりしにくいように文字サイズと幅を調整しました。",
+      "山札ドロー案内がスマホで読みやすく表示されるようにしました。",
+      "勝利画面のプレイヤー名とハピコイン表示がスマホ画面内に収まりやすいようにしました。"
+    ]
+  },
   {
     version: "v0.83",
     title: "持ち物公開とルール表示を調整",
