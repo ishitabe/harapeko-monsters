@@ -880,6 +880,272 @@ p {
   color: #1b0505;
 }
 
+body.modern-card-ui .field-slot.filled,
+body.modern-card-ui .card-shell,
+body.modern-card-ui .mini-card,
+body.modern-card-ui .detail-card.unit,
+body.modern-card-ui .detail-card.item,
+body.modern-card-ui .detail-card.action {
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.modern-card-ui .field-slot.filled {
+  min-height: 205px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+body.modern-card-ui .deck-card {
+  grid-template-columns: 1fr;
+  gap: 6px;
+  padding: 8px;
+}
+
+body.modern-card-ui .deck-card .deck-meta {
+  order: 2;
+  font-size: 0.82rem;
+}
+
+body.modern-card-ui .card-shell {
+  flex-basis: 150px;
+  width: 150px;
+  min-height: 202px;
+  max-height: none;
+  padding: 0;
+  margin-right: -46px;
+}
+
+body.modern-card-ui .mini-card {
+  min-height: 150px;
+  padding: 0;
+}
+
+.game-card {
+  --card-border: rgba(240, 122, 69, 0.92);
+  --card-glow: rgba(240, 122, 69, 0.22);
+  position: relative;
+  width: 100%;
+  min-height: 196px;
+  display: grid;
+  grid-template-rows: auto minmax(74px, 1fr) minmax(56px, auto) auto;
+  gap: 6px;
+  padding: 8px 8px 18px;
+  border: 3px solid var(--card-border);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), transparent 20%),
+    linear-gradient(160deg, var(--card-glow), transparent 45%),
+    #15202d;
+  box-shadow:
+    0 18px 32px rgba(0,0,0,0.48),
+    inset 0 0 0 1px rgba(255,255,255,0.18),
+    inset 0 0 0 5px rgba(0,0,0,0.22);
+  color: #f8ead0;
+}
+
+.game-card.unit { --card-border: rgba(240, 122, 69, 0.95); --card-glow: rgba(240, 122, 69, 0.26); }
+.game-card.item { --card-border: rgba(82, 168, 255, 0.95); --card-glow: rgba(82, 168, 255, 0.25); }
+.game-card.action { --card-border: rgba(114, 214, 107, 0.92); --card-glow: rgba(114, 214, 107, 0.22); }
+
+.card-title-band {
+  min-height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 4px 8px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 9px 9px 6px 6px;
+  background: rgba(5, 10, 18, 0.68);
+  color: #fff6df;
+  font-size: 0.95rem;
+  font-weight: 1000;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.card-art {
+  min-height: 76px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255,255,255,0.12), transparent 46%),
+    linear-gradient(135deg, rgba(255,255,255,0.05), rgba(0,0,0,0.18)),
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 8px);
+}
+
+.card-effect-box {
+  min-height: 50px;
+  padding: 7px 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  background: rgba(6, 11, 18, 0.72);
+  color: #dce8f4;
+  font-size: 0.73rem;
+  font-weight: 800;
+  line-height: 1.28;
+  overflow: hidden;
+}
+
+.card-type-label {
+  justify-self: center;
+  min-width: 74px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  color: #fff6df;
+  font-size: 0.68rem;
+  font-weight: 1000;
+  text-align: center;
+}
+
+.stat-badge {
+  position: absolute;
+  bottom: -18px;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 3px solid rgba(255,255,255,0.72);
+  border-radius: 50%;
+  box-shadow: 0 10px 18px rgba(0,0,0,0.42), 0 0 16px rgba(255,255,255,0.14);
+  color: #fff;
+  text-align: center;
+}
+
+.stat-badge small {
+  margin-top: 3px;
+  font-size: 0.48rem;
+  line-height: 1;
+  opacity: 0.88;
+}
+
+.stat-badge b {
+  margin-top: -9px;
+  font-size: 1.08rem;
+  line-height: 1;
+}
+
+.stat-badge.power {
+  left: -12px;
+  background: radial-gradient(circle at 35% 28%, #ffb2a2, #e34d4d 48%, #6f1717 100%);
+}
+
+.stat-badge.hp {
+  right: -12px;
+  background: radial-gradient(circle at 35% 28%, #b8ffca, #28a95d 48%, #13572f 100%);
+}
+
+.held-item-icon {
+  position: absolute;
+  right: -8px;
+  top: -8px;
+  z-index: 8;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255,255,255,0.72);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #fff5c7, #d49b35 42%, #6c4511 100%);
+  color: #140b03;
+  font-size: 0.72rem;
+  box-shadow: 0 0 18px rgba(242, 189, 92, 0.38);
+}
+
+.held-item-icon.hidden {
+  background: radial-gradient(circle at 35% 28%, #aab0ba, #596273 48%, #242b36 100%);
+  color: #d7dee8;
+}
+
+.held-item-icon.revealed {
+  filter: saturate(1.25) brightness(1.08);
+}
+
+.deck-top-card {
+  min-height: 92px;
+  border: 2px solid rgba(255,255,255,0.18);
+  border-radius: 10px;
+  padding: 6px;
+  background:
+    linear-gradient(160deg, rgba(103,183,255,0.12), transparent 50%),
+    rgba(10, 16, 24, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+.deck-top-card.unit { border-color: rgba(240, 122, 69, 0.7); }
+.deck-top-card.item { border-color: rgba(82, 168, 255, 0.72); }
+.deck-top-card.action { border-color: rgba(114, 214, 107, 0.7); }
+
+.deck-top-card .card-art {
+  min-height: 78px;
+}
+
+.game-card.large {
+  width: min(330px, 78vw);
+  min-height: 440px;
+  margin: 0 auto;
+  grid-template-rows: auto minmax(170px, 1fr) minmax(96px, auto) auto;
+  padding: 14px 14px 28px;
+}
+
+.game-card.large .card-title-band {
+  min-height: 48px;
+  font-size: 1.45rem;
+}
+
+.game-card.large .card-art {
+  min-height: 180px;
+}
+
+.game-card.large .card-effect-box {
+  min-height: 96px;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.game-card.large .card-type-label {
+  font-size: 0.9rem;
+}
+
+.game-card.large .stat-badge {
+  width: 64px;
+  height: 64px;
+  bottom: -24px;
+}
+
+.game-card.large .stat-badge b {
+  font-size: 1.48rem;
+}
+
+.game-card.mini {
+  min-height: 145px;
+  grid-template-rows: auto minmax(42px, 1fr) minmax(36px, auto) auto;
+  padding: 6px 6px 15px;
+}
+
+.game-card.mini .card-title-band {
+  min-height: 24px;
+  font-size: 0.76rem;
+}
+
+.game-card.mini .card-effect-box {
+  font-size: 0.62rem;
+}
+
+.game-card.mini .stat-badge {
+  width: 34px;
+  height: 34px;
+  bottom: -13px;
+  border-width: 2px;
+}
+
+.game-card.mini .stat-badge b {
+  font-size: 0.78rem;
+}
+
 .action-form label {
   display: grid;
   gap: 6px;
@@ -2668,6 +2934,10 @@ body.title-cpu-active .version-label {
     gap: 5px;
   }
 
+  body.modern-card-ui .field-slot.filled {
+    min-height: 170px;
+  }
+
   .field-slot.empty {
     font-size: 0.78rem;
   }
@@ -2781,6 +3051,67 @@ body.title-cpu-active .version-label {
     scroll-snap-align: start;
   }
 
+  body.modern-card-ui .card-shell {
+    flex-basis: 118px;
+    width: 118px;
+    min-height: 172px;
+    max-height: none;
+    margin-right: -30px;
+    padding: 0;
+  }
+
+  body.modern-card-ui .game-card {
+    min-height: 166px;
+    grid-template-rows: auto minmax(48px, 1fr) minmax(42px, auto) auto;
+    padding: 6px 6px 15px;
+    border-width: 2px;
+    border-radius: 11px;
+  }
+
+  body.modern-card-ui .card-title-band {
+    min-height: 24px;
+    font-size: 0.76rem;
+  }
+
+  body.modern-card-ui .card-art {
+    min-height: 50px;
+  }
+
+  body.modern-card-ui .card-effect-box {
+    min-height: 40px;
+    padding: 5px 6px;
+    font-size: 0.6rem;
+    line-height: 1.22;
+  }
+
+  body.modern-card-ui .card-type-label {
+    min-width: 58px;
+    padding: 2px 7px;
+    font-size: 0.56rem;
+  }
+
+  body.modern-card-ui .stat-badge {
+    width: 34px;
+    height: 34px;
+    bottom: -13px;
+    border-width: 2px;
+  }
+
+  body.modern-card-ui .stat-badge small {
+    font-size: 0.42rem;
+  }
+
+  body.modern-card-ui .stat-badge b {
+    font-size: 0.72rem;
+  }
+
+  body.modern-card-ui .held-item-icon {
+    width: 24px;
+    height: 24px;
+    right: -6px;
+    top: -6px;
+  }
+
   .hand-grid .card-shell:hover,
   .hand-grid .card-shell.selected {
     transform: translateY(-8px) scale(1.05);
@@ -2804,6 +3135,14 @@ body.title-cpu-active .version-label {
     min-height: 108px;
     padding: 8px;
     gap: 5px;
+  }
+
+  body.modern-card-ui .deck-top-card {
+    min-height: 70px;
+  }
+
+  body.modern-card-ui .deck-top-card .card-art {
+    min-height: 56px;
   }
 
   .deck-card:hover:not(:disabled) {

@@ -78,7 +78,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=84");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=85");
 }
 
 let game = engine.createGame();
@@ -103,6 +103,7 @@ let titleBattleOpen = false;
 let titleMenuOpen = false;
 let titleReturnTarget = "main";
 let titleCardsFromBattle = false;
+let cardUiMode = localStorage.getItem(`${APP_INTERNAL_ID}-card-ui-mode`) || "modern";
 let profileEditorOpen = false;
 let cpuDifficulty = "normal";
 let rulesPageIndex = 0;
@@ -224,6 +225,17 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.85",
+    title: "カード表示の新UIを追加",
+    items: [
+      "カードを縦長のカードらしい見た目で表示する新UIを追加しました。",
+      "新UIではカード名、イラスト枠、効果欄、分類ラベルを分けて表示します。",
+      "モンスターのパワーとHPをカード下部の丸バッジで表示するようにしました。",
+      "山札トップはカード全体ではなくイラスト部分を中心に表示し、詳細はタップで確認する形にしました。",
+      "旧カード表示も残し、タイトル画面右上のメニューからカード表示を切り替えられるようにしました。"
+    ]
+  },
   {
     version: "v0.84",
     title: "スマホのメッセージ表示を再調整",
@@ -549,6 +561,7 @@ const elements = {
   titleMenuPanel: document.querySelector("#titleMenuPanel"),
   menuUpdatesButton: document.querySelector("#menuUpdatesButton"),
   menuProfileButton: document.querySelector("#menuProfileButton"),
+  menuCardUiButton: document.querySelector("#menuCardUiButton"),
   menuTitleButton: document.querySelector("#menuTitleButton"),
   startCpuButton: document.querySelector("#startCpuButton"),
   playerNameInput: document.querySelector("#playerNameInput"),
@@ -1038,7 +1051,9 @@ function render() {
   document.body.classList.toggle("title-cpu-active", titleCpuOpen);
   document.body.classList.toggle("title-battle-active", titleBattleOpen);
   document.body.classList.toggle("profile-editor-active", profileEditorOpen);
+  document.body.classList.toggle("modern-card-ui", cardUiMode === "modern");
   elements.titleMenuPanel?.classList.toggle("hidden", !titleMenuOpen);
+  if (elements.menuCardUiButton) elements.menuCardUiButton.textContent = cardUiMode === "modern" ? "カード表示: 新UI" : "カード表示: 旧UI";
   elements.titleBattleMenu?.classList.toggle("hidden", !titleBattleOpen);
   elements.titleLobby?.classList.toggle("hidden", !titleLobbyOpen);
   elements.titleRules?.classList.toggle("hidden", !titleRulesOpen);
@@ -1338,14 +1353,16 @@ function renderCardList() {
       const article = document.createElement("article");
       article.className = `card-list-entry ${card.type}`;
       const stats = card.type === "unit" ? `<div class="card-list-stats"><span>HP ${card.hp}</span><span>PW ${card.power}</span></div>` : "";
-      article.innerHTML = `
-        <div class="card-list-entry-head">
-          <span class="card-type ${card.type}">${typeLabels[card.type]}</span>
-          <strong>${card.name}</strong>
-        </div>
-        ${stats}
-        <p>${card.text}</p>
-      `;
+      article.innerHTML = cardUiMode === "modern"
+        ? modernCardMarkup(card, { mini: true })
+        : `
+          <div class="card-list-entry-head">
+            <span class="card-type ${card.type}">${typeLabels[card.type]}</span>
+            <strong>${card.name}</strong>
+          </div>
+          ${stats}
+          <p>${card.text}</p>
+        `;
       grid.append(article);
     });
     section.append(grid);
@@ -1496,13 +1513,18 @@ function renderDecks(piles, activePlayer, winner, lockedForCpu) {
     button.className = `deck-card ${topCard ? topCard.type : ""} ${selectedKey === key ? "selected" : ""} ${fxClassFor(key)}`;
     button.type = "button";
     button.disabled = !pile.topCardId;
-    button.innerHTML = `
-      <div class="deck-thumb ${topCard ? topCard.type : ""}">${topCard ? typeBadge(topCard.type) : ""}</div>
-      <div>
+    button.innerHTML = cardUiMode === "modern"
+      ? `
         <div class="deck-meta"><span class="deck-name">${pile.name}</span><small>残り ${pile.count} 枚</small></div>
-        ${topCard ? `<div class="card-name">${topCard.name}</div><p class="card-text">${topCard.text}</p>` : "<p class=\"empty-note\">空</p>"}
-      </div>
-    `;
+        ${topCard ? deckTopCardMarkup(topCard) : "<p class=\"empty-note\">空</p>"}
+      `
+      : `
+        <div class="deck-thumb ${topCard ? topCard.type : ""}">${topCard ? typeBadge(topCard.type) : ""}</div>
+        <div>
+          <div class="deck-meta"><span class="deck-name">${pile.name}</span><small>残り ${pile.count} 枚</small></div>
+          ${topCard ? `<div class="card-name">${topCard.name}</div><p class="card-text">${topCard.text}</p>` : "<p class=\"empty-note\">空</p>"}
+        </div>
+      `;
     button.addEventListener("click", () => {
       playSound("select");
       selectDetail(key, topCard, `${pile.name} トップ`, null, { source: "deck" });
@@ -1575,17 +1597,25 @@ function renderField(container, field, maxFieldSize, view, playerId) {
     }
 
     const card = CARD_DEFINITIONS[unit.cardId];
-    slot.innerHTML = `
-      ${typeBadge(card.type)}
-      <div class="card-name">${card.name}</div>
-      <div class="unit-stats">
-        <span class="stat-pill hp">HP ${unit.hp}/${unit.maxHp}</span>
-        <span class="stat-pill pow">PW ${unit.power}</span>
-      </div>
-      ${unit.item && unit.item.hasItem ? itemBadgeMarkup(unit.item) : ""}
-      <span class="state-badge ${unit.canAct ? "" : "exhausted"}">${unit.canAct ? "行動可" : unit.summonedTurn === view.turn ? "召喚酔い" : "行動済み"}</span>
-      <p class="card-text">${card.text}</p>
-    `;
+    slot.innerHTML = cardUiMode === "modern"
+      ? modernCardMarkup(card, {
+        unit,
+        item: unit.item,
+        stateLabel: unit.canAct ? "行動可" : unit.summonedTurn === view.turn ? "召喚酔い" : "行動済み",
+        compact: true,
+      })
+      : `
+        ${typeBadge(card.type)}
+        <div class="card-name">${card.name}</div>
+        <div class="unit-stats">
+          <span class="stat-pill hp">HP ${unit.hp}/${unit.maxHp}</span>
+          <span class="stat-pill pow">PW ${unit.power}</span>
+        </div>
+        ${unit.item && unit.item.hasItem ? itemBadgeMarkup(unit.item) : ""}
+        <span class="state-badge ${unit.canAct ? "" : "exhausted"}">${unit.canAct ? "行動可" : unit.summonedTurn === view.turn ? "召喚酔い" : "行動済み"}</span>
+        <p class="card-text">${card.text}</p>
+      `;
+    attachHeldItemClick(slot, unit.item, key);
     slot.addEventListener("click", () => {
       playSound("select");
       selectDetail(key, card, playerId === getSelfId() ? "自分の場" : "相手の場", unit, { source: "field", ownerId: playerId, unitId: unit.id });
@@ -1697,22 +1727,31 @@ function renderDetail() {
     renderDetail();
     return;
   }
-  elements.detailContent.innerHTML = `
-    <div class="detail-card ${card.type}">
-      <p class="eyebrow">${zone}</p>
-      ${typeBadge(card.type)}
-      <h2>${card.name}</h2>
-      ${card.type === "unit" ? `
-        <div class="detail-stats">
-          <span class="stat-pill hp">HP ${unit ? `${unit.hp}/${unit.maxHp}` : card.hp}</span>
-          <span class="stat-pill pow">パワー ${unit ? unit.power : card.power}</span>
-        </div>
-      ` : ""}
-      ${unit && unit.item && unit.item.hasItem ? itemBadgeMarkup(unit.item) : ""}
-      <p class="card-text">${card.text}</p>
-      <div class="detail-actions" id="detailActions"></div>
-    </div>
-  `;
+  elements.detailContent.innerHTML = cardUiMode === "modern"
+    ? `
+      <div class="detail-card ${card.type} modern-detail-card">
+        <p class="eyebrow">${zone}</p>
+        ${modernCardMarkup(card, { unit, item: unit?.item, large: true })}
+        <div class="detail-actions" id="detailActions"></div>
+      </div>
+    `
+    : `
+      <div class="detail-card ${card.type}">
+        <p class="eyebrow">${zone}</p>
+        ${typeBadge(card.type)}
+        <h2>${card.name}</h2>
+        ${card.type === "unit" ? `
+          <div class="detail-stats">
+            <span class="stat-pill hp">HP ${unit ? `${unit.hp}/${unit.maxHp}` : card.hp}</span>
+            <span class="stat-pill pow">パワー ${unit ? unit.power : card.power}</span>
+          </div>
+        ` : ""}
+        ${unit && unit.item && unit.item.hasItem ? itemBadgeMarkup(unit.item) : ""}
+        <p class="card-text">${card.text}</p>
+        <div class="detail-actions" id="detailActions"></div>
+      </div>
+    `;
+  if (cardUiMode === "modern") attachHeldItemClick(elements.detailContent, unit?.item, detailKey);
   renderDetailActions(elements.detailContent.querySelector("#detailActions"), detailData);
 }
 
@@ -2327,6 +2366,7 @@ function renderWinnerOverlay(view) {
 }
 
 function cardMarkup(card) {
+  if (cardUiMode === "modern") return modernCardMarkup(card);
   return `
     ${typeBadge(card.type)}
     <div class="card-name">${card.name}</div>
@@ -2341,6 +2381,7 @@ function cardMarkup(card) {
 }
 
 function itemBadgeMarkup(item) {
+  if (cardUiMode === "modern") return heldItemIconMarkup(item);
   if (!item.visibleCardId) return `<span class="item-badge item-icon" title="持ち物あり">◆</span>`;
   const card = CARD_DEFINITIONS[item.visibleCardId];
   return `
@@ -2352,12 +2393,73 @@ function itemBadgeMarkup(item) {
 }
 
 function compactCardMarkup(card) {
+  if (cardUiMode === "modern") return modernCardMarkup(card, { mini: true });
   return `
     ${typeBadge(card.type)}
     <div class="card-name">${card.name}</div>
     ${card.type === "unit" ? `<div class="unit-stats"><span class="stat-pill hp">HP ${card.hp}</span><span class="stat-pill pow">PW ${card.power}</span></div>` : ""}
     <small>${card.text}</small>
   `;
+}
+
+function modernCardMarkup(card, options = {}) {
+  const unit = options.unit || null;
+  const isUnit = card.type === "unit";
+  const power = unit ? unit.power : card.power;
+  const hp = unit ? `${unit.hp}/${unit.maxHp}` : card.hp;
+  const classes = [
+    "game-card",
+    card.type,
+    options.large ? "large" : "",
+    options.compact ? "compact" : "",
+    options.mini ? "mini" : "",
+  ].filter(Boolean).join(" ");
+  const state = options.stateLabel ? `<span class="state-badge ${options.stateLabel === "行動可" ? "" : "exhausted"}">${options.stateLabel}</span>` : "";
+  return `
+    <div class="${classes}">
+      ${options.item && options.item.hasItem ? heldItemIconMarkup(options.item) : ""}
+      <div class="card-title-band">${card.name}</div>
+      <div class="card-art" aria-hidden="true"></div>
+      <div class="card-effect-box">${card.text || "効果なし。"}</div>
+      <div class="card-type-label">${typeLabel(card.type)}</div>
+      ${state}
+      ${isUnit ? `
+        <span class="stat-badge power"><small>PW</small><b>${power}</b></span>
+        <span class="stat-badge hp"><small>HP</small><b>${hp}</b></span>
+      ` : ""}
+    </div>
+  `;
+}
+
+function deckTopCardMarkup(card) {
+  return `
+    <div class="deck-top-card ${card.type}" aria-label="${card.name}">
+      <div class="card-art" aria-hidden="true"></div>
+    </div>
+  `;
+}
+
+function heldItemIconMarkup(item) {
+  const visible = Boolean(item.visibleCardId);
+  const card = visible ? CARD_DEFINITIONS[item.visibleCardId] : null;
+  const state = item.revealed ? "revealed" : "hidden";
+  const label = visible && card ? card.name : "持ち物あり";
+  const data = visible ? ` data-visible-card-id="${item.visibleCardId}"` : "";
+  return `<span class="held-item-icon ${state}" title="${label}"${data}>◆</span>`;
+}
+
+function attachHeldItemClick(root, item, parentKey) {
+  if (!item?.visibleCardId) return;
+  const icon = root.querySelector(".held-item-icon[data-visible-card-id]");
+  if (!icon) return;
+  icon.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const card = CARD_DEFINITIONS[item.visibleCardId];
+    if (!card) return;
+    playSound("select");
+    selectDetail(`${parentKey}:item`, card, "持ち物", null, { source: "item" });
+    render();
+  });
 }
 
 function typeBadge(type) {
@@ -2742,6 +2844,11 @@ elements.titleMenuButton?.addEventListener("click", () => {
 });
 elements.menuProfileButton?.addEventListener("click", openProfileEditor);
 elements.menuUpdatesButton?.addEventListener("click", openUpdateHistory);
+elements.menuCardUiButton?.addEventListener("click", () => {
+  cardUiMode = cardUiMode === "modern" ? "classic" : "modern";
+  localStorage.setItem(`${APP_INTERNAL_ID}-card-ui-mode`, cardUiMode);
+  render();
+});
 elements.menuTitleButton?.addEventListener("click", () => {
   closeTitlePanels();
   titleReturnTarget = "main";
