@@ -21,7 +21,8 @@ const STORAGE_KEYS = {
   onlineSession: `${APP_INTERNAL_ID}-online-session`,
   records: `${APP_INTERNAL_ID}-records`,
   hardCpuRun: `${APP_INTERNAL_ID}-hard-cpu-run`,
-  currentCpuBattle: `${APP_INTERNAL_ID}-current-cpu-battle`
+  currentCpuBattle: `${APP_INTERNAL_ID}-current-cpu-battle`,
+  challengeRewards: `${APP_INTERNAL_ID}-challenge-rewards`
 };
 const LEGACY_STORAGE_KEYS = {
   player: ["hara" + "pekoPlayerProfile"],
@@ -78,7 +79,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=85");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=86");
 }
 
 let game = engine.createGame();
@@ -100,10 +101,11 @@ let titleUpdatesOpen = false;
 let titleRecordsOpen = false;
 let titleCpuOpen = false;
 let titleBattleOpen = false;
+let titleChallengeOpen = false;
 let titleMenuOpen = false;
 let titleReturnTarget = "main";
 let titleCardsFromBattle = false;
-let cardUiMode = localStorage.getItem(`${APP_INTERNAL_ID}-card-ui-mode`) || "modern";
+let cardUiMode = localStorage.getItem(`${APP_INTERNAL_ID}-card-ui-mode`) || "classic";
 let profileEditorOpen = false;
 let cpuDifficulty = "normal";
 let rulesPageIndex = 0;
@@ -119,6 +121,8 @@ let restoredCpuBattle = false;
 let suppressCpuBattleSave = false;
 let sharedLeaderboard = [];
 let sharedLeaderboardLoaded = false;
+let activeChallenge = null;
+let challengeResultHandled = false;
 const pendingFx = new Map();
 const AVATAR_DEFINITIONS = window.AppAvatars || [];
 const AVATAR_OPTIONS = AVATAR_DEFINITIONS.map((avatar) => avatar.src);
@@ -147,6 +151,20 @@ const AVATAR_FALLBACK_OPTIONS = [
   "assets/avatars/avatar-warabon.png",
   "assets/avatars/avatar-genius-slime.png",
 ];
+
+const CHALLENGES = {
+  suddenDeath: {
+    id: "suddenDeath",
+    name: "サドンデス",
+    description: "自分ライフ1、相手ライフ12で始まる特殊CPU戦です。CPUは強い設定です。回復は通常通り使えます。",
+    reward: 200,
+    playerLife: 1,
+    cpuLife: 12,
+    cpuDifficulty: "hard",
+    cpuName: "サドンデス君",
+    cpuAvatarId: "gollem"
+  }
+};
 if (AVATAR_OPTIONS.length === 0) AVATAR_OPTIONS.push(...AVATAR_FALLBACK_OPTIONS);
 const AVATAR_ASSET_BY_ID = new Map(AVATAR_DEFINITIONS.map((avatar, index) => [avatar.id, AVATAR_FALLBACK_OPTIONS[index] || AVATAR_FALLBACK_OPTIONS[0]]));
 const DEFAULT_LEADERBOARD_AVATAR = AVATAR_FALLBACK_OPTIONS[0];
@@ -225,6 +243,17 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.86",
+    title: "チャレンジモードを追加",
+    items: [
+      "カード表示の初期設定を旧UIに戻しました。新UIはタイトル右上のメニューからテスト表示として切り替えられます。",
+      "対戦メニューにチャレンジを追加しました。",
+      "最初のチャレンジとして、自分ライフ1、相手ライフ12で始まる「サドンデス」を追加しました。",
+      "サドンデスの相手はCPU（強い）の「サドンデス君」です。",
+      "サドンデス勝利時、1日1回だけ200ハピコインを獲得できるようにしました。"
+    ]
+  },
   {
     version: "v0.85",
     title: "カード表示の新UIを追加",
@@ -580,8 +609,13 @@ const elements = {
   titleBattleMenu: document.querySelector("#titleBattleMenu"),
   titleBattleCpuButton: document.querySelector("#titleBattleCpuButton"),
   titleBattleMultiButton: document.querySelector("#titleBattleMultiButton"),
+  titleBattleChallengeButton: document.querySelector("#titleBattleChallengeButton"),
   titleBattleRecordsButton: document.querySelector("#titleBattleRecordsButton"),
   titleBattleBackButton: document.querySelector("#titleBattleBackButton"),
+  titleChallenge: document.querySelector("#titleChallenge"),
+  challengeBackButton: document.querySelector("#challengeBackButton"),
+  suddenDeathButton: document.querySelector("#suddenDeathButton"),
+  suddenDeathStatus: document.querySelector("#suddenDeathStatus"),
   titleCpu: document.querySelector("#titleCpu"),
   cpuStreakNote: document.querySelector("#cpuStreakNote"),
   cpuNormalButton: document.querySelector("#cpuNormalButton"),
@@ -805,7 +839,7 @@ function resetHardCpuStreakForInterrupt() {
 }
 
 function saveCurrentCpuBattle() {
-  if (suppressCpuBattleSave || onlineMode || !cpuEnabled || titleActive || !game || game.winner !== null) return;
+  if (suppressCpuBattleSave || activeChallenge || onlineMode || !cpuEnabled || titleActive || !game || game.winner !== null) return;
   const snapshot = {
     gameState: game,
     cpuDifficulty,
@@ -858,6 +892,7 @@ function restoreCpuBattleIfNeeded() {
   titleRecordsOpen = false;
   titleCpuOpen = false;
   titleBattleOpen = false;
+  titleChallengeOpen = false;
   titleMenuOpen = false;
   optionsOpen = false;
   clearSelection();
@@ -873,7 +908,7 @@ function isCpuBattleInProgress() {
 
 function abandonCpuBattle(reason = "abandon") {
   if (!isCpuBattleInProgress()) return false;
-  if (cpuDifficulty === "hard") {
+  if (cpuDifficulty === "hard" && !activeChallenge) {
     const records = loadHardCpuRecords();
     records.current = 0;
     saveHardCpuRecords(records);
@@ -882,6 +917,8 @@ function abandonCpuBattle(reason = "abandon") {
   hardCpuMatchActive = false;
   hardCpuResultHandled = true;
   cpuCoinRewardHandled = true;
+  activeChallenge = null;
+  challengeResultHandled = true;
   cpuThinking = false;
   clearCurrentCpuBattle();
   console.warn("CPU battle abandoned as defeat", { reason, difficulty: cpuDifficulty });
@@ -890,6 +927,7 @@ function abandonCpuBattle(reason = "abandon") {
 
 function completeCpuBattleIfNeeded(view) {
   if (onlineMode || !cpuEnabled || !game || view.winner === null) return null;
+  if (activeChallenge) return completeChallengeBattleIfNeeded(view);
   const result = resolveHardCpuResultIfNeeded(view) || {
     selfWon: view.winner === 0,
     streak: 0,
@@ -904,6 +942,36 @@ function completeCpuBattleIfNeeded(view) {
   if (result?.selfWon && result.streak >= 1) submitLeaderboard(result.streak);
   clearCurrentCpuBattle();
   return result;
+}
+
+function completeChallengeBattleIfNeeded(view) {
+  if (!activeChallenge || challengeResultHandled || view.winner === null) return null;
+  const challenge = activeChallenge;
+  const selfWon = view.winner === 0;
+  const alreadyClaimed = isChallengeRewardClaimed(challenge.id);
+  let coinReward = null;
+  if (selfWon && !alreadyClaimed) {
+    coinReward = addHapiCoins(challenge.reward, `challenge-${challenge.id}`);
+    markChallengeRewardClaimed(challenge.id);
+    console.log("Challenge hapi coin reward", {
+      challengeId: challenge.id,
+      earnedHapiCoins: coinReward.added,
+      totalHapiCoins: coinReward.total
+    });
+  }
+  challengeResultHandled = true;
+  activeChallenge = null;
+  cpuThinking = false;
+  clearCurrentCpuBattle();
+  updateHapiCoinDisplay();
+  return {
+    isChallenge: true,
+    challengeId: challenge.id,
+    challengeName: challenge.name,
+    selfWon,
+    coinReward,
+    alreadyClaimed: selfWon && alreadyClaimed
+  };
 }
 
 async function submitLeaderboard(streak) {
@@ -1013,6 +1081,39 @@ function cpuProfile(difficulty) {
   return { name: difficulty === "hard" ? "CPU（強い）" : "CPU（普通）", avatar };
 }
 
+function todayKey() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function loadChallengeRewards() {
+  try {
+    const parsed = JSON.parse(readStorage("challengeRewards", "{}") || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function isChallengeRewardClaimed(challengeId) {
+  return loadChallengeRewards()[challengeId] === todayKey();
+}
+
+function markChallengeRewardClaimed(challengeId) {
+  const rewards = loadChallengeRewards();
+  rewards[challengeId] = todayKey();
+  writeStorage("challengeRewards", JSON.stringify(rewards));
+}
+
+function challengeCpuAvatar(challenge) {
+  return AVATAR_BY_ID.get(challenge.cpuAvatarId)
+    || AVATAR_FALLBACK_OPTIONS[2]
+    || AVATAR_OPTIONS[0];
+}
+
 function render() {
   window.__CARD_APP_RENDERED = true;
   const view = getView();
@@ -1050,6 +1151,7 @@ function render() {
   document.body.classList.toggle("title-records-active", titleRecordsOpen);
   document.body.classList.toggle("title-cpu-active", titleCpuOpen);
   document.body.classList.toggle("title-battle-active", titleBattleOpen);
+  document.body.classList.toggle("title-challenge-active", titleChallengeOpen);
   document.body.classList.toggle("profile-editor-active", profileEditorOpen);
   document.body.classList.toggle("modern-card-ui", cardUiMode === "modern");
   elements.titleMenuPanel?.classList.toggle("hidden", !titleMenuOpen);
@@ -1061,8 +1163,9 @@ function render() {
   elements.titleUpdates?.classList.toggle("hidden", !titleUpdatesOpen);
   elements.titleRecords?.classList.toggle("hidden", !titleRecordsOpen);
   elements.titleCpu?.classList.toggle("hidden", !titleCpuOpen);
+  elements.titleChallenge?.classList.toggle("hidden", !titleChallengeOpen);
   elements.profileEditor?.classList.toggle("hidden", !profileEditorOpen);
-  elements.profileSummary?.classList.toggle("hidden", profileEditorOpen || titleLobbyOpen || titleRulesOpen || titleCardsOpen || titleUpdatesOpen || titleRecordsOpen || titleCpuOpen || titleBattleOpen);
+  elements.profileSummary?.classList.toggle("hidden", profileEditorOpen || titleLobbyOpen || titleRulesOpen || titleCardsOpen || titleUpdatesOpen || titleRecordsOpen || titleCpuOpen || titleBattleOpen || titleChallengeOpen);
   elements.optionsPanel?.classList.toggle("hidden", !optionsOpen);
   updateOptionsVisibility();
 
@@ -1073,6 +1176,7 @@ function render() {
   renderUpdateHistory();
   renderRecords();
   renderCpuSetup();
+  renderChallengeList();
   updateTitleRecordButton();
   updateHapiCoinDisplay();
   renderPlayerInfo(view);
@@ -1468,6 +1572,15 @@ function renderCpuSetup() {
   elements.cpuStreakNote.textContent = records.current > 0
     ? `CPU（強い） ${records.current}連勝中`
     : "CPU（強い）の連勝記録に挑戦できます。";
+}
+
+function renderChallengeList() {
+  if (!titleChallengeOpen || !elements.suddenDeathStatus) return;
+  const challenge = CHALLENGES.suddenDeath;
+  const claimed = isChallengeRewardClaimed(challenge.id);
+  elements.suddenDeathStatus.innerHTML = claimed
+    ? `<span class="challenge-clear">CLEAR</span><span class="challenge-claimed">報酬獲得済み</span>`
+    : `<span class="challenge-reward-open">本日報酬あり</span>`;
 }
 
 function makeRoomUrl(roomId) {
@@ -2321,14 +2434,18 @@ function renderWinnerOverlay(view) {
     return;
   }
   if (node) return;
-  const hardResult = completeCpuBattleIfNeeded(view);
+  const cpuResult = completeCpuBattleIfNeeded(view);
   const winner = view.players[view.winner];
   const selfWon = view.winner === getSelfId();
-  const hardStreakLine = hardResult?.isHard
-    ? `<p class="winner-streak">${hardResult.selfWon ? `${hardResult.streak}連勝目！` : "連勝は0に戻りました。"}</p>`
+  const resultLine = cpuResult?.isChallenge
+    ? `<p class="winner-streak">${cpuResult.selfWon ? `${cpuResult.challengeName}クリア！` : `${cpuResult.challengeName}失敗...`}</p>`
+    : cpuResult?.isHard
+    ? `<p class="winner-streak">${cpuResult.selfWon ? `${cpuResult.streak}連勝目！` : "連勝は0に戻りました。"}</p>`
     : "";
-  const coinRewardLine = hardResult?.coinReward?.added > 0
-    ? `<p class="winner-coins">${hardResult.coinReward.added}ハピコイン獲得！<br><span>所持数：${hardResult.coinReward.total}枚</span></p>`
+  const coinRewardLine = cpuResult?.coinReward?.added > 0
+    ? `<p class="winner-coins">${cpuResult.coinReward.added}ハピコイン獲得！<br><span>所持数：${cpuResult.coinReward.total}枚</span></p>`
+    : cpuResult?.alreadyClaimed
+    ? `<p class="winner-coins"><span>本日の報酬は獲得済みです。</span></p>`
     : "";
   node = document.createElement("div");
   node.id = "winnerOverlay";
@@ -2338,7 +2455,7 @@ function renderWinnerOverlay(view) {
       <p>${selfWon ? "勝利" : "敗北"}</p>
       <img class="winner-avatar" src="${winner.avatar || AVATAR_OPTIONS[view.winner] || AVATAR_OPTIONS[0]}" alt="">
       <h2>${winner.name}の勝ち！</h2>
-      ${hardStreakLine}
+      ${resultLine}
       ${coinRewardLine}
       <div class="winner-actions">
         <button type="button" id="winnerRematch">もう一度戦う</button>
@@ -2357,7 +2474,8 @@ function renderWinnerOverlay(view) {
       });
       return;
     }
-    startCpuGame(cpuDifficulty);
+    if (cpuResult?.isChallenge) startChallengeGame(cpuResult.challengeId);
+    else startCpuGame(cpuDifficulty);
   });
   node.querySelector("#winnerTitle").addEventListener("click", () => {
     node.remove();
@@ -2662,6 +2780,7 @@ function startCpuSetup() {
   titleCardsOpen = false;
   titleUpdatesOpen = false;
   titleRecordsOpen = false;
+  titleChallengeOpen = false;
   render();
 }
 
@@ -2681,6 +2800,8 @@ function startCpuGame(difficulty = "normal") {
   lastOnlineStarted = false;
   cpuEnabled = true;
   cpuThinking = false;
+  activeChallenge = null;
+  challengeResultHandled = false;
   game = engine.createGame();
   const selfProfile = currentPlayerProfile();
   const opponentProfile = cpuProfile(difficulty);
@@ -2699,12 +2820,63 @@ function startCpuGame(difficulty = "normal") {
   titleRecordsOpen = false;
   titleCpuOpen = false;
   titleBattleOpen = false;
+  titleChallengeOpen = false;
   titleMenuOpen = false;
   optionsOpen = false;
   clearSelection();
   previousView = null;
   clearCurrentCpuBattle();
   saveCurrentCpuBattle();
+  render();
+  showBattleStart(engine.getPublicState(game, 0), 0);
+  setTimeout(() => showTurnBanner(`${game.players[game.activePlayer].name}のターン`), 1300);
+}
+
+function openChallengeList() {
+  closeTitlePanels();
+  titleChallengeOpen = true;
+  titleReturnTarget = "battle";
+  render();
+}
+
+function startChallengeGame(challengeId = "suddenDeath") {
+  const challenge = CHALLENGES[challengeId] || CHALLENGES.suddenDeath;
+  if (socket) socket.emit("room:leave");
+  clearOnlineSession();
+  clearCurrentCpuBattle();
+  cpuDifficulty = challenge.cpuDifficulty;
+  onlineMode = false;
+  onlineState = null;
+  onlinePlayerId = 0;
+  lastOnlineStarted = false;
+  cpuEnabled = true;
+  cpuThinking = false;
+  activeChallenge = challenge;
+  challengeResultHandled = false;
+  hardCpuMatchActive = false;
+  hardCpuResultHandled = true;
+  cpuCoinRewardHandled = true;
+  game = engine.createGame();
+  const selfProfile = currentPlayerProfile();
+  game.players[0].name = selfProfile.name;
+  game.players[0].avatar = selfProfile.avatar;
+  game.players[1].name = challenge.cpuName;
+  game.players[1].avatar = challengeCpuAvatar(challenge);
+  game.players[0].life = challenge.playerLife;
+  game.players[1].life = challenge.cpuLife;
+  titleActive = false;
+  titleLobbyOpen = false;
+  titleRulesOpen = false;
+  titleCardsOpen = false;
+  titleUpdatesOpen = false;
+  titleRecordsOpen = false;
+  titleCpuOpen = false;
+  titleBattleOpen = false;
+  titleChallengeOpen = false;
+  titleMenuOpen = false;
+  optionsOpen = false;
+  clearSelection();
+  previousView = null;
   render();
   showBattleStart(engine.getPublicState(game, 0), 0);
   setTimeout(() => showTurnBanner(`${game.players[game.activePlayer].name}のターン`), 1300);
@@ -2719,6 +2891,7 @@ function closeTitlePanels() {
   titleRecordsOpen = false;
   titleCpuOpen = false;
   titleBattleOpen = false;
+  titleChallengeOpen = false;
   titleMenuOpen = false;
 }
 
@@ -2769,6 +2942,8 @@ function startMultiSetup() {
   onlinePlayerId = 0;
   lastOnlineStarted = false;
   cpuEnabled = false;
+  activeChallenge = null;
+  challengeResultHandled = false;
   cpuThinking = false;
   titleActive = true;
   titleLobbyOpen = true;
@@ -2779,8 +2954,11 @@ function startMultiSetup() {
   titleRecordsOpen = false;
   titleCpuOpen = false;
   titleBattleOpen = false;
+  titleChallengeOpen = false;
   titleMenuOpen = false;
   profileEditorOpen = false;
+  activeChallenge = null;
+  challengeResultHandled = false;
   optionsOpen = false;
   clearSelection();
   previousView = null;
@@ -2810,6 +2988,7 @@ async function backToTitle(options = {}) {
   titleRecordsOpen = false;
   titleCpuOpen = false;
   titleBattleOpen = false;
+  titleChallengeOpen = false;
   titleMenuOpen = false;
   profileEditorOpen = false;
   clearSelection();
@@ -2825,11 +3004,18 @@ elements.endTurnButton.addEventListener("click", () => {
 elements.startCpuButton?.addEventListener("click", openBattleMenu);
 elements.titleBattleCpuButton?.addEventListener("click", startCpuSetup);
 elements.titleBattleMultiButton?.addEventListener("click", startMultiSetup);
+elements.titleBattleChallengeButton?.addEventListener("click", openChallengeList);
 elements.titleBattleRecordsButton?.addEventListener("click", () => openRecords("battle"));
 elements.titleBattleBackButton?.addEventListener("click", () => {
   titleBattleOpen = false;
   render();
 });
+elements.challengeBackButton?.addEventListener("click", () => {
+  titleChallengeOpen = false;
+  titleBattleOpen = true;
+  render();
+});
+elements.suddenDeathButton?.addEventListener("click", () => startChallengeGame("suddenDeath"));
 elements.cpuNormalButton?.addEventListener("click", () => startCpuGame("normal"));
 elements.cpuHardButton?.addEventListener("click", () => startCpuGame("hard"));
 elements.cpuBackButton?.addEventListener("click", () => {
@@ -2867,6 +3053,7 @@ elements.showRulesButton?.addEventListener("click", () => {
   titleCpuOpen = false;
   titleLobbyOpen = false;
   titleBattleOpen = false;
+  titleChallengeOpen = false;
   titleMenuOpen = false;
   rulesPageIndex = 0;
   render();
@@ -2881,6 +3068,7 @@ elements.showCardsButton?.addEventListener("click", () => {
   titleCpuOpen = false;
   titleLobbyOpen = false;
   titleBattleOpen = false;
+  titleChallengeOpen = false;
   titleMenuOpen = false;
   render();
 });
@@ -2903,6 +3091,7 @@ elements.battleCardListButton?.addEventListener("click", () => {
   titleRecordsOpen = false;
   titleCpuOpen = false;
   titleLobbyOpen = false;
+  titleChallengeOpen = false;
   optionsOpen = false;
   render();
 });
@@ -2934,6 +3123,7 @@ elements.titleBackButton?.addEventListener("click", () => {
   titleCardsOpen = false;
   titleCpuOpen = false;
   titleBattleOpen = false;
+  titleChallengeOpen = false;
   titleMenuOpen = false;
   onlineMode = false;
   onlineState = null;

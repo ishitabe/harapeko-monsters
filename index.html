@@ -8,10 +8,10 @@
     <meta name="apple-mobile-web-app-title" content="かんハピ">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>しょーかんハッピーズ</title>
-    <link rel="manifest" href="manifest.json?v=85">
+    <link rel="manifest" href="manifest.json?v=86">
     <link rel="icon" type="image/png" sizes="192x192" href="pwa-icon-192.png">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-    <link rel="stylesheet" href="styles.css?v=85">
+    <link rel="stylesheet" href="styles.css?v=86">
     <script src="constants.js?v=77"></script>
     <script>
       document.title = window.AppConstants.APP_DISPLAY_NAME;
@@ -24,8 +24,8 @@
     <script src="avatars.js?v=77" defer></script>
     <script src="currency.js?v=78" defer></script>
     <script src="cards.js?v=62" defer></script>
-    <script src="gameEngine.js?v=85" defer></script>
-    <script src="app.js?v=85" defer></script>
+    <script src="gameEngine.js?v=86" defer></script>
+    <script src="app.js?v=86" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -40,7 +40,7 @@
       <div class="title-content">
         <p class="eyebrow">CARD BATTLE</p>
         <h1 data-app-display-name>しょーかんハッピーズ</h1>
-        <p class="version-label">v0.85</p>
+        <p class="version-label">v0.86</p>
         <div class="profile-summary" id="profileSummary" aria-label="現在のプロフィール">
           <img id="profileSummaryAvatar" src="assets/player.png" alt="">
           <div>
@@ -68,8 +68,9 @@
             <button class="small-button" id="titleBattleBackButton" type="button">戻る</button>
           </div>
           <div class="title-action-grid battle-choice-grid">
-            <button class="title-button primary" id="titleBattleCpuButton" type="button">CPU</button>
-            <button class="title-button" id="titleBattleMultiButton" type="button">対人</button>
+            <button class="title-button primary" id="titleBattleCpuButton" type="button">CPU戦</button>
+            <button class="title-button" id="titleBattleMultiButton" type="button">マルチ対戦</button>
+            <button class="title-button challenge-button" id="titleBattleChallengeButton" type="button">チャレンジ</button>
             <button class="title-button record-button" id="titleBattleRecordsButton" type="button">記録</button>
           </div>
         </div>
@@ -126,6 +127,24 @@
             <button class="title-button primary" id="cpuHardButton" type="button">強い</button>
           </div>
           <button class="small-button title-bottom-button" id="cpuBackButton" type="button">キャンセル</button>
+        </div>
+        <div class="title-challenge hidden" id="titleChallenge" aria-label="チャレンジ">
+          <div class="rules-head">
+            <span>チャレンジ</span>
+            <button class="small-button" id="challengeBackButton" type="button">戻る</button>
+          </div>
+          <h2>チャレンジ</h2>
+          <div class="challenge-list">
+            <article class="challenge-card">
+              <div class="challenge-card-head">
+                <strong>サドンデス</strong>
+                <span class="challenge-status" id="suddenDeathStatus"></span>
+              </div>
+              <p>自分ライフ1、相手ライフ12で始まる特殊CPU戦です。CPUは強い設定です。回復は通常通り使えます。</p>
+              <p class="challenge-reward">勝利報酬：200ハピコイン（1日1回）</p>
+              <button class="title-button primary" id="suddenDeathButton" type="button">挑戦する</button>
+            </article>
+          </div>
         </div>
         <div class="title-lobby hidden" id="titleLobby">
           <strong id="titleLobbyStatus">対人</strong>
