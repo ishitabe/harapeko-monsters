@@ -21,6 +21,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       pendingPileDrawSelection: null,
       pendingPileSearch: null,
       lastPlayedAction: null,
+      lastRevealedItem: null,
       piles: pileDefinitions.map((pile) => ({ id: pile.id, name: pile.name, deck: [] })),
       discard: [],
       log: [],
@@ -77,6 +78,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       maxHandSize,
       lastMessage: game.lastMessage,
       lastPlayedAction: game.lastPlayedAction,
+      lastRevealedItem: game.lastRevealedItem,
       log: [...game.log],
       discard: [...game.discard],
       piles: game.piles.map((pile) => ({
@@ -802,15 +804,16 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     return { drawnCards, discardedDrawCards };
   }
 
-  function getEffectivePower(game, unit, targetUnit, reason) {
+  function getEffectivePower(game, unit, targetUnit, reason, options = {}) {
     let power = unit.power;
     const card = cards[unit.cardId];
     const unitOwnerId = ownerOfUnit(game, unit.id);
     const targetOwnerId = targetUnit ? ownerOfUnit(game, targetUnit.id) : opponentOf(unitOwnerId);
     const powerIncreaseBlocked = hasAnyEffect(game, "ignorePowerIncreases");
+    const shouldReveal = !options.silent;
     const powerContext = reason === "attack" || reason === "lifeAttack" || reason === "counter" || reason === "status";
     if (powerContext && unit.item && cards[unit.item.cardId].effectKey === "powerEqualsHp" && !powerIncreaseBlocked) {
-      revealItem(game, unit, "ライフパワーでパワーがHPと同じ値になります。");
+      if (shouldReveal) revealItem(game, unit, "ライフパワーでパワーがHPと同じ値になります。");
       power = unit.hp;
     }
     if (powerContext && powerIncreaseBlocked) {
@@ -822,10 +825,10 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       if (reason === "attack" && targetUnit && hasEffect(game.players[unitOwnerId], "allyMonsterAttackPowerPlusTwo")) power += 2;
       if (card.effectKey === "powerPlusIfLifeTen" && game.players[unitOwnerId].life >= 10) power += 4;
       if (unit.item && cards[unit.item.cardId].effectKey === "attackPowerPlusTwo") {
-        revealItem(game, unit, "拘り鉢巻でパワー+2。");
+        if (shouldReveal) revealItem(game, unit, "拘り鉢巻でパワー+2。");
       }
       if (unit.cardId === "pikachu" && unit.item && cards[unit.item.cardId].effectKey === "pikachuPowerPlusSix") {
-        revealItem(game, unit, "でんきだまでHP+6、パワー+6。");
+        if (shouldReveal) revealItem(game, unit, "でんきだまでHP+6、パワー+6。");
       }
     }
 
@@ -842,8 +845,8 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     const wasFullHp = context.fullHpForSash ?? (unit.hp === unit.maxHp);
     const remainingHp = hpForDamage - amount;
     if (wasFullHp && remainingHp <= 0 && unit.item && cards[unit.item.cardId].effectKey === "surviveLethalAtOne") {
-      revealItem(game, unit, `${cards[unit.cardId].name}は気合いのタスキで耐えた。`);
-      game.lastMessage = `${cards[unit.cardId].name}は気合いのタスキで耐えた。`;
+      revealItem(game, unit, `${cards[unit.cardId].name}は気合いのタスキで攻撃を耐えた！`);
+      game.lastMessage = `${cards[unit.cardId].name}は気合いのタスキで攻撃を耐えた！`;
       addLog(game, game.lastMessage);
       discardItem(game, unit);
       unit.hp = 1;
@@ -1141,13 +1144,14 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (cards[deadCandidate.item.cardId].effectKey !== "destroyOpponentOnDeath") return;
     const deadName = cards[deadCandidate.cardId].name;
     const opposingName = cards[opposingUnit.cardId].name;
-    revealItem(game, deadCandidate, `${deadName}は道連れマントで${opposingName}を道連れにした。`);
+    revealItem(game, deadCandidate, `${deadName}は道連れマントで${opposingName}を道連れにした！`);
     opposingUnit.hp = 0;
   }
 
   function revealItem(game, unit, message) {
     if (!unit.item) return;
     const itemName = cards[unit.item.cardId].name;
+    const serial = `${game.turn}:${game.log.length}:${unit.id}:${unit.item.cardId}`;
     if (unit.item.revealed) {
       game.lastMessage = `${itemName}: ${message}`;
       addLog(game, game.lastMessage);
@@ -1156,6 +1160,13 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     unit.item.revealed = true;
     game.lastMessage = `${itemName}を公開。${message}`;
     addLog(game, game.lastMessage);
+    game.lastRevealedItem = {
+      cardId: unit.item.cardId,
+      unitCardId: unit.cardId,
+      unitId: unit.id,
+      message,
+      serial,
+    };
   }
 
   function discardItem(game, unit) {

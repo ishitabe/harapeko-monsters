@@ -432,6 +432,9 @@ p {
   color: #d7e4f4;
   font-weight: 800;
   text-align: center;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  line-break: strict;
 }
 
 .field-slot,
@@ -1127,11 +1130,18 @@ p {
   font-size: 1.8rem;
   line-height: 1.15;
   text-align: center;
+  white-space: nowrap;
   word-break: keep-all;
   overflow-wrap: normal;
   line-break: strict;
   box-shadow: 0 24px 58px rgba(0,0,0,0.54), 0 0 34px rgba(242, 189, 92, 0.24);
   animation: floatUp 1250ms ease-out forwards;
+}
+
+.turn-banner {
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 .fx-float.damage {
@@ -1640,6 +1650,12 @@ body:not(.title-active) .title-screen {
   display: none;
 }
 
+body.battle-cards-active .hapi-coin-display,
+body.battle-cards-active .title-menu-button,
+body.battle-cards-active .title-menu-panel {
+  display: none;
+}
+
 .title-content {
   width: min(1040px, 92vw);
   max-height: calc(100vh - 80px);
@@ -2018,9 +2034,11 @@ body.title-cpu-active .version-label {
 
 .title-rules {
   display: grid;
+  grid-template-rows: auto auto minmax(280px, 1fr) auto;
   gap: 18px;
   margin-top: 28px;
   text-align: left;
+  min-height: min(70vh, 720px);
 }
 
 .title-rules.hidden {
@@ -2225,8 +2243,17 @@ body.title-cpu-active .version-label {
   font-size: 1.5rem !important;
 }
 
+.winner-card h2,
+.winner-streak,
+.winner-coins {
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
 .rules-body {
   display: grid;
+  align-content: start;
   gap: 16px;
   min-height: 250px;
   padding: 24px 28px;
@@ -2395,6 +2422,7 @@ body.title-cpu-active .version-label {
   display: flex;
   justify-content: center;
   gap: 14px;
+  align-self: end;
 }
 
 .rules-nav .title-button {
@@ -2847,10 +2875,11 @@ body.title-cpu-active .version-label {
 
   .fx-float {
     min-width: 0;
-    width: min(92vw, 520px);
+    width: auto;
     max-width: 92vw;
-    padding: 14px 18px;
-    font-size: clamp(1.05rem, 5.4vw, 1.7rem);
+    padding: 14px 16px;
+    font-size: clamp(0.95rem, 4.6vw, 1.55rem);
+    white-space: nowrap;
   }
 
   .winner-card {
@@ -2859,8 +2888,9 @@ body.title-cpu-active .version-label {
   }
 
   .winner-card h2 {
-    font-size: clamp(2.15rem, 9vw, 3.3rem);
+    font-size: clamp(1.8rem, 7.4vw, 3rem);
     line-height: 1.12;
+    white-space: nowrap;
   }
 
   .winner-streak {
@@ -2870,8 +2900,9 @@ body.title-cpu-active .version-label {
   .winner-coins {
     max-width: 100%;
     padding: 10px 14px;
-    font-size: clamp(1.15rem, 5.2vw, 1.55rem) !important;
+    font-size: clamp(1rem, 4.6vw, 1.45rem) !important;
     border-radius: 22px;
+    white-space: nowrap;
   }
 
   .winner-actions {
@@ -3050,6 +3081,11 @@ body.title-cpu-active .version-label {
   .rules-body {
     min-height: 0;
     padding: 18px;
+  }
+
+  .title-rules {
+    grid-template-rows: auto auto minmax(260px, 1fr) auto;
+    min-height: min(72dvh, 640px);
   }
 
   .card-list-body {

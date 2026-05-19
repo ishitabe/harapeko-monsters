@@ -78,7 +78,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=82");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=83");
 }
 
 let game = engine.createGame();
@@ -166,7 +166,7 @@ const RULE_PAGES = [
     items: [
       "ドローはアクション権を消費しません。",
       "1ターンのアクション権は基本2つです。",
-      "召喚とアクションカード使用にはアクション権を1つ使います。",
+      "モンスターの召喚とアクションカードの使用にはアクション権を1つ使います。",
       "攻撃はアクション権を消費せず、行動可能なモンスターごとに1回できます。",
       "ターン終了時、自分の場のモンスターは全回復します。"
     ]
@@ -195,14 +195,14 @@ const RULE_PAGES = [
     title: "カードの種類",
     lead: "カードはモンスター、持ち物、アクションの3種類です。",
     items: [
-      "モンスター: 召喚にアクション権を1消費します。召喚したターンは基本的に行動できません。",
+      "モンスター: 召喚にアクション権を消費します。召喚したターンは基本的に行動できません。",
       "持ち物: 召喚済みの自分のモンスターに装備します。アクション権は消費しません。",
       "持ち物は裏向きで装備され、発動タイミングで公開されます。相手にはカード右上のアイコンだけ見えます。",
-      "アクション: 手札から使用し、アクション権を1消費します。使用後は捨札へ行きます。"
+      "アクション: 手札から使用し、アクション権を消費します。使用後は捨札へ行きます。"
     ]
   },
   {
-    title: "詳しい仕様",
+    title: "詳しい仕様1",
     lead: "現在の基本仕様です。カード効果の細部はカード本文が優先です。",
     items: [
       "初期ライフは12です。",
@@ -211,9 +211,30 @@ const RULE_PAGES = [
       "先攻1ターン目のアクション権は1、それ以外は基本2です。",
       "オンライン対戦では、手札、山札順、裏向き持ち物は相手に見えません。"
     ]
+  },
+  {
+    title: "詳しい仕様2",
+    lead: "操作や特殊な状況についての補足です。",
+    items: [
+      "相手のHPをタップすると、行動可能な場のモンスター全員でライフ攻撃できます。",
+      "ウォールや攻撃対象制限でライフ攻撃できない時は、全員ライフ攻撃も使えません。",
+      "持ち物は効果が発動して公開された時、中央にカードが表示されます。",
+      "対戦中のカード一覧はオプションから確認できます。カード一覧を見てもゲーム状態は変わりません。"
+    ]
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.83",
+    title: "持ち物公開とルール表示を調整",
+    items: [
+      "持ち物が発動して公開される時、中央に持ち物カードを表示してから効果メッセージを出すようにしました。",
+      "ルール説明のページを追加し、相手HPタップで全員ライフ攻撃できることを確認できるようにしました。",
+      "ルール説明の前へ、次への位置がページ内容でずれにくいようにしました。",
+      "対戦中にカード一覧を開いた時、タイトル画面用のハピコインとメニューボタンを表示しないようにしました。",
+      "スマホで短いメッセージが細かく改行されすぎないように調整しました。"
+    ]
+  },
   {
     version: "v0.82",
     title: "ゴリラとスマホ表示を調整",
@@ -1002,6 +1023,7 @@ function render() {
   document.body.classList.toggle("title-lobby-active", titleLobbyOpen);
   document.body.classList.toggle("title-rules-active", titleRulesOpen);
   document.body.classList.toggle("title-cards-active", titleCardsOpen);
+  document.body.classList.toggle("battle-cards-active", titleCardsOpen && titleCardsFromBattle);
   document.body.classList.toggle("title-updates-active", titleUpdatesOpen);
   document.body.classList.toggle("title-records-active", titleRecordsOpen);
   document.body.classList.toggle("title-cpu-active", titleCpuOpen);
@@ -1072,6 +1094,7 @@ function createOnlinePlaceholderView() {
     pendingPileDrawSelection: null,
     pendingPileSearch: null,
     lastPlayedAction: null,
+    lastRevealedItem: null,
     maxFieldSize: 3,
     maxHandSize: 10,
     lastMessage: "オンライン対戦に再接続中です。既存の対戦状態を取得しています。",
@@ -2435,6 +2458,15 @@ function renderBattleEvents(view) {
     const card = CARD_DEFINITIONS[view.lastPlayedAction.cardId];
     if (card) showCardCast(card);
   }
+  if (view.lastRevealedItem
+    && view.lastRevealedItem.serial !== previousView.lastRevealedItem?.serial) {
+    const itemCard = CARD_DEFINITIONS[view.lastRevealedItem.cardId];
+    if (itemCard) {
+      showCardCast(itemCard).then(() => {
+        if (view.lastRevealedItem?.message) showFloat(view.lastRevealedItem.message, "item");
+      });
+    }
+  }
   const removedNames = [];
   view.players.forEach((player, playerId) => {
     const oldField = previousView.players[playerId]?.field || [];
@@ -3669,7 +3701,14 @@ function hardActionCandidates(handIndex, cardId) {
       break;
     }
     case "swapUnits":
-      if (opponent.field.length > player.field.length || (strongestEnemy && unitThreat(strongestEnemy) > unitThreat(bestOwn || { hp: 0, power: 0 }))) add(220);
+      if (opponent.field.length > 0) {
+        const ownValue = player.field.reduce((sum, unit) => sum + unitThreat(unit), 0);
+        const enemyValue = opponent.field.reduce((sum, unit) => sum + unitThreat(unit), 0);
+        const countSwing = opponent.field.length - player.field.length;
+        const bestSwing = strongestEnemy ? unitThreat(strongestEnemy) - (bestOwn ? unitThreat(bestOwn) : 0) : 0;
+        const score = (enemyValue - ownValue) * 0.45 + countSwing * 180 + bestSwing * 0.35;
+        if (score > 260) add(120 + score);
+      }
       break;
     default:
       break;
@@ -3876,18 +3915,18 @@ function immediateAttackValue(unit) {
   const targets = filterAttackTargets(game.players[0].field, unit);
   const bestKill = targets
     .map((target) => {
-      const damage = engine.getEffectivePower(game, unit, target, "attack");
+      const damage = engine.getEffectivePower(game, unit, target, "attack", { silent: true });
       return effectiveDefenderHpForAttack(unit, target) <= damage ? 450 + unitThreat(target) : damage * 35;
     })
     .sort((a, b) => b - a)[0] || 0;
-  const lifeDamage = canCpuAttackLifeNow(unit) ? engine.getEffectivePower(game, unit, null, "lifeAttack") * 95 : 0;
+  const lifeDamage = canCpuAttackLifeNow(unit) ? engine.getEffectivePower(game, unit, null, "lifeAttack", { silent: true }) * 95 : 0;
   return Math.max(bestKill, lifeDamage);
 }
 
 function totalPossibleLifeDamage(extraPower = 0) {
   return game.players[1].field
     .filter((unit) => unit.canAct)
-    .reduce((sum, unit) => sum + engine.getEffectivePower(game, unit, null, "lifeAttack") + extraPower, 0);
+    .reduce((sum, unit) => sum + engine.getEffectivePower(game, unit, null, "lifeAttack", { silent: true }) + extraPower, 0);
 }
 
 function canCpuAttackLifeNow(attacker = null) {
@@ -3991,7 +4030,7 @@ function effectiveDefenderHpForAttack(attacker, target) {
   if (!target) return 0;
   const attackerEffect = attacker ? CARD_DEFINITIONS[attacker.cardId]?.effectKey : null;
   if (["useTargetPowerAsHp", "useTargetPowerAsHpNoSummonSick"].includes(attackerEffect)) {
-    return Math.max(0, engine.getEffectivePower(game, target, attacker, "status"));
+    return Math.max(0, engine.getEffectivePower(game, target, attacker, "status", { silent: true }));
   }
   return target.hp;
 }
@@ -4145,7 +4184,7 @@ function scoreDoublePowerAbility(unit) {
 function setupRoomForDoublePower(unit) {
   const opponentReadyDamage = game.players[0].field
     .filter((enemy) => enemy.canAct)
-    .map((enemy) => engine.getEffectivePower(game, enemy, unit, "attack"))
+    .map((enemy) => engine.getEffectivePower(game, enemy, unit, "attack", { silent: true }))
     .sort((a, b) => b - a)[0] || 0;
   const canBeKilledByBoard = opponentReadyDamage >= unit.hp;
   const enemyCanRemoveByAction = game.players[0].hand.some((cardId) => ["stoneThrow", "erase", "endingBell", "shockWave"].includes(cardId));
@@ -4185,7 +4224,7 @@ function chooseHardCpuAttack() {
   const opponent = game.players[0];
   const choices = [];
   player.field.filter((unit) => unit.canAct).forEach((attacker) => {
-    const lifeDamage = engine.getEffectivePower(game, attacker, null, "lifeAttack");
+    const lifeDamage = engine.getEffectivePower(game, attacker, null, "lifeAttack", { silent: true });
     const ignoresWall = canIgnoreAttackRestrictions(attacker);
     const canAttackLife = !hasCpuMustAttackTarget(attacker) && (opponent.field.length < 3 || ignoresWall);
     if (canAttackLife) {
@@ -4196,8 +4235,8 @@ function chooseHardCpuAttack() {
       });
     }
     filterAttackTargets(opponent.field, attacker).forEach((target) => {
-      const damage = engine.getEffectivePower(game, attacker, target, "attack");
-      const counter = player.noCounterThisTurn ? 0 : engine.getEffectivePower(game, target, attacker, "counter");
+      const damage = engine.getEffectivePower(game, attacker, target, "attack", { silent: true });
+      const counter = player.noCounterThisTurn ? 0 : engine.getEffectivePower(game, target, attacker, "counter", { silent: true });
       const kills = effectiveDefenderHpForAttack(attacker, target) <= damage;
       const survives = attacker.hp > counter;
       const targetMustBeAttacked = CARD_DEFINITIONS[target.cardId]?.effectKey === "mustBeAttacked";
@@ -4254,8 +4293,8 @@ function isSuicideIntoUnkillableWall(choice) {
   const defender = game.players[0].field.find((unit) => unit.id === choice.defenderId);
   if (!attacker || !defender) return false;
   if (CARD_DEFINITIONS[defender.cardId]?.effectKey !== "mustBeAttacked") return false;
-  const damage = engine.getEffectivePower(game, attacker, defender, "attack");
-  const counter = game.players[1].noCounterThisTurn ? 0 : engine.getEffectivePower(game, defender, attacker, "counter");
+  const damage = engine.getEffectivePower(game, attacker, defender, "attack", { silent: true });
+  const counter = game.players[1].noCounterThisTurn ? 0 : engine.getEffectivePower(game, defender, attacker, "counter", { silent: true });
   const kills = effectiveDefenderHpForAttack(attacker, defender) <= damage;
   const survives = attacker.hp > counter;
   return !kills && !survives && !dangerousTargetPlan(defender).canKill;
@@ -4265,8 +4304,8 @@ function dangerousTargetPlan(target) {
   const attackers = game.players[1].field.filter((unit) => unit.canAct)
     .map((unit) => ({
       id: unit.id,
-      damage: engine.getEffectivePower(game, unit, target, "attack"),
-      risk: engine.getEffectivePower(game, target, unit, "counter") >= unit.hp ? unitThreat(unit) * 0.25 : 0,
+      damage: engine.getEffectivePower(game, unit, target, "attack", { silent: true }),
+      risk: engine.getEffectivePower(game, target, unit, "counter", { silent: true }) >= unit.hp ? unitThreat(unit) * 0.25 : 0,
     }))
     .filter((entry) => entry.damage > 0)
     .sort((a, b) => (b.damage - b.risk) - (a.damage - a.risk));
@@ -4338,8 +4377,8 @@ async function runCpuAttacks() {
 function chooseCpuOneSidedKill(attacker) {
   const targets = filterAttackTargets(game.players[0].field, attacker);
   return targets.find((target) => {
-    const damage = engine.getEffectivePower(game, attacker, target, "attack");
-    const counter = game.players[1].noCounterThisTurn ? 0 : engine.getEffectivePower(game, target, attacker, "counter");
+    const damage = engine.getEffectivePower(game, attacker, target, "attack", { silent: true });
+    const counter = game.players[1].noCounterThisTurn ? 0 : engine.getEffectivePower(game, target, attacker, "counter", { silent: true });
     return effectiveDefenderHpForAttack(attacker, target) <= damage && attacker.hp > counter;
   });
 }
@@ -4348,8 +4387,8 @@ function chooseCpuAttackTarget(attacker) {
   const targets = filterAttackTargets(game.players[0].field, attacker);
   if (targets.length === 0) return null;
   return [...targets].sort((a, b) => {
-    const aDamage = engine.getEffectivePower(game, attacker, a, "attack");
-    const bDamage = engine.getEffectivePower(game, attacker, b, "attack");
+    const aDamage = engine.getEffectivePower(game, attacker, a, "attack", { silent: true });
+    const bDamage = engine.getEffectivePower(game, attacker, b, "attack", { silent: true });
     const aKill = effectiveDefenderHpForAttack(attacker, a) <= aDamage ? 1 : 0;
     const bKill = effectiveDefenderHpForAttack(attacker, b) <= bDamage ? 1 : 0;
     if (aKill !== bKill) return bKill - aKill;
