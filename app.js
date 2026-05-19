@@ -79,7 +79,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=86");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=87");
 }
 
 let game = engine.createGame();
@@ -243,6 +243,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.87",
+    title: "新カード表示の見やすさを調整",
+    items: [
+      "新UIのカードサイズを固定比率にし、カードごとに大きさが変わらないようにしました。",
+      "新UIでは行動済みなどの文字表示をやめ、カードを暗くして状態が分かるようにしました。",
+      "新UIの山札トップ表示を、カード名とイラスト枠が見える形に変更しました。"
+    ]
+  },
   {
     version: "v0.86",
     title: "チャレンジモードを追加",
@@ -2540,7 +2549,6 @@ function modernCardMarkup(card, options = {}) {
       <div class="card-art" aria-hidden="true"></div>
       <div class="card-effect-box">${card.text || "効果なし。"}</div>
       <div class="card-type-label">${typeLabel(card.type)}</div>
-      ${state}
       ${isUnit ? `
         <span class="stat-badge power"><small>PW</small><b>${power}</b></span>
         <span class="stat-badge hp"><small>HP</small><b>${hp}</b></span>
@@ -2552,6 +2560,7 @@ function modernCardMarkup(card, options = {}) {
 function deckTopCardMarkup(card) {
   return `
     <div class="deck-top-card ${card.type}" aria-label="${card.name}">
+      <div class="deck-top-name">${card.name}</div>
       <div class="card-art" aria-hidden="true"></div>
     </div>
   `;

@@ -911,9 +911,10 @@ body.modern-card-ui .deck-card .deck-meta {
 }
 
 body.modern-card-ui .card-shell {
-  flex-basis: 150px;
   width: 150px;
-  min-height: 202px;
+  flex: 0 0 150px;
+  height: 210px;
+  min-height: 210px;
   max-height: none;
   padding: 0;
   margin-right: -46px;
@@ -929,9 +930,10 @@ body.modern-card-ui .mini-card {
   --card-glow: rgba(240, 122, 69, 0.22);
   position: relative;
   width: 100%;
-  min-height: 196px;
+  aspect-ratio: 5 / 7;
+  min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(74px, 1fr) minmax(56px, auto) auto;
+  grid-template-rows: 30px minmax(0, 1fr) 56px 20px;
   gap: 6px;
   padding: 8px 8px 18px;
   border: 3px solid var(--card-border);
@@ -952,7 +954,8 @@ body.modern-card-ui .mini-card {
 .game-card.action { --card-border: rgba(114, 214, 107, 0.92); --card-glow: rgba(114, 214, 107, 0.22); }
 
 .card-title-band {
-  min-height: 30px;
+  min-height: 0;
+  height: 30px;
   display: grid;
   place-items: center;
   padding: 4px 8px;
@@ -964,10 +967,13 @@ body.modern-card-ui .mini-card {
   font-weight: 1000;
   line-height: 1.1;
   text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .card-art {
-  min-height: 76px;
+  min-height: 0;
   border: 1px solid rgba(255,255,255,0.16);
   border-radius: 8px;
   background:
@@ -977,7 +983,8 @@ body.modern-card-ui .mini-card {
 }
 
 .card-effect-box {
-  min-height: 50px;
+  min-height: 0;
+  height: 56px;
   padding: 7px 8px;
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 8px;
@@ -999,6 +1006,9 @@ body.modern-card-ui .mini-card {
   font-size: 0.68rem;
   font-weight: 1000;
   text-align: center;
+  height: 20px;
+  line-height: 14px;
+  overflow: hidden;
 }
 
 .stat-badge {
@@ -1065,14 +1075,33 @@ body.modern-card-ui .mini-card {
 }
 
 .deck-top-card {
-  min-height: 92px;
+  height: 112px;
+  min-height: 112px;
   border: 2px solid rgba(255,255,255,0.18);
   border-radius: 10px;
   padding: 6px;
+  display: grid;
+  grid-template-rows: 26px 1fr;
+  gap: 6px;
   background:
     linear-gradient(160deg, rgba(103,183,255,0.12), transparent 50%),
     rgba(10, 16, 24, 0.75);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+.deck-top-name {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: rgba(5, 10, 18, 0.72);
+  color: #fff6df;
+  font-size: 0.82rem;
+  font-weight: 1000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .deck-top-card.unit { border-color: rgba(240, 122, 69, 0.7); }
@@ -1080,28 +1109,29 @@ body.modern-card-ui .mini-card {
 .deck-top-card.action { border-color: rgba(114, 214, 107, 0.7); }
 
 .deck-top-card .card-art {
-  min-height: 78px;
+  min-height: 0;
 }
 
 .game-card.large {
   width: min(330px, 78vw);
-  min-height: 440px;
+  aspect-ratio: 5 / 7;
+  min-height: 0;
   margin: 0 auto;
-  grid-template-rows: auto minmax(170px, 1fr) minmax(96px, auto) auto;
+  grid-template-rows: 48px minmax(0, 1fr) 96px 28px;
   padding: 14px 14px 28px;
 }
 
 .game-card.large .card-title-band {
-  min-height: 48px;
+  height: 48px;
   font-size: 1.45rem;
 }
 
 .game-card.large .card-art {
-  min-height: 180px;
+  min-height: 0;
 }
 
 .game-card.large .card-effect-box {
-  min-height: 96px;
+  height: 96px;
   font-size: 1rem;
   line-height: 1.45;
 }
@@ -1121,17 +1151,19 @@ body.modern-card-ui .mini-card {
 }
 
 .game-card.mini {
-  min-height: 145px;
-  grid-template-rows: auto minmax(42px, 1fr) minmax(36px, auto) auto;
+  aspect-ratio: 5 / 7;
+  min-height: 0;
+  grid-template-rows: 24px minmax(0, 1fr) 40px 18px;
   padding: 6px 6px 15px;
 }
 
 .game-card.mini .card-title-band {
-  min-height: 24px;
+  height: 24px;
   font-size: 0.76rem;
 }
 
 .game-card.mini .card-effect-box {
+  height: 40px;
   font-size: 0.62rem;
 }
 
@@ -3139,33 +3171,35 @@ body.title-cpu-active .version-label {
   }
 
   body.modern-card-ui .card-shell {
-    flex-basis: 118px;
     width: 118px;
-    min-height: 172px;
+    flex: 0 0 118px;
+    height: 165px;
+    min-height: 165px;
     max-height: none;
     margin-right: -30px;
     padding: 0;
   }
 
   body.modern-card-ui .game-card {
-    min-height: 166px;
-    grid-template-rows: auto minmax(48px, 1fr) minmax(42px, auto) auto;
+    min-height: 0;
+    grid-template-rows: 24px minmax(0, 1fr) 40px 18px;
     padding: 6px 6px 15px;
     border-width: 2px;
     border-radius: 11px;
   }
 
   body.modern-card-ui .card-title-band {
-    min-height: 24px;
+    height: 24px;
     font-size: 0.76rem;
   }
 
   body.modern-card-ui .card-art {
-    min-height: 50px;
+    min-height: 0;
   }
 
   body.modern-card-ui .card-effect-box {
-    min-height: 40px;
+    min-height: 0;
+    height: 40px;
     padding: 5px 6px;
     font-size: 0.6rem;
     line-height: 1.22;
@@ -3225,11 +3259,13 @@ body.title-cpu-active .version-label {
   }
 
   body.modern-card-ui .deck-top-card {
-    min-height: 70px;
+    height: 84px;
+    min-height: 84px;
+    grid-template-rows: 22px 1fr;
   }
 
   body.modern-card-ui .deck-top-card .card-art {
-    min-height: 56px;
+    min-height: 0;
   }
 
   .deck-card:hover:not(:disabled) {
