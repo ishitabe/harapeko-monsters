@@ -79,7 +79,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=88");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=90");
 }
 
 let game = engine.createGame();
@@ -124,6 +124,8 @@ let sharedLeaderboardLoaded = false;
 let activeChallenge = null;
 let challengeResultHandled = false;
 let cardPreviewNode = null;
+let cardDragState = null;
+let suppressClickUntil = 0;
 const pendingFx = new Map();
 const AVATAR_DEFINITIONS = window.AppAvatars || [];
 const AVATAR_OPTIONS = AVATAR_DEFINITIONS.map((avatar) => avatar.src);
@@ -244,6 +246,24 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.90",
+    title: "新UIドラッグ操作の調整",
+    items: [
+      "新UIのカードをドラッグする時、文字選択が起きにくいようにしました。",
+      "新UIの手札カードと場のモンスターで、ブラウザ標準の画像ドラッグや文字選択を抑制しました。"
+    ]
+  },
+  {
+    version: "v0.89",
+    title: "新UIのドラッグ操作を追加",
+    items: [
+      "新UIのみ、PCで手札カードを上へドラッグして使用しやすくしました。",
+      "新UIのみ、持ち物を自分の場のモンスターへドラッグして装備できるようにしました。",
+      "新UIのみ、自分の場のモンスターを相手モンスターや相手ライフへドラッグして攻撃できるようにしました。",
+      "カード中央プレビューは新UIだけで表示されるようにしました。"
+    ]
+  },
   {
     version: "v0.88",
     title: "カード確認と新UI表示を調整",
@@ -1311,6 +1331,8 @@ function renderPlayerInfo(view) {
       elements.playerName[slotId].parentElement.prepend(avatarNode);
     }
     avatarNode.src = player.avatar || (slotId === 0 ? AVATAR_OPTIONS[0] : AVATAR_OPTIONS[1]);
+    const lifeBox = elements.playerName[slotId].parentElement;
+    lifeBox.dataset.lifeOwnerId = String(playerId);
     elements.life[slotId].textContent = `HP ${player.life}`;
     elements.life[slotId].onclick = null;
     if (slotId === 1) {
@@ -1720,6 +1742,8 @@ function renderField(container, field, maxFieldSize, view, playerId) {
     const slot = document.createElement("article");
     const key = unit ? `field:${playerId}:${unit.id}` : `field-empty:${playerId}:${index}`;
     slot.dataset.key = key;
+    slot.dataset.ownerId = String(playerId);
+    if (unit) slot.dataset.unitId = String(unit.id);
     const showExhausted = playerId === view.activePlayer && unit && !unit.canAct;
     const isNewUnit = Boolean(unit && previousView && !previousView.players[playerId]?.field.some((oldUnit) => oldUnit.id === unit.id));
     slot.className = `field-slot ${unit ? `filled ${CARD_DEFINITIONS[unit.cardId].type}` : "empty"} ${showExhausted ? "exhausted" : ""} ${unit && unit.summonedTurn === view.turn ? "fresh" : ""} ${isNewUnit ? "fx-summon" : ""} ${selectedKey === key ? "selected" : ""} ${fxClassFor(key)}`;
@@ -1751,7 +1775,9 @@ function renderField(container, field, maxFieldSize, view, playerId) {
       `;
     attachHeldItemClick(slot, unit.item, key);
     bindCardPreview(slot, card, unit, unit.item);
+    bindFieldUnitDrag(slot, unit, playerId);
     slot.addEventListener("click", () => {
+      if (Date.now() < suppressClickUntil) return;
       playSound("select");
       selectDetail(key, card, playerId === getSelfId() ? "自分の場" : "相手の場", unit, { source: "field", ownerId: playerId, unitId: unit.id });
       render();
@@ -1784,10 +1810,15 @@ function renderHand(hand, view, lockedForCpu) {
     const key = `hand:${handIndex}`;
     const article = document.createElement("article");
     article.dataset.key = key;
+    article.dataset.handIndex = String(handIndex);
+    article.dataset.cardId = cardId;
+    article.dataset.cardType = card.type;
     article.className = `card-shell ${card.type} ${selectedKey === key ? "selected" : ""} ${fxClassFor(key)} ${lockedForCpu || isHandCardDisabled(card, handOwner, view) ? "disabled-card" : ""}`;
     article.innerHTML = cardMarkup(card);
     bindCardPreview(article, card);
+    bindHandCardDrag(article, card, handIndex, view, lockedForCpu);
     article.addEventListener("click", () => {
+      if (Date.now() < suppressClickUntil) return;
       playSound("select");
       selectDetail(key, card, "自分の手札", null, { source: "hand", handIndex, cardId, locked: lockedForCpu });
       render();
@@ -2613,6 +2644,7 @@ function hideCardPreview() {
 }
 
 function bindCardPreview(node, card, unit = null, item = null) {
+  if (cardUiMode !== "modern") return;
   if (!node || !card) return;
   node.addEventListener("pointerenter", (event) => {
     if (event.pointerType === "touch") return;
@@ -2625,6 +2657,169 @@ function bindCardPreview(node, card, unit = null, item = null) {
   });
   node.addEventListener("pointerup", hideCardPreview);
   node.addEventListener("pointercancel", hideCardPreview);
+}
+
+function canUseModernDrag(view = getView()) {
+  return cardUiMode === "modern"
+    && view.winner === null
+    && isMyTurn(view)
+    && !isCpuTurn(view)
+    && !animationLock
+    && view.players[view.activePlayer].hasDrawnThisTurn;
+}
+
+function startCardDrag(event, source) {
+  if (cardUiMode !== "modern" || event.pointerType !== "mouse" || event.button !== 0) return;
+  const view = getView();
+  if (!canUseModernDrag(view)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  hideCardPreview();
+  const rect = source.node.getBoundingClientRect();
+  const ghost = source.node.cloneNode(true);
+  ghost.classList.add("drag-ghost");
+  ghost.style.width = `${rect.width}px`;
+  ghost.style.height = `${rect.height}px`;
+  document.body.append(ghost);
+  cardDragState = {
+    ...source,
+    ghost,
+    startX: event.clientX,
+    startY: event.clientY,
+    x: event.clientX,
+    y: event.clientY,
+    dragging: false
+  };
+  source.node.setPointerCapture?.(event.pointerId);
+  source.node.addEventListener("pointermove", onCardDragMove);
+  source.node.addEventListener("pointerup", onCardDragEnd, { once: true });
+  source.node.addEventListener("pointercancel", cancelCardDrag, { once: true });
+}
+
+function onCardDragMove(event) {
+  if (!cardDragState) return;
+  event.preventDefault();
+  const dx = event.clientX - cardDragState.startX;
+  const dy = event.clientY - cardDragState.startY;
+  if (!cardDragState.dragging && Math.hypot(dx, dy) < 12) return;
+  window.getSelection?.()?.removeAllRanges();
+  cardDragState.dragging = true;
+  cardDragState.x = event.clientX;
+  cardDragState.y = event.clientY;
+  cardDragState.ghost.style.transform = `translate(${event.clientX - 60}px, ${event.clientY - 88}px) scale(1.08)`;
+  document.body.classList.add("card-dragging");
+  updateDragTargetHighlight(event.clientX, event.clientY);
+}
+
+function onCardDragEnd(event) {
+  if (!cardDragState) return;
+  const state = cardDragState;
+  const wasDragging = state.dragging;
+  cleanupCardDrag();
+  if (!wasDragging) return;
+  suppressClickUntil = Date.now() + 350;
+  const target = dragTargetFromPoint(event.clientX, event.clientY);
+  if (state.kind === "hand") resolveHandDrag(state, target, event.clientY - state.startY);
+  if (state.kind === "field") resolveFieldDrag(state, target);
+}
+
+function cancelCardDrag() {
+  cleanupCardDrag();
+}
+
+function cleanupCardDrag() {
+  document.body.classList.remove("card-dragging");
+  document.querySelectorAll(".drag-target").forEach((node) => node.classList.remove("drag-target"));
+  cardDragState?.node?.removeEventListener("pointermove", onCardDragMove);
+  cardDragState?.ghost?.remove();
+  cardDragState = null;
+}
+
+function dragTargetFromPoint(x, y) {
+  const element = document.elementFromPoint(x, y);
+  const fieldSlot = element?.closest?.(".field-slot.filled");
+  if (fieldSlot) {
+    return {
+      type: "unit",
+      ownerId: Number(fieldSlot.dataset.ownerId),
+      unitId: Number(fieldSlot.dataset.unitId),
+      node: fieldSlot
+    };
+  }
+  const lifeBox = element?.closest?.(".life-box.opponent");
+  if (lifeBox) return { type: "life", ownerId: getOpponentId(), node: lifeBox };
+  return null;
+}
+
+function updateDragTargetHighlight(x, y) {
+  document.querySelectorAll(".drag-target").forEach((node) => node.classList.remove("drag-target"));
+  const target = dragTargetFromPoint(x, y);
+  target?.node?.classList.add("drag-target");
+}
+
+function bindHandCardDrag(node, card, handIndex, view, lockedForCpu) {
+  if (cardUiMode !== "modern" || lockedForCpu) return;
+  node.draggable = false;
+  node.addEventListener("dragstart", (event) => event.preventDefault());
+  node.addEventListener("selectstart", (event) => event.preventDefault());
+  node.addEventListener("pointerdown", (event) => {
+    startCardDrag(event, { kind: "hand", node, card, handIndex });
+  });
+}
+
+function bindFieldUnitDrag(node, unit, ownerId) {
+  if (cardUiMode !== "modern" || ownerId !== getSelfId()) return;
+  node.draggable = false;
+  node.addEventListener("dragstart", (event) => event.preventDefault());
+  node.addEventListener("selectstart", (event) => event.preventDefault());
+  node.addEventListener("pointerdown", (event) => {
+    startCardDrag(event, { kind: "field", node, unitId: unit.id, ownerId });
+  });
+}
+
+function resolveHandDrag(state, target, deltaY) {
+  const view = getView();
+  const activePlayer = view.players[view.activePlayer];
+  if (state.card.type === "item" && target?.type === "unit" && target.ownerId === getSelfId()) {
+    addFx(`field:${target.ownerId}:${target.unitId}`, "fx-item");
+    playSound("select");
+    runGameAction("equip", { handIndex: state.handIndex, unitId: target.unitId }, () => engine.equipItemFromHand(game, game.activePlayer, state.handIndex, target.unitId));
+    showFloat("装備！", "item");
+    clearSelection();
+    if (!onlineMode) render();
+    return;
+  }
+  if (deltaY < -72) {
+    if (state.card.type === "unit") {
+      playSound("summon");
+      runGameAction("summon", { handIndex: state.handIndex }, () => engine.summonFromHand(game, game.activePlayer, state.handIndex));
+      showFloat(`${state.card.name}を召喚！`, "summon");
+      clearSelection();
+      if (!onlineMode) render();
+      return;
+    }
+    selectDetail(`hand:${state.handIndex}`, state.card, "自分の手札", null, { source: "hand", handIndex: state.handIndex, cardId: activePlayer.hand[state.handIndex], locked: false });
+    render();
+  }
+}
+
+function resolveFieldDrag(state, target) {
+  if (!target) return;
+  if (target.type === "life") {
+    playSound("attack");
+    runGameAction("attackLife", { attackerId: state.unitId }, () => engine.attackLife(game, game.activePlayer, state.unitId));
+    showFloat("ライフ攻撃！", "damage");
+    clearSelection();
+    if (!onlineMode) render();
+    return;
+  }
+  if (target.type === "unit" && target.ownerId === getOpponentId()) {
+    playSound("attack");
+    runGameAction("attackMonster", { attackerId: state.unitId, defenderId: target.unitId }, () => engine.attackMonster(game, game.activePlayer, state.unitId, target.unitId), showDrawnCards);
+    showFloat("攻撃！", "damage");
+    clearSelection();
+    if (!onlineMode) render();
+  }
 }
 
 function heldItemIconMarkup(item) {
