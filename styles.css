@@ -771,6 +771,22 @@ p {
   color: var(--red);
 }
 
+.stat-pill.stat-up {
+  border: 1px solid rgba(120, 255, 170, 0.62);
+  background: linear-gradient(135deg, rgba(54, 204, 112, 0.34), rgba(120, 255, 170, 0.12));
+  color: #b7ffc9;
+  text-shadow: 0 0 8px rgba(103, 255, 161, 0.72);
+  box-shadow: 0 0 14px rgba(82, 232, 135, 0.34);
+}
+
+.stat-pill.stat-down {
+  border: 1px solid rgba(255, 108, 128, 0.68);
+  background: linear-gradient(135deg, rgba(196, 43, 62, 0.34), rgba(255, 108, 128, 0.12));
+  color: #ffadb7;
+  text-shadow: 0 0 8px rgba(255, 98, 120, 0.62);
+  box-shadow: 0 0 14px rgba(255, 72, 96, 0.3);
+}
+
 .item-badge {
   position: relative;
   border: 1px solid rgba(242, 189, 92, 0.42);
@@ -1051,6 +1067,46 @@ body.modern-card-ui .mini-card {
 .stat-badge.hp {
   right: -12px;
   background: radial-gradient(circle at 35% 28%, #b8ffca, #28a95d 48%, #13572f 100%);
+}
+
+.stat-badge.stat-up {
+  outline: 2px solid rgba(142, 255, 183, 0.82);
+  outline-offset: 2px;
+  filter: saturate(1.2) brightness(1.12);
+  box-shadow: 0 10px 18px rgba(0,0,0,0.42), 0 0 20px rgba(93, 255, 154, 0.72);
+}
+
+.stat-badge.stat-down {
+  outline: 2px solid rgba(255, 112, 132, 0.86);
+  outline-offset: 2px;
+  filter: saturate(1.18) brightness(0.92);
+  box-shadow: 0 10px 18px rgba(0,0,0,0.42), 0 0 20px rgba(255, 78, 98, 0.68);
+}
+
+.stat-badge.stat-up::after,
+.stat-badge.stat-down::after {
+  position: absolute;
+  right: -4px;
+  top: -9px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  font-size: 0.58rem;
+  font-weight: 1000;
+  color: #071017;
+}
+
+.stat-badge.stat-up::after {
+  content: "+";
+  background: #9cffb8;
+}
+
+.stat-badge.stat-down::after {
+  content: "-";
+  background: #ff8f9d;
 }
 
 .held-item-icon {
@@ -2348,6 +2404,25 @@ body.profile-editor-active .title-actions {
   background: linear-gradient(180deg, #a6f0ff, #3e8fc4);
   color: #06111a;
   border-color: rgba(166, 240, 255, 0.38);
+}
+
+.title-button.multi-button,
+.title-button.friend-button {
+  background: linear-gradient(180deg, #7fe7a9, #2b9c65);
+  color: #06160f;
+  border-color: rgba(152, 255, 204, 0.38);
+}
+
+.title-button.challenge-button {
+  background: linear-gradient(180deg, #ff8c7b, #c93442);
+  color: #210506;
+  border-color: rgba(255, 166, 150, 0.42);
+}
+
+.title-button.random-button {
+  background: linear-gradient(180deg, #ffe37b, #d8a222);
+  color: #1d1604;
+  border-color: rgba(255, 231, 132, 0.46);
 }
 
 .title-button.disabled-title-button,

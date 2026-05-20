@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=92");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=95");
 }
 
 let game = engine.createGame();
@@ -247,6 +247,29 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.95",
+    title: "スタッツ表示を調整",
+    items: [
+      "ザシアンの攻撃時パワー+3は、場のカード表示には常時反映しないようにしました。",
+      "HPやパワーがカード効果や持ち物で基準値から変わっている時、数字の見た目で上昇・低下が分かるようにしました。"
+    ]
+  },
+  {
+    version: "v0.94",
+    title: "カード詳細を閉じやすく調整",
+    items: [
+      "旧UIでカードをタップして表示した詳細を、閉じるボタン以外に詳細外をタップしても閉じられるようにしました。"
+    ]
+  },
+  {
+    version: "v0.93",
+    title: "タイトルのボタン色を調整",
+    items: [
+      "対戦メニューのマルチ対戦を緑、チャレンジを赤で表示するようにしました。",
+      "マルチ対戦画面のランダム対戦を黄色、友だちと対戦の部屋作成を緑で表示するようにしました。"
+    ]
+  },
   {
     version: "v0.92",
     title: "持ち物のパワー計算を修正",
@@ -1854,10 +1877,7 @@ function renderField(container, field, maxFieldSize, view, playerId) {
       : `
         ${typeBadge(card.type)}
         <div class="card-name">${card.name}</div>
-        <div class="unit-stats">
-          <span class="stat-pill hp">HP ${unit.hp}/${unit.maxHp}</span>
-          <span class="stat-pill pow">PW ${unit.power}</span>
-        </div>
+        ${unitStatsMarkup(card, unit)}
         ${unit.item && unit.item.hasItem ? itemBadgeMarkup(unit.item) : ""}
         <span class="state-badge ${unit.canAct ? "" : "exhausted"}">${unit.canAct ? "行動可" : unit.summonedTurn === view.turn ? "召喚酔い" : "行動済み"}</span>
         <p class="card-text">${card.text}</p>
@@ -1932,6 +1952,37 @@ function renderLog(log) {
   });
 }
 
+function statDeltaClass(value, baseValue) {
+  const current = Number(value);
+  const base = Number(baseValue);
+  if (!Number.isFinite(current) || !Number.isFinite(base)) return "";
+  if (current > base) return "stat-up";
+  if (current < base) return "stat-down";
+  return "";
+}
+
+function unitHpClass(unit, card) {
+  if (!unit || !card) return "";
+  return statDeltaClass(unit.maxHp, unit.baseHp ?? card.hp);
+}
+
+function unitPowerClass(unit, card) {
+  if (!unit || !card) return "";
+  return statDeltaClass(unit.power, unit.basePower ?? card.power);
+}
+
+function unitStatsMarkup(card, unit) {
+  if (!card || card.type !== "unit") return "";
+  const hpText = unit ? `${unit.hp}/${unit.maxHp}` : card.hp;
+  const powerText = unit ? unit.power : card.power;
+  return `
+    <div class="unit-stats">
+      <span class="stat-pill hp ${unitHpClass(unit, card)}">HP ${hpText}</span>
+      <span class="stat-pill pow ${unitPowerClass(unit, card)}">PW ${powerText}</span>
+    </div>
+  `;
+}
+
 function renderDetail() {
   if (!detailKey || !detailData) {
     elements.detailPanel.classList.add("hidden");
@@ -1997,12 +2048,7 @@ function renderDetail() {
         <p class="eyebrow">${zone}</p>
         ${typeBadge(card.type)}
         <h2>${card.name}</h2>
-        ${card.type === "unit" ? `
-          <div class="detail-stats">
-            <span class="stat-pill hp">HP ${unit ? `${unit.hp}/${unit.maxHp}` : card.hp}</span>
-            <span class="stat-pill pow">パワー ${unit ? unit.power : card.power}</span>
-          </div>
-        ` : ""}
+        ${unitStatsMarkup(card, unit)}
         ${unit && unit.item && unit.item.hasItem ? itemBadgeMarkup(unit.item) : ""}
         <p class="card-text">${card.text}</p>
         <div class="detail-actions" id="detailActions"></div>
@@ -2632,12 +2678,7 @@ function cardMarkup(card) {
   return `
     ${typeBadge(card.type)}
     <div class="card-name">${card.name}</div>
-    ${card.type === "unit" ? `
-      <div class="unit-stats">
-        <span class="stat-pill hp">HP ${card.hp}</span>
-        <span class="stat-pill pow">PW ${card.power}</span>
-      </div>
-    ` : ""}
+    ${unitStatsMarkup(card, null)}
     <p class="card-text">${card.text}</p>
   `;
 }
@@ -2659,7 +2700,7 @@ function compactCardMarkup(card) {
   return `
     ${typeBadge(card.type)}
     <div class="card-name">${card.name}</div>
-    ${card.type === "unit" ? `<div class="unit-stats"><span class="stat-pill hp">HP ${card.hp}</span><span class="stat-pill pow">PW ${card.power}</span></div>` : ""}
+    ${unitStatsMarkup(card, null)}
     <small>${card.text}</small>
   `;
 }
@@ -2669,6 +2710,8 @@ function modernCardMarkup(card, options = {}) {
   const isUnit = card.type === "unit";
   const power = unit ? unit.power : card.power;
   const hp = unit ? `${unit.hp}/${unit.maxHp}` : card.hp;
+  const powerClass = unitPowerClass(unit, card);
+  const hpClass = unitHpClass(unit, card);
   const classes = [
     "game-card",
     card.type,
@@ -2685,8 +2728,8 @@ function modernCardMarkup(card, options = {}) {
       <div class="card-effect-box">${card.text || "効果なし。"}</div>
       <div class="card-type-label">${typeLabel(card.type)}</div>
       ${isUnit ? `
-        <span class="stat-badge power"><small>PW</small><b>${power}</b></span>
-        <span class="stat-badge hp"><small>HP</small><b>${hp}</b></span>
+        <span class="stat-badge power ${powerClass}"><small>PW</small><b>${power}</b></span>
+        <span class="stat-badge hp ${hpClass}"><small>HP</small><b>${hp}</b></span>
       ` : ""}
     </div>
   `;
@@ -2709,7 +2752,7 @@ function previewCardMarkup(card, unit = null, item = null) {
     <div class="detail-card ${card.type} card-hover-detail">
       ${typeBadge(card.type)}
       <h2>${card.name}</h2>
-      ${card.type === "unit" ? `<div class="unit-stats"><span class="stat-pill hp">HP ${unit ? `${unit.hp}/${unit.maxHp}` : card.hp}</span><span class="stat-pill pow">PW ${unit ? unit.power : card.power}</span></div>` : ""}
+      ${unitStatsMarkup(card, unit)}
       ${item?.hasItem ? itemBadgeMarkup(item) : ""}
       <p>${card.text}</p>
     </div>
@@ -3543,6 +3586,14 @@ elements.surrenderButton?.addEventListener("click", () => {
 });
 
 elements.closeDetailButton.addEventListener("click", () => {
+  clearSelection();
+  render();
+});
+
+document.addEventListener("pointerdown", (event) => {
+  if (!detailKey || !detailData || titleActive || cardUiMode !== "classic") return;
+  if (event.target.closest("#detailPanel")) return;
+  if (event.target.closest(".card-shell, .field-slot, .deck-card, .discard-pile, .mini-card, .life-box, .held-item-icon")) return;
   clearSelection();
   render();
 });

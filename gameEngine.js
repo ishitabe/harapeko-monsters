@@ -821,7 +821,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     }
 
     if ((reason === "attack" || reason === "lifeAttack" || reason === "status") && !powerIncreaseBlocked) {
-      if (card.effectKey === "attackPowerPlusThree") power += 3;
+      if ((reason === "attack" || reason === "lifeAttack") && card.effectKey === "attackPowerPlusThree") power += 3;
       if (reason === "attack" && targetUnit && hasEffect(game.players[unitOwnerId], "allyMonsterAttackPowerPlusTwo")) power += 2;
       if (card.effectKey === "powerPlusIfLifeTen" && game.players[unitOwnerId].life >= 10) power += 4;
       if (unit.item && cards[unit.item.cardId].effectKey === "attackPowerPlusTwo") {
