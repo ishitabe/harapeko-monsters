@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=96");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=97");
 }
 
 let game = engine.createGame();
@@ -247,6 +247,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.97",
+    title: "手札に加える効果と山札選択を改善",
+    items: [
+      "強奪や二重チェックなどでカードを手札に加えた時、ドローなしではなく加えたカード名を表示するようにしました。",
+      "構えるの複数ドローは、山札をまとめて選ぶのではなく、1回ずつ山札を選んでドローする形にしました。",
+      "山札を選ぶ効果は、山札トップカードを見ながらタップで選べるようにしました。"
+    ]
+  },
   {
     version: "v0.96",
     title: "スマホのカード詳細を閉じやすく調整",
@@ -2114,7 +2123,7 @@ function renderPendingPileDrawSelection() {
   if (!pending || pending.playerId !== getSelfId() || isCpuTurn()) return;
   selectedKey = "pending:pileDrawSelection";
   detailKey = "pending:pileDrawSelection";
-  detailData = { source: "pendingPileDrawSelection", zone: "構える", count: pending.count, card: CARD_DEFINITIONS.readyStance };
+  detailData = { source: "pendingPileDrawSelection", zone: "構える", count: pending.remaining ?? pending.count, totalCount: pending.count, card: CARD_DEFINITIONS.readyStance };
   renderDetail();
 }
 
@@ -2148,7 +2157,7 @@ function renderDetailActions(container, data) {
     const picker = appendClickMultiPicker(container, "加える手札", choices, data.count || 1);
     container.append(createSmallButton("手札に加える", choices.length === 0, () => {
       const opponentHandIndex = picker.getSelectedValues();
-      runGameAction("doubleCheck", { opponentHandIndex }, () => engine.resolvePendingOpponentHandCheck(game, game.activePlayer, opponentHandIndex));
+      runGameAction("doubleCheck", { opponentHandIndex }, () => engine.resolvePendingOpponentHandCheck(game, game.activePlayer, opponentHandIndex), showDrawnCards);
       clearSelection();
       if (!onlineMode) render();
     }));
@@ -2414,6 +2423,15 @@ function canIgnoreAttackRestrictions(unit) {
 async function showDrawnCards(result) {
   const drawnCards = result?.drawnCards || [];
   const discardedDrawCards = result?.discardedDrawCards || [];
+  const gainedCards = result?.gainedCards || [];
+  if (gainedCards.length > 0) {
+    for (const cardId of gainedCards) {
+      const card = CARD_DEFINITIONS[cardId];
+      showFloat(`${card ? card.name : cardId}を手札に加えました`, "draw");
+      playSound("draw");
+      await delay(720);
+    }
+  }
   if (drawnCards.length === 0) {
     if (discardedDrawCards.length > 0) {
       for (const cardId of discardedDrawCards) {
@@ -2423,7 +2441,7 @@ async function showDrawnCards(result) {
       }
       return;
     }
-    showFloat("ドローなし", "draw");
+    if (gainedCards.length === 0 && result?.showNoDraw) showFloat("ドローなし", "draw");
     return;
   }
   for (let index = 0; index < drawnCards.length; index += 1) {
@@ -2449,7 +2467,7 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
   const opponent = view.players[view.activePlayer === 0 ? 1 : 0];
 
   if (["drawTwoGainAction", "drawPileDiscardTwo", "searchTwoFromPile", "drawOneBuffOwnField", "healLifeThree", "damageMinusOneUntilNextTurn"].includes(card.effectKey)) {
-    controls.pile = appendSelect(form, "山札", view.piles.map((pile) => [pile.id, pileChoiceLabel(pile)]));
+    controls.pile = appendPileChoicePicker(form, "山札", view.piles);
   }
   if (["discardUnit"].includes(card.effectKey)) {
     controls.target = appendSelect(form, "対象", orderedUnitOptions(view));
@@ -2527,7 +2545,7 @@ function renderDiscardTakeControls(container, view) {
   const picker = appendClickMultiPicker(form, "捨札", choices, 1);
   form.append(createSmallButton("手札に加える", view.discard.length === 0, () => {
     const [discardIndex] = picker.getSelectedValues();
-    runGameAction("discardTake", { discardIndex }, () => engine.resolvePendingDiscardTake(game, game.activePlayer, discardIndex));
+    runGameAction("discardTake", { discardIndex }, () => engine.resolvePendingDiscardTake(game, game.activePlayer, discardIndex), showDrawnCards);
     clearSelection();
     if (!onlineMode) render();
   }));
@@ -2539,14 +2557,11 @@ function renderPileDrawSelectionControls(container, count, view) {
   form.className = "action-form";
   const note = document.createElement("p");
   note.className = "empty-note";
-  note.textContent = `構えるの効果です。山札を${count}回分選んでドローしてください。同じ山を複数回選べます。`;
+  note.textContent = `構えるの効果です。あと${count}回、山札を1つ選んで1枚ドローします。`;
   form.append(note);
-  const selects = [];
-  for (let index = 0; index < count; index += 1) {
-    selects.push(appendSelect(form, `ドロー${index + 1}`, view.piles.map((pile) => [pile.id, pileChoiceLabel(pile)])));
-  }
-  form.append(createSmallButton("ドローする", false, () => {
-    const pileIds = selects.map((select) => select.value);
+  const picker = appendPileChoicePicker(form, "山札を選ぶ", view.piles);
+  form.append(createSmallButton("1枚ドローする", false, () => {
+    const pileIds = [picker.value];
     runGameAction("pileDrawSelection", { pileIds }, () => engine.resolvePendingPileDrawSelection(game, game.activePlayer, pileIds), showDrawnCards);
     clearSelection();
     if (!onlineMode) render();
@@ -3005,6 +3020,46 @@ function appendMultiSelect(form, label, options, size) {
   select.multiple = true;
   select.size = Math.max(size, Math.min(4, options.length || size));
   return select;
+}
+
+function appendPileChoicePicker(form, label, piles) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "click-picker-wrap pile-choice-wrap";
+  const title = document.createElement("span");
+  title.textContent = label;
+  const grid = document.createElement("div");
+  grid.className = "click-picker pile-choice-grid";
+  const picker = { value: piles.find((pile) => pile.count > 0)?.id || piles[0]?.id || "" };
+  const update = () => {
+    grid.querySelectorAll("button").forEach((button) => {
+      button.classList.toggle("selected", button.value === picker.value);
+    });
+  };
+  piles.forEach((pile) => {
+    const topCard = pile.topCardId ? CARD_DEFINITIONS[pile.topCardId] : null;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.value = pile.id;
+    button.className = `pile-choice-card ${topCard ? topCard.type : "empty"}`;
+    button.disabled = pile.count <= 0;
+    button.innerHTML = `
+      <div class="pile-choice-head">
+        <strong>${pile.name}</strong>
+        <span>残り ${pile.count}枚</span>
+      </div>
+      ${topCard ? compactCardMarkup(topCard) : "<p class=\"empty-note\">空</p>"}
+    `;
+    button.addEventListener("click", () => {
+      picker.value = pile.id;
+      playSound("select");
+      update();
+    });
+    grid.append(button);
+  });
+  wrapper.append(title, grid);
+  form.append(wrapper);
+  update();
+  return picker;
 }
 
 function appendClickMultiPicker(form, label, options, maxCount) {
