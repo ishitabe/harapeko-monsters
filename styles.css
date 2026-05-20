@@ -774,16 +774,12 @@ p {
 .stat-pill.stat-up {
   border: 1px solid rgba(120, 255, 170, 0.62);
   background: linear-gradient(135deg, rgba(54, 204, 112, 0.34), rgba(120, 255, 170, 0.12));
-  color: #b7ffc9;
-  text-shadow: 0 0 8px rgba(103, 255, 161, 0.72);
   box-shadow: 0 0 14px rgba(82, 232, 135, 0.34);
 }
 
 .stat-pill.stat-down {
   border: 1px solid rgba(255, 108, 128, 0.68);
   background: linear-gradient(135deg, rgba(196, 43, 62, 0.34), rgba(255, 108, 128, 0.12));
-  color: #ffadb7;
-  text-shadow: 0 0 8px rgba(255, 98, 120, 0.62);
   box-shadow: 0 0 14px rgba(255, 72, 96, 0.3);
 }
 
