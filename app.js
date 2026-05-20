@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=91");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=92");
 }
 
 let game = engine.createGame();
@@ -247,6 +247,14 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.92",
+    title: "持ち物のパワー計算を修正",
+    items: [
+      "でんきだまや拘り鉢巻のパワー上昇が、ヌオーなどで一度無効化された後でも、無効化がなくなった場面で正しく反映されるようにしました。",
+      "でんきだまを持ったピカチュウがライフを攻撃した時、パワー低下後の正しいダメージになるようにしました。"
+    ]
+  },
   {
     version: "v0.91",
     title: "ログインボーナスを追加",

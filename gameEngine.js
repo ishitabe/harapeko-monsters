@@ -175,7 +175,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (unit.item) return fail(game, "そのモンスターにはすでに持ち物があります。");
 
     player.hand.splice(Number(handIndex), 1);
-    unit.item = { cardId, revealed: false };
+    unit.item = { cardId, revealed: false, powerApplied: false };
     if (card.effectKey === "maxHpPlusTwo") {
       unit.maxHp += 2;
       unit.hp += 2;
@@ -183,10 +183,10 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (card.effectKey === "pikachuPowerPlusSix" && unit.cardId === "pikachu") {
       unit.maxHp += 6;
       unit.hp += 6;
-      increasePower(game, unit, 6);
+      unit.item.powerApplied = increasePower(game, unit, 6);
     }
     if (card.effectKey === "attackPowerPlusTwo") {
-      increasePower(game, unit, 2);
+      unit.item.powerApplied = increasePower(game, unit, 2);
     }
     if (card.effectKey === "canActOnSummon") {
       unit.canAct = true;
@@ -825,9 +825,11 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       if (reason === "attack" && targetUnit && hasEffect(game.players[unitOwnerId], "allyMonsterAttackPowerPlusTwo")) power += 2;
       if (card.effectKey === "powerPlusIfLifeTen" && game.players[unitOwnerId].life >= 10) power += 4;
       if (unit.item && cards[unit.item.cardId].effectKey === "attackPowerPlusTwo") {
+        if (!isItemPowerBakedIntoUnit(unit, 2)) power += 2;
         if (shouldReveal) revealItem(game, unit, "拘り鉢巻でパワー+2。");
       }
       if (unit.cardId === "pikachu" && unit.item && cards[unit.item.cardId].effectKey === "pikachuPowerPlusSix") {
+        if (!isItemPowerBakedIntoUnit(unit, 6)) power += 6;
         if (shouldReveal) revealItem(game, unit, "でんきだまでHP+6、パワー+6。");
       }
     }
@@ -947,7 +949,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       power: card.power + powerBonus,
       canAct: false,
       summonedTurn,
-      item: itemCardId ? { cardId: itemCardId, revealed: false } : null,
+      item: itemCardId ? { cardId: itemCardId, revealed: false, powerApplied: powerBonus > 0 } : null,
       sleepUntilTurn: 0,
     };
   }
@@ -993,7 +995,7 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
       && ["pikachuPowerPlusSix", "powerEqualsHp", "attackPowerPlusTwo"].includes(cards[unit.item.cardId].effectKey);
     let visiblePower = unit.item && cards[unit.item.cardId].effectKey === "powerEqualsHp" && (ownerId === viewerId || unit.item.revealed)
       ? unit.hp
-      : unit.power;
+      : getEffectivePower(game, unit, null, "status", { silent: true });
     if (hasAnyEffect(game, "ignorePowerIncreases")) {
       visiblePower = Math.min(visiblePower, unit.basePower ?? cards[unit.cardId].power);
     }
@@ -1187,11 +1189,17 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
     if (itemCard.effectKey === "pikachuPowerPlusSix" && unit.cardId === "pikachu") {
       unit.maxHp = Math.max(unit.baseHp, unit.maxHp - 6);
       unit.hp = Math.min(unit.hp, unit.maxHp);
-      unit.power = Math.max(cards[unit.cardId].power, unit.power - 6);
+      if (isItemPowerBakedIntoUnit(unit, 6)) unit.power = Math.max(0, unit.power - 6);
     }
     if (itemCard.effectKey === "attackPowerPlusTwo") {
-      unit.power = Math.max(cards[unit.cardId].power, unit.power - 2);
+      if (isItemPowerBakedIntoUnit(unit, 2)) unit.power = Math.max(0, unit.power - 2);
     }
+  }
+
+  function isItemPowerBakedIntoUnit(unit, bonus) {
+    if (!unit.item) return false;
+    if (typeof unit.item.powerApplied === "boolean") return unit.item.powerApplied;
+    return unit.power > (unit.basePower ?? cards[unit.cardId].power);
   }
 
   function getItemPowerBonus(unit) {
@@ -1240,9 +1248,10 @@ function createGameEngine(cards, pileDefinitions, cardPool = Object.keys(cards))
   }
 
   function increasePower(game, unit, amount) {
-    if (amount <= 0) return;
-    if (hasAnyEffect(game, "ignorePowerIncreases")) return;
+    if (amount <= 0) return false;
+    if (hasAnyEffect(game, "ignorePowerIncreases")) return false;
     unit.power += amount;
+    return true;
   }
 
   function hasItemEffect(unit, effectKey) {
