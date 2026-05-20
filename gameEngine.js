@@ -191,7 +191,7 @@
     if (card.effectKey === "canActOnSummon") {
       unit.canAct = true;
     }
-    game.lastMessage = `${cards[unit.cardId].name}に${card.name}を装備しました。`;
+    game.lastMessage = `${cards[unit.cardId].name}に持ち物を装備しました。`;
     addLog(game, game.lastMessage);
     return ok(game);
   }
@@ -293,7 +293,13 @@
       const reviveCardId = game.discard[discardIndex];
       if (!cards[reviveCardId] || cards[reviveCardId].type !== "unit") return fail(game, "捨札のモンスターを選んでください。");
       game.discard.splice(discardIndex, 1);
-      enterField(game, playerId, reviveCardId, "revive", payload);
+      const revived = enterField(game, playerId, reviveCardId, "revive", payload);
+      if (revived) {
+        revived.maxHp += 1;
+        revived.hp += 1;
+        increasePower(game, revived, 1);
+        addLog(game, `元気の塊で${cards[reviveCardId].name}のHPとパワーを+1しました。`);
+      }
       return ok(game);
     }
 
@@ -856,8 +862,17 @@
 
   function applyDamage(game, ownerId, unit, amount, context = {}) {
     amount = reduceDamageForPlayer(game, ownerId, amount);
-    if (amount <= 0) return false;
+    if (amount <= 0) {
+      context.actualDamage = 0;
+      return false;
+    }
     const beforeHp = unit.hp;
+    if (unit.firstDamageLimitAvailable) {
+      unit.firstDamageLimitAvailable = false;
+      amount = Math.min(amount, 1);
+      game.lastMessage = `${cards[unit.cardId].name}は初めて受けるダメージを1にしました。`;
+      addLog(game, game.lastMessage);
+    }
     if (unit.item && cards[unit.item.cardId].effectKey === "maxHpPlusTwo") revealItem(game, unit, "突撃チョッキのHP+2が影響しました。");
     if (unit.item && cards[unit.item.cardId].effectKey === "pikachuPowerPlusSix" && unit.cardId === "pikachu") revealItem(game, unit, "でんきだまのHP+6が影響しました。");
     const hpForDamage = Number.isFinite(context.effectiveHp) ? Math.max(0, Number(context.effectiveHp)) : unit.hp;
@@ -869,9 +884,11 @@
       addLog(game, game.lastMessage);
       discardItem(game, unit);
       unit.hp = 1;
+      context.actualDamage = Math.max(0, beforeHp - unit.hp);
       return false;
     }
     unit.hp = Math.max(0, Number.isFinite(context.effectiveHp) ? Math.min(unit.maxHp, remainingHp) : unit.hp - amount);
+    context.actualDamage = Math.max(0, beforeHp - unit.hp);
     return unit.hp <= 0;
   }
 
@@ -901,21 +918,28 @@
       const counterDamage = target.id === defender.id && !game.players[attackerOwnerId].noCounterThisTurn
         ? getEffectivePower(game, target, attacker, "counter")
         : 0;
-      applyAttackDamageToDefender(game, attacker, defenderOwnerId, target, defenderDamage);
-      if (counterDamage > 0) applyDamage(game, attackerOwnerId, attacker, counterDamage);
+      const actualDefenderDamage = applyAttackDamageToDefender(game, attacker, defenderOwnerId, target, defenderDamage);
+      let actualCounterDamage = 0;
+      if (counterDamage > 0) {
+        const counterContext = {};
+        applyDamage(game, attackerOwnerId, attacker, counterDamage, counterContext);
+        actualCounterDamage = counterContext.actualDamage ?? counterDamage;
+      }
       resolveDestinyCloak(game, target, attacker);
       if (target.id === defender.id) resolveDestinyCloak(game, attacker, target);
-      totalDefenderDamage += defenderDamage;
-      attackerDamage += counterDamage;
+      totalDefenderDamage += actualDefenderDamage;
+      attackerDamage += actualCounterDamage;
     });
     return { defenderDamage: totalDefenderDamage, attackerDamage };
   }
 
   function resolveCombat(game, attackerOwnerId, attacker, defenderOwnerId, defender) {
-    const defenderDamage = getEffectivePower(game, attacker, defender, "attack");
-    const attackerDamage = game.players[attackerOwnerId].noCounterThisTurn ? 0 : getEffectivePower(game, defender, attacker, "counter");
-    applyAttackDamageToDefender(game, attacker, defenderOwnerId, defender, defenderDamage);
-    applyDamage(game, attackerOwnerId, attacker, attackerDamage, { source: cards[defender.cardId].name });
+    let defenderDamage = getEffectivePower(game, attacker, defender, "attack");
+    let attackerDamage = game.players[attackerOwnerId].noCounterThisTurn ? 0 : getEffectivePower(game, defender, attacker, "counter");
+    defenderDamage = applyAttackDamageToDefender(game, attacker, defenderOwnerId, defender, defenderDamage);
+    const attackerContext = { source: cards[defender.cardId].name };
+    applyDamage(game, attackerOwnerId, attacker, attackerDamage, attackerContext);
+    attackerDamage = attackerContext.actualDamage ?? attackerDamage;
     resolveDestinyCloak(game, defender, attacker);
     resolveDestinyCloak(game, attacker, defender);
     return { attackerDamage, defenderDamage };
@@ -929,6 +953,7 @@
       context.fullHpForSash = defender.hp === defender.maxHp;
     }
     applyDamage(game, defenderOwnerId, defender, defenderDamage, context);
+    return context.actualDamage ?? defenderDamage;
   }
 
   function onDeath(game, ownerId, unit) {
@@ -968,6 +993,7 @@
       summonedTurn,
       item: itemCardId ? { cardId: itemCardId, revealed: false, powerApplied: powerBonus > 0 } : null,
       sleepUntilTurn: 0,
+      firstDamageLimitAvailable: cardId === "mimikyu",
     };
   }
 
@@ -1327,7 +1353,7 @@
       else game.players[playerId].hand.push(targetCardId);
     });
     game.pendingOpponentHandCheck = null;
-    game.lastMessage = `${gained.map((cardId) => cards[cardId].name).join("、")}を二重チェックで手札に加えました。`;
+    game.lastMessage = `二重チェックで相手の手札からカードを${gained.length}枚手札に加えました。`;
     addLog(game, game.lastMessage);
     return ok(game, { gainedCards: gained });
   }

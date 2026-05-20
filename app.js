@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=99");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=101");
 }
 
 let game = engine.createGame();
@@ -247,6 +247,22 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.01",
+    title: "カード効果を調整",
+    items: [
+      "元気の塊で出したモンスターのHPとパワーが+1されるようにしました。",
+      "ミミッキュに、場に出て初めて受けるダメージを1にする効果を追加しました。"
+    ]
+  },
+  {
+    version: "v1.00",
+    title: "非公開情報のログ表示を修正",
+    items: [
+      "持ち物を装備した時、ログには持ち物名を出さず「持ち物を装備しました」と表示するようにしました。",
+      "二重チェックで相手の手札から加えたカード名を共有ログに出さないようにしました。"
+    ]
+  },
   {
     version: "v0.99",
     title: "ログ内容を復旧",

@@ -15,7 +15,7 @@ const CARD_DEFINITIONS = {
   incineroar: { id: "incineroar", name: "ガオガエン", type: "unit", hp: 2, power: 2, effectKey: "damageOnSummonZeroPowerAndReturn", text: "召喚時、好きな相手モンスター1体に1ダメージ。攻撃の代わりに相手モンスター1体のパワーを0にして、このカードを手札に戻せる。" },
   farigiraf: { id: "farigiraf", name: "リキキリン", type: "unit", hp: 1, power: 1, effectKey: "allyMonsterAttackPowerPlusTwo", text: "味方はモンスターに攻撃するときパワー+2。攻撃の代わりに、場全体のHPとパワーを入れ替えられる。" },
   calyrexIce: { id: "calyrexIce", name: "白バド", type: "unit", hp: 4, power: 2, effectKey: "attackAllEnemies", text: "相手モンスター全体に攻撃する。" },
-  mimikyu: { id: "mimikyu", name: "ミミッキュ", type: "unit", hp: 2, power: 2, effectKey: "doubleOwnPower", text: "攻撃の代わりに自分のパワーを2倍にできる。" },
+  mimikyu: { id: "mimikyu", name: "ミミッキュ", type: "unit", hp: 2, power: 2, effectKey: "doubleOwnPower", text: "場に出て初めて受けるダメージを1にする。攻撃の代わりに自分のパワーを2倍にできる。" },
   urshifu: { id: "urshifu", name: "ウーラオス", type: "unit", hp: 2, power: 4, effectKey: "ignoreWallLifeAttack", text: "このモンスターは攻撃対象を制限されない。" },
   hippowdon: { id: "hippowdon", name: "カバルドン", type: "unit", hp: 4, power: 1, effectKey: "sleepTargetNextTurn", text: "攻撃の代わりに相手モンスター1体を選び、次ターン行動できなくする。" },
 
@@ -34,7 +34,7 @@ const CARD_DEFINITIONS = {
   erase: { id: "erase", name: "消し去る", type: "action", effectKey: "discardUnit", text: "モンスター1体を捨札に送る。" },
   courtChange: { id: "courtChange", name: "コートチェンジ", type: "action", effectKey: "swapUnits", text: "自分と相手の場のモンスターすべてを、持ち物ごと入れ替える。" },
   storm: { id: "storm", name: "嵐", type: "action", effectKey: "drawOneEachDiscardOne", text: "各山から1枚ずつドロー。" },
-  reviveCrystal: { id: "reviveCrystal", name: "元気の塊", type: "action", effectKey: "reviveUnit", text: "捨札からモンスター1体を自分の場に出す。" },
+  reviveCrystal: { id: "reviveCrystal", name: "元気の塊", type: "action", effectKey: "reviveUnit", text: "捨札からモンスター1体を自分の場に出す。そのモンスターのHPとパワーを+1する。" },
   laboratory: { id: "laboratory", name: "研究室", type: "action", effectKey: "drawTwoGainAction", text: "1山から2枚ドローし、アクション権+1。同じ山から相手も2枚ドローする。" },
   excavation: { id: "excavation", name: "発掘", type: "action", effectKey: "takeDiscardToHandGainAction", text: "捨札からカード1枚を手札に加え、アクション権+1。" },
   doubleCheck: { id: "doubleCheck", name: "二重チェック", type: "action", effectKey: "discardOpponentHand", text: "相手の手札を見て1枚自分の手札に加える。" },
