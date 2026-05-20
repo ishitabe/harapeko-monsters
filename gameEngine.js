@@ -76,10 +76,10 @@
         : null,
       maxFieldSize,
       maxHandSize,
-      lastMessage: game.lastMessage,
+      lastMessage: sanitizeVisibleText(game.lastMessage),
       lastPlayedAction: game.lastPlayedAction,
       lastRevealedItem: game.lastRevealedItem,
-      log: [...game.log],
+      log: game.log.map(sanitizeVisibleText),
       discard: [...game.discard],
       piles: game.piles.map((pile) => ({
         id: pile.id,
@@ -1441,8 +1441,9 @@
   }
 
   function addLog(game, message) {
-    if (!message) return;
-    game.log.unshift(message);
+    const safeMessage = sanitizeVisibleText(message);
+    if (!safeMessage) return;
+    game.log.unshift(safeMessage);
     game.log = game.log.slice(0, 32);
   }
 
@@ -1455,8 +1456,28 @@
   }
 
   function fail(game, message) {
-    game.lastMessage = message;
-    return { ok: false, state: game, message };
+    const safeMessage = sanitizeVisibleText(message);
+    game.lastMessage = safeMessage;
+    return { ok: false, state: game, message: safeMessage };
+  }
+
+  function sanitizeVisibleText(message) {
+    if (!message) return "";
+    const text = String(message);
+    if (!looksCorrupted(text)) return text;
+    if (text.includes("ターン")) return "ターンを開始しました。";
+    if (text.includes("ドロー")) return "カードをドローしました。";
+    if (text.includes("攻撃")) return "攻撃しました。";
+    if (text.includes("捨札") || text.includes("手札")) return "カードを手札に加えました。";
+    if (text.includes("装備")) return "持ち物を装備しました。";
+    if (text.includes("召喚")) return "モンスターを召喚しました。";
+    if (text.includes("倒れ")) return "モンスターは倒れました。";
+    if (text.startsWith("────")) return text.replace(/[縺繧繝譛螻蛻謇莠蜿蟇逶譫蜉隕騾驕縲Ａ・]/g, "").trim() || "──── ターン ────";
+    return "効果を処理しました。";
+  }
+
+  function looksCorrupted(text) {
+    return /[縺繧繝譛螻蛻謇莠蜿蟇逶譫蜉隕騾驕縲Ａ�]|[{}]\w|\{cards|\{game/.test(text);
   }
 
   return {

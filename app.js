@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=97");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=98");
 }
 
 let game = engine.createGame();
@@ -247,6 +247,14 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.98",
+    title: "ログ表示とレイアウト崩れを修正",
+    items: [
+      "一部のログや中央メッセージが文字化けして表示される問題を修正しました。",
+      "長いログやメッセージが出た時に、盤面の横幅やカード配置が崩れにくいようにしました。"
+    ]
+  },
   {
     version: "v0.97",
     title: "手札に加える効果と山札選択を改善",

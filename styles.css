@@ -98,6 +98,8 @@ p {
   display: grid;
   grid-template-rows: 58px 96px minmax(270px, 1fr) 206px;
   gap: 10px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .rail-title,
@@ -433,7 +435,7 @@ p {
   font-weight: 800;
   text-align: center;
   word-break: keep-all;
-  overflow-wrap: normal;
+  overflow-wrap: anywhere;
   line-break: strict;
 }
 
@@ -2078,6 +2080,13 @@ body.card-dragging * {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.log-panel li {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .log-turn-separator {
@@ -3313,7 +3322,7 @@ body.title-cpu-active .version-label {
     font-size: 0.78rem;
     line-height: 1.3;
     word-break: keep-all;
-    overflow-wrap: normal;
+    overflow-wrap: anywhere;
     line-break: strict;
   }
 
