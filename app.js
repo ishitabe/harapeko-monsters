@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=95");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=96");
 }
 
 let game = engine.createGame();
@@ -247,6 +247,14 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.96",
+    title: "スマホのカード詳細を閉じやすく調整",
+    items: [
+      "旧UIのカード詳細を、スマホでも詳細外をタップして閉じられるようにしました。",
+      "カードや山札などをタップした時は、そのカード確認や操作が優先されます。"
+    ]
+  },
   {
     version: "v0.95",
     title: "スタッツ表示を調整",
@@ -3590,13 +3598,18 @@ elements.closeDetailButton.addEventListener("click", () => {
   render();
 });
 
-document.addEventListener("pointerdown", (event) => {
+function handleClassicDetailOutsideDismiss(event) {
   if (!detailKey || !detailData || titleActive || cardUiMode !== "classic") return;
-  if (event.target.closest("#detailPanel")) return;
-  if (event.target.closest(".card-shell, .field-slot, .deck-card, .discard-pile, .mini-card, .life-box, .held-item-icon")) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+  if (target.closest("#detailPanel")) return;
+  if (target.closest(".card-shell, .field-slot, .deck-card, .discard-pile, .mini-card, .life-box, .held-item-icon, button, input, select, textarea, a")) return;
   clearSelection();
   render();
-});
+}
+
+document.addEventListener("pointerdown", handleClassicDetailOutsideDismiss, true);
+document.addEventListener("touchstart", handleClassicDetailOutsideDismiss, { capture: true, passive: true });
 
 elements.createRoomButton?.addEventListener("click", async () => {
   await createOnlineRoom({ fromTitle: false });
