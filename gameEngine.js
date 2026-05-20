@@ -12,7 +12,7 @@
       activePlayer: firstPlayer,
       turn: 1,
       winner: null,
-      players: [createPlayer("繝励Ξ繧､繝､繝ｼ1"), createPlayer("繝励Ξ繧､繝､繝ｼ2")],
+      players: [createPlayer("プレイヤー1"), createPlayer("プレイヤー2")],
       doubleNextAction: null,
       pendingQuickReplay: null,
       pendingOpponentHandCheck: null,
@@ -25,7 +25,7 @@
       piles: pileDefinitions.map((pile) => ({ id: pile.id, name: pile.name, deck: [] })),
       discard: [],
       log: [],
-      lastMessage: "螻ｱ譛ｭ繧・縺､驕ｸ繧薙〒繝峨Ο繝ｼ縺励※縺上□縺輔＞縲・",
+      lastMessage: "山札を1つ選んでドローしてください。",
     };
 
     distributeCardsAcrossDecks(game, shuffle([...cardPool]));
@@ -56,7 +56,7 @@
     const secondPlayer = opponentOf(game.firstPlayer);
     const order = [secondPlayer, game.firstPlayer, secondPlayer, game.firstPlayer, secondPlayer, game.firstPlayer, secondPlayer, game.firstPlayer, secondPlayer, game.firstPlayer, secondPlayer];
     order.forEach((playerId, index) => drawCard(game, playerId, game.piles[index % 3].id, { silent: true, skipRebalance: true }));
-    addLog(game, "蛻晄悄謇区惆繧帝・繧翫∪縺励◆縲ょ・謾ｻ5譫壹∝ｾ梧判6譫壹〒縺吶・");
+    addLog(game, "初期手札を配りました。先攻5枚、後攻6枚です。");
   }
 
   function getPublicState(game, viewerId = game.activePlayer) {
@@ -124,55 +124,55 @@
   }
 
   function drawFromPile(game, playerId, pileId) {
-    if (!canAct(game, playerId)) return fail(game, "莉翫・縺昴・繝励Ξ繧､繝､繝ｼ縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const player = game.players[playerId];
-    if (player.hasDrawnThisTurn) return fail(game, "縺薙・繧ｿ繝ｼ繝ｳ縺ｯ縺吶〒縺ｫ繝峨Ο繝ｼ縺励※縺・∪縺吶・");
+    if (player.hasDrawnThisTurn) return fail(game, "このターンはすでにドローしています。");
 
     ensureDecksHaveCards(game);
     const drawn = drawCard(game, playerId, pileId, { silent: true });
-    if (!drawn) return fail(game, "縺昴・螻ｱ譛ｭ縺ｯ遨ｺ縺ｧ縺吶・");
+    if (!drawn) return fail(game, "その山札は空です。");
 
     player.hasDrawnThisTurn = true;
     if (!drawn.added) {
-      game.lastMessage = `謇区惆荳企剞縺ｧ縺吶・{cards[drawn.cardId].name}縺ｯ謐ｨ譛ｭ縺ｸ騾√ｉ繧後∪縺励◆縲Ａ`;
+      game.lastMessage = `手札上限です。${cards[drawn.cardId].name}は捨札へ送られました。`;
       addLog(game, game.lastMessage);
       return ok(game, { drawnCards: [], discardedDrawCards: [drawn.cardId] });
     }
-    game.lastMessage = `${player.name}縺・{cards[drawn.cardId].name}繧偵ラ繝ｭ繝ｼ縺励∪縺励◆縲Ａ`;
-    addLog(game, `${getPile(game, pileId).name}縺九ｉ縲・{cards[drawn.cardId].name}縲阪ｒ繝峨Ο繝ｼ`);
+    game.lastMessage = `${player.name}が${cards[drawn.cardId].name}をドローしました。`;
+    addLog(game, `${getPile(game, pileId).name}から「${cards[drawn.cardId].name}」をドロー`);
     return ok(game, { drawnCards: [drawn.cardId] });
   }
 
   function summonFromHand(game, playerId, handIndex, payload = {}) {
-    if (!canAct(game, playerId)) return fail(game, "莉翫・縺昴・繝励Ξ繧､繝､繝ｼ縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const player = game.players[playerId];
-    if (!player.hasDrawnThisTurn) return fail(game, "蜈医↓繧ｿ繝ｼ繝ｳ髢句ｧ九ラ繝ｭ繝ｼ繧偵＠縺ｦ縺上□縺輔＞縲・");
-    if (player.actions <= 0) return fail(game, "繧｢繧ｯ繧ｷ繝ｧ繝ｳ讓ｩ縺後≠繧翫∪縺帙ｓ縲・");
-    if (player.field.length >= maxFieldSize) return fail(game, "蝣ｴ縺悟沂縺ｾ縺｣縺ｦ縺・∪縺吶・");
+    if (!player.hasDrawnThisTurn) return fail(game, "先にターン開始ドローをしてください。");
+    if (player.actions <= 0) return fail(game, "アクション権がありません。");
+    if (player.field.length >= maxFieldSize) return fail(game, "場が埋まっています。");
 
     const cardId = player.hand[Number(handIndex)];
     const card = cards[cardId];
-    if (!card || card.type !== "unit") return fail(game, "蜿ｬ蝟壹〒縺阪ｋ繝｢繝ｳ繧ｹ繧ｿ繝ｼ繧帝∈繧薙〒縺上□縺輔＞縲・");
+    if (!card || card.type !== "unit") return fail(game, "召喚できるモンスターを選んでください。");
 
     player.hand.splice(Number(handIndex), 1);
 
     player.actions -= 1;
     enterField(game, playerId, cardId, "summon", payload);
-    game.lastMessage = `${player.name}縺・{card.name}繧貞小蝟壹＠縺ｾ縺励◆縲Ａ`;
+    game.lastMessage = `${player.name}が${card.name}を召喚しました。`;
     addLog(game, game.lastMessage);
     return ok(game);
   }
 
   function equipItemFromHand(game, playerId, handIndex, unitId) {
-    if (!canAct(game, playerId)) return fail(game, "莉翫・縺昴・繝励Ξ繧､繝､繝ｼ縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const player = game.players[playerId];
-    if (!player.hasDrawnThisTurn) return fail(game, "蜈医↓繧ｿ繝ｼ繝ｳ髢句ｧ九ラ繝ｭ繝ｼ繧偵＠縺ｦ縺上□縺輔＞縲・");
+    if (!player.hasDrawnThisTurn) return fail(game, "先にターン開始ドローをしてください。");
     const cardId = player.hand[Number(handIndex)];
     const card = cards[cardId];
-    if (!card || card.type !== "item") return fail(game, "陬・ｙ縺吶ｋ謖√■迚ｩ繧ｫ繝ｼ繝峨ｒ驕ｸ繧薙〒縺上□縺輔＞縲・");
+    if (!card || card.type !== "item") return fail(game, "装備する持ち物カードを選んでください。");
     const unit = findUnit(player, unitId);
-    if (!unit) return fail(game, "閾ｪ蛻・・蝣ｴ縺ｮ繝｢繝ｳ繧ｹ繧ｿ繝ｼ繧帝∈繧薙〒縺上□縺輔＞縲・");
-    if (unit.item) return fail(game, "縺昴・繝｢繝ｳ繧ｹ繧ｿ繝ｼ縺ｫ縺ｯ縺吶〒縺ｫ謖√■迚ｩ縺後≠繧翫∪縺吶・");
+    if (!unit) return fail(game, "自分の場のモンスターを選んでください。");
+    if (unit.item) return fail(game, "そのモンスターにはすでに持ち物があります。");
 
     player.hand.splice(Number(handIndex), 1);
     unit.item = { cardId, revealed: false, powerApplied: false };
@@ -191,22 +191,22 @@
     if (card.effectKey === "canActOnSummon") {
       unit.canAct = true;
     }
-    game.lastMessage = `${cards[unit.cardId].name}縺ｫ謖√■迚ｩ繧定｣丞髄縺阪〒陬・ｙ縺励∪縺励◆縲Ａ`;
+    game.lastMessage = `${cards[unit.cardId].name}に${card.name}を装備しました。`;
     addLog(game, game.lastMessage);
     return ok(game);
   }
 
   function playAction(game, playerId, handIndex, payload = {}) {
-    if (!canAct(game, playerId)) return fail(game, "莉翫・縺昴・繝励Ξ繧､繝､繝ｼ縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const player = game.players[playerId];
-    if (!player.hasDrawnThisTurn) return fail(game, "蜈医↓繧ｿ繝ｼ繝ｳ髢句ｧ九ラ繝ｭ繝ｼ繧偵＠縺ｦ縺上□縺輔＞縲・");
-    if (player.actions <= 0) return fail(game, "繧｢繧ｯ繧ｷ繝ｧ繝ｳ讓ｩ縺後≠繧翫∪縺帙ｓ縲・");
+    if (!player.hasDrawnThisTurn) return fail(game, "先にターン開始ドローをしてください。");
+    if (player.actions <= 0) return fail(game, "アクション権がありません。");
 
     const cardId = player.hand[Number(handIndex)];
     const card = cards[cardId];
-    if (!card || card.type !== "action") return fail(game, "謇区惆縺ｮ繧｢繧ｯ繧ｷ繝ｧ繝ｳ繧ｫ繝ｼ繝峨ｒ驕ｸ繧薙〒縺上□縺輔＞縲・");
+    if (!card || card.type !== "action") return fail(game, "手札のアクションカードを選んでください。");
     if (card.effectKey === "discardOpponentHand" && game.players[opponentOf(playerId)].hand.length === 0) {
-      return fail(game, "逶ｸ謇九・謇区惆縺・譫壹↑縺ｮ縺ｧ莠碁㍾繝√ぉ繝・け縺ｯ菴ｿ縺医∪縺帙ｓ縲・");
+      return fail(game, "相手の手札が0枚なので二重チェックは使えません。");
     }
 
     player.hand.splice(Number(handIndex), 1);
@@ -225,12 +225,16 @@
     if (!result.ok) return result;
 
     game.lastMessage = shouldReplay
-      ? `${player.name}縺・{card.name}繧剃ｽｿ逕ｨ縺励∪縺励◆縲よ掠讌ｭ縺ｧ繧ゅ≧荳蠎ｦ菴ｿ縺医∪縺吶Ａ`
-      : `${player.name}縺・{card.name}繧剃ｽｿ逕ｨ縺励∪縺励◆縲Ａ`;
+      ? `${player.name}が${card.name}を使用しました。早業でもう一度使えます。`
+      : `${player.name}が${card.name}を使用しました。`;
     addLog(game, game.lastMessage);
     checkWinner(game);
     rebalanceDecksIfNeeded(game);
-    return ok(game, { drawnCards: result.drawnCards || [], discardedDrawCards: result.discardedDrawCards || [] });
+    return ok(game, {
+      drawnCards: result.drawnCards || [],
+      discardedDrawCards: result.discardedDrawCards || [],
+      gainedCards: result.gainedCards || [],
+    });
   }
 
   function resolveActionCard(game, playerId, card, payload) {
@@ -249,7 +253,7 @@
         unit.item = null;
         count += 1;
       });
-      addLog(game, `${card.name}: 謖√■迚ｩ繧・{count}譫壼･ｪ縺・∪縺励◆縲Ａ`);
+      addLog(game, `${card.name}: 持ち物を${count}枚奪いました。`);
       return ok(game, { gainedCards });
     }
 
@@ -264,8 +268,8 @@
 
     if (card.effectKey === "discardUnit") {
       const located = findUnitById(game, payload.unitId);
-      if (!located) return fail(game, "謐ｨ譛ｭ縺ｫ騾√ｋ繝｢繝ｳ繧ｹ繧ｿ繝ｼ繧帝∈繧薙〒縺上□縺輔＞縲・");
-      if (isProtectedFromOpponentEffects(game, located.ownerId, playerId)) return fail(game, "逾樒ｧ倥・螳医ｊ縺ｧ蜉ｹ譫懊ｒ蜿励￠縺ｾ縺帙ｓ縲・");
+      if (!located) return fail(game, "捨札に送るモンスターを選んでください。");
+      if (isProtectedFromOpponentEffects(game, located.ownerId, playerId)) return fail(game, "神秘の守りで効果を受けません。");
       moveUnitToDiscard(game, located.ownerId, located.unit);
       return ok(game);
     }
@@ -284,17 +288,17 @@
     }
 
     if (card.effectKey === "reviveUnit") {
-      if (player.field.length >= maxFieldSize) return fail(game, "閾ｪ蛻・・蝣ｴ縺悟沂縺ｾ縺｣縺ｦ縺・∪縺吶・");
+      if (player.field.length >= maxFieldSize) return fail(game, "自分の場が埋まっています。");
       const discardIndex = Number(payload.discardIndex);
       const reviveCardId = game.discard[discardIndex];
-      if (!cards[reviveCardId] || cards[reviveCardId].type !== "unit") return fail(game, "謐ｨ譛ｭ縺ｮ繝｢繝ｳ繧ｹ繧ｿ繝ｼ繧帝∈繧薙〒縺上□縺輔＞縲・");
+      if (!cards[reviveCardId] || cards[reviveCardId].type !== "unit") return fail(game, "捨札のモンスターを選んでください。");
       game.discard.splice(discardIndex, 1);
       enterField(game, playerId, reviveCardId, "revive", payload);
       return ok(game);
     }
 
     if (card.effectKey === "drawTwoGainAction") {
-      if (!payload.pileId) return fail(game, "螻ｱ譛ｭ繧帝∈繧薙〒縺上□縺輔＞縲・");
+      if (!payload.pileId) return fail(game, "山札を選んでください。");
       const ownDraw = drawMultipleDetailed(game, playerId, payload.pileId, 2);
       const opponentDraw = drawMultipleDetailed(game, opponentId, payload.pileId, 2);
       logTopDrawResults(game, card.name, [...ownDraw.drawResults, ...opponentDraw.drawResults]);
@@ -308,7 +312,7 @@
     if (card.effectKey === "takeDiscardToHandGainAction") {
       const discardIndex = Number(payload.discardIndex);
       const targetCardId = game.discard[discardIndex];
-      if (!targetCardId) return fail(game, "謐ｨ譛ｭ縺九ｉ繧ｫ繝ｼ繝峨ｒ驕ｸ繧薙〒縺上□縺輔＞縲・");
+      if (!targetCardId) return fail(game, "捨札からカードを選んでください。");
       game.discard.splice(discardIndex, 1);
       player.hand.push(targetCardId);
       player.actions += 1;
@@ -322,7 +326,7 @@
       }
       const opponentHandIndex = Number(payload.opponentHandIndex);
       const targetCardId = opponent.hand[opponentHandIndex];
-      if (!targetCardId) return fail(game, "逶ｸ謇九・謇区惆縺九ｉ繧ｫ繝ｼ繝峨ｒ驕ｸ繧薙〒縺上□縺輔＞縲・");
+      if (!targetCardId) return fail(game, "相手の手札からカードを選んでください。");
       opponent.hand.splice(opponentHandIndex, 1);
       if (player.hand.length >= maxHandSize) game.discard.push(targetCardId);
       else player.hand.push(targetCardId);
@@ -336,8 +340,8 @@
         return ok(game);
       }
       const located = findUnitById(game, payload.unitId);
-      if (!located) return fail(game, "繝繝｡繝ｼ繧ｸ蟇ｾ雎｡繧帝∈繧薙〒縺上□縺輔＞縲・");
-      if (isProtectedFromOpponentEffects(game, located.ownerId, playerId)) return fail(game, "逾樒ｧ倥・螳医ｊ縺ｧ蜉ｹ譫懊ｒ蜿励￠縺ｾ縺帙ｓ縲・");
+      if (!located) return fail(game, "ダメージ対象を選んでください。");
+      if (isProtectedFromOpponentEffects(game, located.ownerId, playerId)) return fail(game, "神秘の守りで効果を受けません。");
       applyDamage(game, located.ownerId, located.unit, 3);
       discardDeadUnits(game);
       return ok(game);
@@ -359,8 +363,8 @@
 
     if (card.effectKey === "sacrifice") {
       const located = findUnitById(game, payload.unitId);
-      if (!located) return fail(game, "繝代Ρ繝ｼ繧剃ｸ翫￡繧九Δ繝ｳ繧ｹ繧ｿ繝ｼ繧帝∈繧薙〒縺上□縺輔＞縲・");
-      if (located.ownerId !== playerId) return fail(game, "閾ｪ蛻・・蝣ｴ縺ｮ繝｢繝ｳ繧ｹ繧ｿ繝ｼ繧帝∈繧薙〒縺上□縺輔＞縲・");
+      if (!located) return fail(game, "パワーを上げるモンスターを選んでください。");
+      if (located.ownerId !== playerId) return fail(game, "自分の場のモンスターを選んでください。");
       player.hand = player.hand.filter((cardId) => {
         if (cards[cardId]?.type !== "action") return true;
         game.discard.push(cardId);
@@ -382,7 +386,7 @@
     }
 
     if (card.effectKey === "drawPileDiscardTwo") {
-      if (!payload.pileId) return fail(game, "螻ｱ譛ｭ繧帝∈繧薙〒縺上□縺輔＞縲・");
+      if (!payload.pileId) return fail(game, "山札を選んでください。");
       const pile = getPile(game, payload.pileId);
       const { drawnCards, discardedDrawCards, drawResults } = drawMultipleDetailed(game, playerId, pile.id, 6);
       logTopDrawResults(game, card.name, drawResults);
@@ -408,7 +412,7 @@
     }
 
     if (card.effectKey === "searchTwoFromPile") {
-      if (!payload.pileId) return fail(game, "螻ｱ譛ｭ繧帝∈繧薙〒縺上□縺輔＞縲・");
+      if (!payload.pileId) return fail(game, "山札を選んでください。");
       game.pendingPileSearch = { playerId, pileId: payload.pileId, count: 2, discardAfter: 1 };
       return ok(game);
     }
@@ -464,16 +468,16 @@
       return ok(game);
     }
 
-    return fail(game, "縺薙・繧｢繧ｯ繧ｷ繝ｧ繝ｳ縺ｯ譛ｪ螳溯｣・〒縺吶・");
+    return fail(game, "このアクションは未実装です。");
   }
 
   function resolvePendingPileSearch(game, playerId, pileIndexes) {
     const pending = game.pendingPileSearch;
-    if (!pending || pending.playerId !== playerId) return fail(game, "螻ｱ譛ｭ繧定ｦ九ｋ蜉ｹ譫懊・蜃ｦ逅・ｾ・■縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!pending || pending.playerId !== playerId) return fail(game, "山札を見る効果の処理待ちではありません。");
     const player = game.players[playerId];
     if (pending.allPiles) {
       const selected = Array.isArray(pileIndexes) ? pileIndexes : normalizeIndexes(pileIndexes);
-      if (selected.length === 0) return fail(game, "蜉縺医ｋ繧ｫ繝ｼ繝峨ｒ驕ｸ繧薙〒縺上□縺輔＞縲・");
+      if (selected.length === 0) return fail(game, "加えるカードを選んでください。");
       const drawnCards = [];
       const discardedDrawCards = [];
       const byPile = new Map();
@@ -497,12 +501,12 @@
       game.pendingPileSearch = null;
       reshuffleDecks(game);
       rebalanceDecksIfNeeded(game);
-      addLog(game, `繧ｶ繝ｻ繧ｵ繝ｼ繝√〒繧ｫ繝ｼ繝峨ｒ${drawnCards.length}譫壽焔譛ｭ縺ｫ蜉縺医◆縲Ａ`);
+      addLog(game, `ザ・サーチでカードを${drawnCards.length}枚手札に加えました。`);
       return ok(game, { drawnCards, discardedDrawCards });
     }
     const pile = getPile(game, pending.pileId);
     const indexes = normalizeIndexes(pileIndexes).slice(0, pending.count).sort((a, b) => b - a);
-    if (indexes.length === 0) return fail(game, "蜉縺医ｋ繧ｫ繝ｼ繝峨ｒ驕ｸ繧薙〒縺上□縺輔＞縲・");
+    if (indexes.length === 0) return fail(game, "加えるカードを選んでください。");
     const drawnCards = [];
     const discardedDrawCards = [];
     indexes.forEach((index) => {
@@ -520,7 +524,7 @@
     game.pendingPileSearch = null;
     if (pending.discardAfter) game.pendingDiscardSelection = { playerId, count: pending.discardAfter, source: "preparation" };
     rebalanceDecksIfNeeded(game);
-    addLog(game, `荳区ｺ門ｙ縺ｧ繧ｫ繝ｼ繝峨ｒ${drawnCards.length}譫壽焔譛ｭ縺ｫ蜉縺医◆縲Ａ`);
+    addLog(game, `下準備でカードを${drawnCards.length}枚手札に加えました。`);
     return ok(game, { drawnCards, discardedDrawCards });
   }
 
@@ -548,29 +552,29 @@
     return ok(game, { drawnCards, discardedDrawCards });
   }
   function gainLifeWithUnit(game, playerId, unitId) {
-    if (!canAct(game, playerId)) return fail(game, "莉翫・縺昴・繝励Ξ繧､繝､繝ｼ縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const player = game.players[playerId];
-    if (!player.hasDrawnThisTurn) return fail(game, "蜈医↓繧ｿ繝ｼ繝ｳ髢句ｧ九ラ繝ｭ繝ｼ繧偵＠縺ｦ縺上□縺輔＞縲・");
+    if (!player.hasDrawnThisTurn) return fail(game, "先にターン開始ドローをしてください。");
     const unit = findUnit(player, unitId);
-    if (!unit || !unit.canAct) return fail(game, "縺昴・繝｢繝ｳ繧ｹ繧ｿ繝ｼ縺ｯ陦悟虚縺ｧ縺阪∪縺帙ｓ縲・");
-    if (cards[unit.cardId].effectKey !== "attackOrGainLife") return fail(game, "縺薙・繝｢繝ｳ繧ｹ繧ｿ繝ｼ縺ｯ繝ｩ繧､繝・3繧帝∈縺ｹ縺ｾ縺帙ｓ縲・");
+    if (!unit || !unit.canAct) return fail(game, "そのモンスターは行動できません。");
+    if (cards[unit.cardId].effectKey !== "attackOrGainLife") return fail(game, "このモンスターはライフ+3を選べません。");
 
     unit.canAct = false;
     player.life += 3;
-    game.lastMessage = `${cards[unit.cardId].name}縺後Λ繧､繝・3繧帝∈縺ｳ縺ｾ縺励◆縲Ａ`;
+    game.lastMessage = `${cards[unit.cardId].name}がライフ+3を選びました。`;
     addLog(game, game.lastMessage);
     resolveAfterAction(game, playerId, unit.id);
     return ok(game);
   }
 
   function attackLife(game, playerId, attackerId) {
-    if (!canAct(game, playerId)) return fail(game, "莉翫・縺昴・繝励Ξ繧､繝､繝ｼ縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const player = game.players[playerId];
-    if (!player.hasDrawnThisTurn) return fail(game, "蜈医↓繧ｿ繝ｼ繝ｳ髢句ｧ九ラ繝ｭ繝ｼ繧偵＠縺ｦ縺上□縺輔＞縲・");
+    if (!player.hasDrawnThisTurn) return fail(game, "先にターン開始ドローをしてください。");
     const attacker = findUnit(player, attackerId);
-    if (!attacker || !attacker.canAct) return fail(game, "縺昴・繝｢繝ｳ繧ｹ繧ｿ繝ｼ縺ｯ陦悟虚縺ｧ縺阪∪縺帙ｓ縲・");
+    if (!attacker || !attacker.canAct) return fail(game, "そのモンスターは行動できません。");
     const opponentId = opponentOf(playerId);
-    if (!canAttackLifeTarget(game, opponentId, attacker)) return fail(game, "繧ｫ繝薙ざ繝ｳ縺ｾ縺溘・繧ｦ繧ｩ繝ｼ繝ｫ縺ｫ繧医ｊ縲√Λ繧､繝輔・謾ｻ謦・〒縺阪∪縺帙ｓ縲・");
+    if (!canAttackLifeTarget(game, opponentId, attacker)) return fail(game, "カビゴンまたはウォールにより、ライフ攻撃できません。");
 
     const damage = getEffectivePower(game, attacker, null, "lifeAttack");
     attacker.canAct = false;
@@ -578,7 +582,7 @@
     if (cards[attacker.cardId].effectKey === "takeDiscardOnLifeAttack" && game.discard.length > 0) {
       game.pendingDiscardTake = { playerId, count: 1, source: attacker.cardId };
     }
-    game.lastMessage = `${cards[attacker.cardId].name}縺・{game.players[opponentId].name}縺ｮ繝ｩ繧､繝輔↓謾ｻ謦・${actualDamage}繝繝｡繝ｼ繧ｸ・～`;
+    game.lastMessage = `${cards[attacker.cardId].name}が${game.players[opponentId].name}のライフに攻撃　${actualDamage}ダメージ！`;
     addLog(game, game.lastMessage);
     checkWinner(game);
     resolveAfterAction(game, playerId, attacker.id);
@@ -586,12 +590,12 @@
   }
 
   function attackLifeWithAll(game, playerId) {
-    if (!canAct(game, playerId)) return fail(game, "莉翫・縺昴・繝励Ξ繧､繝､繝ｼ縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const player = game.players[playerId];
-    if (!player.hasDrawnThisTurn) return fail(game, "蜈医↓繧ｿ繝ｼ繝ｳ髢句ｧ九ラ繝ｭ繝ｼ繧偵＠縺ｦ縺上□縺輔＞縲・");
+    if (!player.hasDrawnThisTurn) return fail(game, "先にターン開始ドローをしてください。");
     const opponentId = opponentOf(playerId);
     const attackers = player.field.filter((unit) => unit.canAct && canAttackLifeTarget(game, opponentId, unit));
-    if (attackers.length === 0) return fail(game, "繝ｩ繧､繝墓判謦・〒縺阪ｋ繝｢繝ｳ繧ｹ繧ｿ繝ｼ縺後＞縺ｾ縺帙ｓ縲・");
+    if (attackers.length === 0) return fail(game, "ライフ攻撃できるモンスターがいません。");
     let totalDamage = 0;
     attackers.forEach((attacker) => {
       const damage = getEffectivePower(game, attacker, null, "lifeAttack");
@@ -601,22 +605,22 @@
         game.pendingDiscardTake = { playerId, count: 1, source: attacker.cardId };
       }
     });
-    game.lastMessage = `${player.name}縺悟・蜩｡縺ｧ${game.players[opponentId].name}縺ｮ繝ｩ繧､繝輔↓謾ｻ謦・蜷郁ｨ・{totalDamage}繝繝｡繝ｼ繧ｸ・～`;
+    game.lastMessage = `${player.name}が全員で${game.players[opponentId].name}のライフに攻撃　合計${totalDamage}ダメージ！`;
     addLog(game, game.lastMessage);
     checkWinner(game);
     return ok(game);
   }
 
   function attackMonster(game, playerId, attackerId, defenderId) {
-    if (!canAct(game, playerId)) return fail(game, "莉翫・縺昴・繝励Ξ繧､繝､繝ｼ縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const player = game.players[playerId];
-    if (!player.hasDrawnThisTurn) return fail(game, "蜈医↓繧ｿ繝ｼ繝ｳ髢句ｧ九ラ繝ｭ繝ｼ繧偵＠縺ｦ縺上□縺輔＞縲・");
+    if (!player.hasDrawnThisTurn) return fail(game, "先にターン開始ドローをしてください。");
     const attacker = findUnit(player, attackerId);
     const defenderOwnerId = opponentOf(playerId);
     const defender = findUnit(game.players[defenderOwnerId], defenderId);
-    if (!attacker || !attacker.canAct) return fail(game, "縺昴・繝｢繝ｳ繧ｹ繧ｿ繝ｼ縺ｯ陦悟虚縺ｧ縺阪∪縺帙ｓ縲・");
-    if (!defender) return fail(game, "逶ｸ謇九・繝｢繝ｳ繧ｹ繧ｿ繝ｼ繧帝∈繧薙〒縺上□縺輔＞縲・");
-    if (!canTargetDefender(game.players[defenderOwnerId], defender, attacker)) return fail(game, "繧ｫ繝薙ざ繝ｳ縺後＞繧九◆繧√√◎縺ｮ繝｢繝ｳ繧ｹ繧ｿ繝ｼ縺ｯ謾ｻ謦・〒縺阪∪縺帙ｓ縲・");
+    if (!attacker || !attacker.canAct) return fail(game, "そのモンスターは行動できません。");
+    if (!defender) return fail(game, "相手のモンスターを選んでください。");
+    if (!canTargetDefender(game.players[defenderOwnerId], defender, attacker)) return fail(game, "カビゴンがいるため、そのモンスターは攻撃できません。");
 
     attacker.canAct = false;
     const result = resolveAttack(game, playerId, attacker, defenderOwnerId, defender);
@@ -625,49 +629,55 @@
       const drawn = drawAnyAvailableCard(game, playerId);
       if (drawn) {
         drawnCards.push(drawn);
-        addLog(game, `${cards[attacker.cardId].name}縺ｮ謦・ｴ譎ょ柑譫懊〒1繝峨Ο繝ｼ縲Ａ`);
+        addLog(game, `${cards[attacker.cardId].name}の撃破時効果で1ドロー。`);
       }
     }
-    const specialMessage = /豌怜粋縺・・繧ｿ繧ｹ繧ｭ|驕馴｣繧後・繝ｳ繝/.test(game.lastMessage) ? game.lastMessage : "";
-    game.lastMessage = specialMessage || `${cards[attacker.cardId].name}縺・{cards[defender.cardId].name}繧呈判謦・＠縺ｾ縺励◆縲Ａ`;
-    addLog(game, `${cards[attacker.cardId].name}縺・{cards[defender.cardId].name}縺ｫ謾ｻ謦・${result.defenderDamage}繝繝｡繝ｼ繧ｸ・～`);
-    if (result.attackerDamage > 0) addLog(game, `${cards[defender.cardId].name}縺・{cards[attacker.cardId].name}縺ｫ蜿肴茶縲${result.attackerDamage}繝繝｡繝ｼ繧ｸ・～`);
+    const specialMessage = /気合いのタスキ|道連れマント/.test(game.lastMessage) ? game.lastMessage : "";
+    game.lastMessage = specialMessage || `${cards[attacker.cardId].name}が${cards[defender.cardId].name}を攻撃しました。`;
+    addLog(game, `${cards[attacker.cardId].name}が${cards[defender.cardId].name}に攻撃　${result.defenderDamage}ダメージ！`);
+    if (result.attackerDamage > 0) addLog(game, `${cards[defender.cardId].name}が${cards[attacker.cardId].name}に反撃　${result.attackerDamage}ダメージ！`);
     discardDeadUnits(game);
     resolveAfterAction(game, playerId, attacker.id);
     return ok(game, { drawnCards });
   }
 
   function useUnitAbility(game, playerId, payload = {}) {
-    if (!canAct(game, playerId)) return fail(game, "莉翫・縺昴・繝励Ξ繧､繝､繝ｼ縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const player = game.players[playerId];
-    if (!player.hasDrawnThisTurn) return fail(game, "蜈医↓繧ｿ繝ｼ繝ｳ髢句ｧ九ラ繝ｭ繝ｼ繧偵＠縺ｦ縺上□縺輔＞縲・");
+    if (!player.hasDrawnThisTurn) return fail(game, "先にターン開始ドローをしてください。");
     const unit = findUnit(player, payload.unitId);
-    if (!unit || !unit.canAct) return fail(game, "縺昴・繝｢繝ｳ繧ｹ繧ｿ繝ｼ縺ｯ陦悟虚縺ｧ縺阪∪縺帙ｓ縲・");
+    if (!unit || !unit.canAct) return fail(game, "そのモンスターは行動できません。");
     const card = cards[unit.cardId];
     const opponentId = opponentOf(playerId);
     if (payload.ability === "zeroPowerAndReturn" && card.effectKey === "damageOnSummonZeroPowerAndReturn") {
       const target = findUnit(game.players[opponentId], payload.targetUnitId);
-      if (!target) return fail(game, "逶ｸ謇九Δ繝ｳ繧ｹ繧ｿ繝ｼ繧帝∈繧薙〒縺上□縺輔＞縲・");
+      if (!target) return fail(game, "相手モンスターを選んでください。");
       lowerPower(game, opponentId, target, target.power, playerId);
       moveUnitToHand(game, playerId, unit);
+      game.lastMessage = `${cards[unit.cardId].name}が${cards[target.cardId].name}のパワーを0にして手札に戻りました。`;
+      addLog(game, game.lastMessage);
       return ok(game);
     }
     if (payload.ability === "doubleOwnPower" && card.effectKey === "doubleOwnPower") {
       if (hasAnyEffect(game, "ignorePowerIncreases")) {
         unit.canAct = false;
-        game.lastMessage = `${cards[unit.cardId].name}縺ｮ繝代Ρ繝ｼ蛟榊喧縺ｯ繝後が繝ｼ縺ｫ辟｡蜉ｹ蛹悶＆繧後∪縺励◆縲Ａ`;
+        game.lastMessage = `${cards[unit.cardId].name}のパワー倍化はヌオーに無効化されました。`;
         addLog(game, game.lastMessage);
         return ok(game);
       }
       increasePower(game, unit, unit.power);
       unit.canAct = false;
+      game.lastMessage = `${cards[unit.cardId].name}のパワーが2倍になりました。`;
+      addLog(game, game.lastMessage);
       return ok(game);
     }
     if (payload.ability === "sleepTargetNextTurn" && card.effectKey === "sleepTargetNextTurn") {
       const target = findUnit(game.players[opponentId], payload.targetUnitId);
-      if (!target) return fail(game, "逶ｸ謇九Δ繝ｳ繧ｹ繧ｿ繝ｼ繧帝∈繧薙〒縺上□縺輔＞縲・");
+      if (!target) return fail(game, "相手モンスターを選んでください。");
       target.sleepUntilTurn = game.turn + 2;
       unit.canAct = false;
+      game.lastMessage = `${cards[unit.cardId].name}が${cards[target.cardId].name}を次ターン行動不能にしました。`;
+      addLog(game, game.lastMessage);
       return ok(game);
     }
     if (payload.ability === "swapAllHpPower" && unit.cardId === "farigiraf") {
@@ -679,20 +689,20 @@
         target.maxHp = Math.max(0, oldPower);
         target.hp = Math.max(0, oldPower);
         target.power = oldMaxHp;
-        changes.push(`${cards[target.cardId].name}: HP${target.hp}/${target.maxHp} 繝代Ρ繝ｼ${target.power}`);
+        changes.push(`${cards[target.cardId].name}: HP${target.hp}/${target.maxHp} パワー${target.power}`);
       }));
       unit.canAct = false;
-      game.lastMessage = "繝ｪ繧ｭ繧ｭ繝ｪ繝ｳ縺悟ｴ蜈ｨ菴薙・HP縺ｨ繝代Ρ繝ｼ繧貞・繧梧崛縺医◆縲・";
+      game.lastMessage = "リキキリンが場全体のHPとパワーを入れ替えました。";
       addLog(game, game.lastMessage);
       changes.forEach((line) => addLog(game, line));
       discardDeadUnits(game);
       return ok(game);
     }
-    return fail(game, "菴ｿ縺医ｋ閭ｽ蜉帙′縺ゅｊ縺ｾ縺帙ｓ縲・");
+    return fail(game, "使える能力がありません。");
   }
 
   function endTurn(game, playerId) {
-    if (!canAct(game, playerId)) return fail(game, "莉翫・縺昴・繝励Ξ繧､繝､繝ｼ縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     if (game.winner !== null) return ok(game);
 
     if (game.doubleNextAction === playerId) game.doubleNextAction = null;
@@ -710,8 +720,8 @@
     game.activePlayer = nextPlayerId;
     game.turn += 1;
     startTurn(game, nextPlayerId);
-    game.lastMessage = `${game.players[nextPlayerId].name}縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺吶ょｱｱ譛ｭ繧・縺､驕ｸ繧薙〒繝峨Ο繝ｼ縺励※縺上□縺輔＞縲Ａ`;
-    addLog(game, `${game.players[playerId].name}縺後ち繝ｼ繝ｳ邨ゆｺ・Ａ`);
+    game.lastMessage = `${game.players[nextPlayerId].name}のターンです。山札を1つ選んでドローしてください。`;
+    addLog(game, `${game.players[playerId].name}がターン終了。`);
     addTurnSeparator(game, nextPlayerId);
     return ok(game);
   }
@@ -730,7 +740,7 @@
     game.pendingDiscardTake = null;
     game.pendingPileDrawSelection = null;
     game.pendingPileSearch = null;
-    game.lastMessage = `${game.players[playerId].name}縺碁剄蜿ゅ＠縺ｾ縺励◆縲・{game.players[winnerId].name}縺ｮ蜍昴■縺ｧ縺吶Ａ`;
+    game.lastMessage = `${game.players[playerId].name}が降参しました。${game.players[winnerId].name}の勝ちです。`;
     addLog(game, game.lastMessage);
     return ok(game);
   }
@@ -755,12 +765,12 @@
     const player = game.players[playerId];
     if (player.hand.length >= maxHandSize) {
       game.discard.push(cardId);
-      if (!options.silent) addLog(game, `${game.players[playerId].name}縺ｮ謇区惆縺・0譫壹・縺溘ａ縲・{cards[cardId].name}繧呈昏譛ｭ縺ｸ騾√ｊ縺ｾ縺励◆縲Ａ`);
+      if (!options.silent) addLog(game, `${game.players[playerId].name}の手札が10枚のため、${cards[cardId].name}を捨札へ送りました。`);
       if (!options.skipRebalance) rebalanceDecksIfNeeded(game);
       return { cardId, added: false, pileId: pile.id, pileName: pile.name };
     }
     player.hand.push(cardId);
-    if (!options.silent) addLog(game, `${game.players[playerId].name}縺・{cards[cardId].name}繧偵ラ繝ｭ繝ｼ縲Ａ`);
+    if (!options.silent) addLog(game, `${game.players[playerId].name}が${cards[cardId].name}をドロー。`);
     if (!options.skipRebalance) rebalanceDecksIfNeeded(game);
     return { cardId, added: true, pileId: pile.id, pileName: pile.name };
   }
@@ -801,7 +811,7 @@
       if (player.hand.length >= maxHandSize) {
         game.discard.push(cardId);
         discardedDrawCards.push(cardId);
-        addLog(game, `${player.name}縺ｮ謇区惆縺・0譫壹・縺溘ａ縲・{cards[cardId].name}繧呈昏譛ｭ縺ｸ騾√ｊ縺ｾ縺励◆縲Ａ`);
+        addLog(game, `${player.name}の手札が10枚のため、${cards[cardId].name}を捨札へ送りました。`);
       } else {
         player.hand.push(cardId);
         drawnCards.push(cardId);
@@ -820,7 +830,7 @@
     const shouldReveal = !options.silent;
     const powerContext = reason === "attack" || reason === "lifeAttack" || reason === "counter" || reason === "status";
     if (powerContext && unit.item && cards[unit.item.cardId].effectKey === "powerEqualsHp" && !powerIncreaseBlocked) {
-      if (shouldReveal) revealItem(game, unit, "繝ｩ繧､繝輔ヱ繝ｯ繝ｼ縺ｧ繝代Ρ繝ｼ縺粂P縺ｨ蜷後§蛟､縺ｫ縺ｪ繧翫∪縺吶・");
+      if (shouldReveal) revealItem(game, unit, "ライフパワーでパワーがHPと同じ値になります。");
       power = unit.hp;
     }
     if (powerContext && powerIncreaseBlocked) {
@@ -833,11 +843,11 @@
       if (card.effectKey === "powerPlusIfLifeTen" && game.players[unitOwnerId].life >= 10) power += 4;
       if (unit.item && cards[unit.item.cardId].effectKey === "attackPowerPlusTwo") {
         if (!isItemPowerBakedIntoUnit(unit, 2)) power += 2;
-        if (shouldReveal) revealItem(game, unit, "諡倥ｊ驩｢蟾ｻ縺ｧ繝代Ρ繝ｼ+2縲・");
+        if (shouldReveal) revealItem(game, unit, "拘り鉢巻でパワー+2。");
       }
       if (unit.cardId === "pikachu" && unit.item && cards[unit.item.cardId].effectKey === "pikachuPowerPlusSix") {
         if (!isItemPowerBakedIntoUnit(unit, 6)) power += 6;
-        if (shouldReveal) revealItem(game, unit, "縺ｧ繧薙″縺縺ｾ縺ｧHP+6縲√ヱ繝ｯ繝ｼ+6縲・");
+        if (shouldReveal) revealItem(game, unit, "でんきだまでHP+6、パワー+6。");
       }
     }
 
@@ -848,14 +858,14 @@
     amount = reduceDamageForPlayer(game, ownerId, amount);
     if (amount <= 0) return false;
     const beforeHp = unit.hp;
-    if (unit.item && cards[unit.item.cardId].effectKey === "maxHpPlusTwo") revealItem(game, unit, "遯∵茶繝√Ι繝・く縺ｮHP+2縺悟ｽｱ髻ｿ縺励∪縺励◆縲・");
-    if (unit.item && cards[unit.item.cardId].effectKey === "pikachuPowerPlusSix" && unit.cardId === "pikachu") revealItem(game, unit, "縺ｧ繧薙″縺縺ｾ縺ｮHP+6縺悟ｽｱ髻ｿ縺励∪縺励◆縲・");
+    if (unit.item && cards[unit.item.cardId].effectKey === "maxHpPlusTwo") revealItem(game, unit, "突撃チョッキのHP+2が影響しました。");
+    if (unit.item && cards[unit.item.cardId].effectKey === "pikachuPowerPlusSix" && unit.cardId === "pikachu") revealItem(game, unit, "でんきだまのHP+6が影響しました。");
     const hpForDamage = Number.isFinite(context.effectiveHp) ? Math.max(0, Number(context.effectiveHp)) : unit.hp;
     const wasFullHp = context.fullHpForSash ?? (unit.hp === unit.maxHp);
     const remainingHp = hpForDamage - amount;
     if (wasFullHp && remainingHp <= 0 && unit.item && cards[unit.item.cardId].effectKey === "surviveLethalAtOne") {
-      revealItem(game, unit, `${cards[unit.cardId].name}縺ｯ豌怜粋縺・・繧ｿ繧ｹ繧ｭ縺ｧ謾ｻ謦・ｒ閠舌∴縺滂ｼ～`);
-      game.lastMessage = `${cards[unit.cardId].name}縺ｯ豌怜粋縺・・繧ｿ繧ｹ繧ｭ縺ｧ謾ｻ謦・ｒ閠舌∴縺滂ｼ～`;
+      revealItem(game, unit, `${cards[unit.cardId].name}は気合いのタスキで攻撃を耐えた！`);
+      game.lastMessage = `${cards[unit.cardId].name}は気合いのタスキで攻撃を耐えた！`;
       addLog(game, game.lastMessage);
       discardItem(game, unit);
       unit.hp = 1;
@@ -925,11 +935,11 @@
     const card = cards[unit.cardId];
     if (unit.item) discardItem(game, unit);
     game.discard.push(unit.cardId);
-    addLog(game, `${card.name}縺ｯ蛟偵ｌ縺溘${card.name}繧呈昏譛ｭ縺ｫ騾√ｊ縺ｾ縺励◆縲Ａ`);
+    addLog(game, `${card.name}は倒れた　${card.name}を捨札に送りました。`);
     if (card.effectKey === "drawTwoOnDeath") {
       drawAnyAvailableCard(game, ownerId);
       drawAnyAvailableCard(game, ownerId);
-      addLog(game, `${card.name}縺ｮ豁ｻ莠｡譎ょ柑譫懊〒2繝峨Ο繝ｼ縲Ａ`);
+      addLog(game, `${card.name}の死亡時効果で2ドロー。`);
     }
   }
 
@@ -980,7 +990,7 @@
     if (card.effectKey === "enemyPowerMinusOneOnSummon") {
       game.players[opponentId].field.forEach((target) => lowerPower(game, opponentId, target, 1, playerId));
       onSummonEffect = "enemyPowerMinusOneOnSummon";
-      addLog(game, `${card.name}縺ｮ蜿ｬ蝟壽凾蜉ｹ譫懊〒逶ｸ謇九Δ繝ｳ繧ｹ繧ｿ繝ｼ蜈ｨ菴薙・繝代Ρ繝ｼ-1縲Ａ`);
+      addLog(game, `${card.name}の召喚時効果で相手モンスター全体のパワー-1。`);
     }
     if (card.effectKey === "damageOnSummonZeroPowerAndReturn") {
       const target = findUnit(game.players[opponentId], payload.targetUnitId)
@@ -989,7 +999,7 @@
         applyDamage(game, opponentId, target, 1, { source: card.name });
         discardDeadUnits(game);
         onSummonEffect = "damageOnSummon";
-        addLog(game, `${card.name}縺ｮ蜿ｬ蝟壽凾蜉ｹ譫懊〒${cards[target.cardId].name}縺ｫ1繝繝｡繝ｼ繧ｸ縲Ａ`);
+        addLog(game, `${card.name}の召喚時効果で${cards[target.cardId].name}に1ダメージ。`);
       }
     }
     return unit;
@@ -1043,7 +1053,7 @@
     if (unit.item) discardItem(game, unit);
     game.discard.push(unit.cardId);
     player.field.splice(index, 1);
-    addLog(game, `${cards[unit.cardId].name}繧呈昏譛ｭ縺ｫ騾√ｊ縺ｾ縺励◆縲Ａ`);
+    addLog(game, `${cards[unit.cardId].name}を捨札に送りました。`);
   }
 
   function moveUnitToHand(game, ownerId, unit) {
@@ -1053,16 +1063,16 @@
     if (unit.item) discardItem(game, unit);
     player.field.splice(index, 1);
     player.hand.push(unit.cardId);
-    addLog(game, `${cards[unit.cardId].name}繧呈焔譛ｭ縺ｫ謌ｻ縺励∪縺励◆縲Ａ`);
+    addLog(game, `${cards[unit.cardId].name}を手札に戻しました。`);
   }
 
   function discardHandCards(game, playerId, indexes, requiredCount) {
     const player = game.players[playerId];
     let chosen = normalizeIndexes(indexes);
     if (chosen.length < requiredCount) {
-      return fail(game, `謐ｨ縺ｦ繧九き繝ｼ繝峨ｒ${requiredCount}譫夐∈繧薙〒縺上□縺輔＞縲Ａ`);
+      return fail(game, `捨てるカードを${requiredCount}枚選んでください。`);
     }
-    if (chosen.length < requiredCount) return fail(game, `謐ｨ縺ｦ繧九き繝ｼ繝峨ｒ${requiredCount}譫夐∈繧薙〒縺上□縺輔＞縲Ａ`);
+    if (chosen.length < requiredCount) return fail(game, `捨てるカードを${requiredCount}枚選んでください。`);
     chosen.sort((a, b) => b - a).forEach((index) => {
       const cardId = player.hand[index];
       if (!cardId) return;
@@ -1085,7 +1095,7 @@
         if (target.id === unit.id) return;
         applyDamage(game, ownerId, target, 1);
       }));
-      addLog(game, `${cards[unit.cardId].name}縺瑚・蛻・ｻ･螟悶・蜈ｨ繝｢繝ｳ繧ｹ繧ｿ繝ｼ縺ｫ1繝繝｡繝ｼ繧ｸ縲Ａ`);
+      addLog(game, `${cards[unit.cardId].name}が自分以外の全モンスターに1ダメージ。`);
     });
     discardDeadUnits(game);
   }
@@ -1101,7 +1111,7 @@
             applyDamage(game, ownerId, target, 1);
           });
         });
-        addLog(game, `${cards[unit.cardId].name}縺瑚・蛻・ｻ･螟悶・蜈ｨ菴薙↓1繝繝｡繝ｼ繧ｸ縲Ａ`);
+        addLog(game, `${cards[unit.cardId].name}が自分以外の全体に1ダメージ。`);
       }
       if (cards[unit.cardId].effectKey === "healLifeOnTurnEnd") player.life += 1;
       if (cards[unit.cardId].effectKey === "maxHpPlusOneOnTurnEnd") {
@@ -1118,7 +1128,7 @@
     if (totalDeckCards > 0) return;
     const pool = game.discard.splice(0);
     distributeCardsAcrossDecks(game, shuffle(pool.length > 0 ? pool : [...cardPool]));
-    addLog(game, "螻ｱ譛ｭ繧貞・讒狗ｯ峨＠縺ｾ縺励◆縲・");
+    addLog(game, "山札を再構築しました。");
   }
 
   function rebalanceDecksIfNeeded(game) {
@@ -1127,7 +1137,7 @@
     const pool = shuffle([...game.piles.flatMap((pile) => pile.deck), ...game.discard]);
     if (pool.length === 0) return;
     distributeCardsAcrossDecks(game, pool);
-    addLog(game, "2縺､縺ｮ螻ｱ譛ｭ縺檎ｩｺ縺ｫ縺ｪ縺｣縺溘◆繧√∝ｱｱ譛ｭ縺ｨ謐ｨ譛ｭ繧偵☆縺ｹ縺ｦ繧ｷ繝｣繝・ヵ繝ｫ縺励※3螻ｱ縺ｫ蝮・ｭ牙・驟阪＠縺ｾ縺励◆縲・");
+    addLog(game, "2つの山札が空になったため、山札と捨札をすべてシャッフルして3山に均等分配しました。");
   }
 
   function reshuffleDecks(game) {
@@ -1137,7 +1147,7 @@
     pool.forEach((cardId, index) => {
       game.piles[index % game.piles.length].deck.push(cardId);
     });
-    addLog(game, "繧ｶ繝ｻ繧ｵ繝ｼ繝√・蜉ｹ譫懊〒螻ｱ譛ｭ繧偵す繝｣繝・ヵ繝ｫ縺励※3螻ｱ縺ｫ蜀榊・驟阪＠縺ｾ縺励◆縲・");
+    addLog(game, "ザ・サーチの効果で山札をシャッフルして3山に再分配しました。");
   }
 
   function distributeCardsAcrossDecks(game, pool) {
@@ -1153,7 +1163,7 @@
     if (cards[deadCandidate.item.cardId].effectKey !== "destroyOpponentOnDeath") return;
     const deadName = cards[deadCandidate.cardId].name;
     const opposingName = cards[opposingUnit.cardId].name;
-    revealItem(game, deadCandidate, `${deadName}縺ｯ驕馴｣繧後・繝ｳ繝医〒${opposingName}繧帝％騾｣繧後↓縺励◆・～`);
+    revealItem(game, deadCandidate, `${deadName}は道連れマントで${opposingName}を道連れにした！`);
     opposingUnit.hp = 0;
   }
 
@@ -1167,7 +1177,7 @@
       return;
     }
     unit.item.revealed = true;
-    game.lastMessage = `${itemName}繧貞・髢九・{message}`;
+    game.lastMessage = `${itemName}を公開。${message}`;
     addLog(game, game.lastMessage);
     game.lastRevealedItem = {
       cardId: unit.item.cardId,
@@ -1181,7 +1191,7 @@
   function discardItem(game, unit) {
     if (!unit.item) return;
     game.discard.push(unit.item.cardId);
-    addLog(game, `${cards[unit.item.cardId].name}繧呈昏譛ｭ縺ｸ騾√ｊ縺ｾ縺励◆縲Ａ`);
+    addLog(game, `${cards[unit.item.cardId].name}を捨札へ送りました。`);
     removeItemStats(unit);
     unit.item = null;
   }
@@ -1303,10 +1313,10 @@
 
   function resolvePendingOpponentHandCheck(game, playerId, opponentHandIndex) {
     const pending = game.pendingOpponentHandCheck;
-    if (!pending || pending.playerId !== playerId) return fail(game, "莠碁㍾繝√ぉ繝・け縺ｮ蜃ｦ逅・ｾ・■縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!pending || pending.playerId !== playerId) return fail(game, "二重チェックの処理待ちではありません。");
     const opponent = game.players[pending.opponentId];
     const indexes = normalizeIndexes(opponentHandIndex).slice(0, pending.count || 1).sort((a, b) => b - a);
-    if (indexes.length === 0) return fail(game, "逶ｸ謇九・謇区惆縺九ｉ繧ｫ繝ｼ繝峨ｒ驕ｸ繧薙〒縺上□縺輔＞縲・");
+    if (indexes.length === 0) return fail(game, "相手の手札からカードを選んでください。");
     const gained = [];
     indexes.forEach((index) => {
       const targetCardId = opponent.hand[index];
@@ -1324,13 +1334,13 @@
 
   function resolvePendingDiscardSelection(game, playerId, handIndexes) {
     const pending = game.pendingDiscardSelection;
-    if (!pending || pending.playerId !== playerId) return fail(game, "謐ｨ縺ｦ繧九き繝ｼ繝峨・驕ｸ謚槫ｾ・■縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!pending || pending.playerId !== playerId) return fail(game, "捨てるカードの選択待ちではありません。");
     const player = game.players[playerId];
     const indexes = player.hand.length <= pending.count ? player.hand.map((_, index) => index) : handIndexes;
     const result = discardHandCards(game, playerId, indexes, Math.min(pending.count, player.hand.length));
     if (!result.ok) return result;
     game.pendingDiscardSelection = null;
-    game.lastMessage = `${game.players[playerId].name}縺梧焔譛ｭ繧・{pending.count}譫壽昏縺ｦ縺ｾ縺励◆縲Ａ`;
+    game.lastMessage = `${game.players[playerId].name}が手札を${Math.min(pending.count, indexes.length)}枚捨てました。`;
     addLog(game, game.lastMessage);
     rebalanceDecksIfNeeded(game);
     return ok(game);
@@ -1338,10 +1348,10 @@
 
   function resolvePendingDiscardTake(game, playerId, discardIndex) {
     const pending = game.pendingDiscardTake;
-    if (!pending || pending.playerId !== playerId) return fail(game, "謐ｨ譛ｭ縺九ｉ繧ｫ繝ｼ繝峨ｒ蜉縺医ｋ蜉ｹ譫懊・蜃ｦ逅・ｾ・■縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!pending || pending.playerId !== playerId) return fail(game, "捨札からカードを加える効果の処理待ちではありません。");
     const index = Number(discardIndex);
     const cardId = game.discard[index];
-    if (!cardId) return fail(game, "謐ｨ譛ｭ縺九ｉ繧ｫ繝ｼ繝峨ｒ驕ｸ繧薙〒縺上□縺輔＞縲・");
+    if (!cardId) return fail(game, "捨札からカードを選んでください。");
     game.discard.splice(index, 1);
     if (game.players[playerId].hand.length >= maxHandSize) game.discard.push(cardId);
     else game.players[playerId].hand.push(cardId);
@@ -1353,26 +1363,30 @@
 
   function resolvePendingQuickReplay(game, playerId, payload = {}) {
     const pending = game.pendingQuickReplay;
-    if (!pending || pending.playerId !== playerId) return fail(game, "譌ｩ讌ｭ縺ｮ2蝗樒岼蜃ｦ逅・ｾ・■縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
-    if (!canAct(game, playerId)) return fail(game, "莉翫・縺昴・繝励Ξ繧､繝､繝ｼ縺ｮ繧ｿ繝ｼ繝ｳ縺ｧ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・");
+    if (!pending || pending.playerId !== playerId) return fail(game, "早業の2回目処理待ちではありません。");
+    if (!canAct(game, playerId)) return fail(game, "今はそのプレイヤーのターンではありません。");
     const card = cards[pending.cardId];
-    if (!card || card.type !== "action") return fail(game, "譌ｩ讌ｭ縺ｧ菴ｿ縺・き繝ｼ繝峨′隕九▽縺九ｊ縺ｾ縺帙ｓ縲・");
+    if (!card || card.type !== "action") return fail(game, "早業で使うカードが見つかりません。");
 
     const result = resolveActionCard(game, playerId, card, payload);
     if (!result.ok) return result;
 
     game.pendingQuickReplay = null;
-    game.lastMessage = `${game.players[playerId].name}縺梧掠讌ｭ縺ｧ${card.name}繧偵ｂ縺・ｸ蠎ｦ菴ｿ逕ｨ縺励∪縺励◆縲Ａ`;
+    game.lastMessage = `${game.players[playerId].name}が早業で${card.name}をもう一度使用しました。`;
     addLog(game, game.lastMessage);
     checkWinner(game);
     rebalanceDecksIfNeeded(game);
-    return ok(game, { drawnCards: result.drawnCards || [], discardedDrawCards: result.discardedDrawCards || [] });
+    return ok(game, {
+      drawnCards: result.drawnCards || [],
+      discardedDrawCards: result.discardedDrawCards || [],
+      gainedCards: result.gainedCards || [],
+    });
   }
 
   function drawAnyAvailableCard(game, playerId) {
     const pile = game.piles.find((candidate) => candidate.deck.length > 0);
     const drawn = pile ? drawCard(game, playerId, pile.id, { silent: true }) : null;
-    if (drawn) logTopDrawResults(game, "鮟偵ヰ繝・, [drawn]");
+    if (drawn) logTopDrawResults(game, "黒バド", [drawn]);
     return drawn?.added ? drawn.cardId : null;
   }
 
@@ -1406,7 +1420,7 @@
     game.pendingDiscardTake = null;
     game.pendingPileDrawSelection = null;
     game.pendingPileSearch = null;
-    game.lastMessage = `豎ｺ逹・・{game.players[game.winner].name}縺ｮ蜍昴■縺ｧ縺吶Ａ`;
+    game.lastMessage = `決着！${game.players[game.winner].name}の勝ちです。`;
     addLog(game, game.lastMessage);
   }
 
@@ -1441,14 +1455,13 @@
   }
 
   function addLog(game, message) {
-    const safeMessage = sanitizeVisibleText(message);
-    if (!safeMessage) return;
-    game.log.unshift(safeMessage);
+    if (!message) return;
+    game.log.unshift(String(message));
     game.log = game.log.slice(0, 32);
   }
 
   function addTurnSeparator(game, playerId) {
-    addLog(game, `笏笏笏笏 ${game.players[playerId].name}縺ｮ繧ｿ繝ｼ繝ｳ 笏笏笏笏`);
+    addLog(game, `──── ${game.players[playerId].name}のターン ────`);
   }
 
   function ok(game, extra = {}) {
@@ -1456,24 +1469,16 @@
   }
 
   function fail(game, message) {
-    const safeMessage = sanitizeVisibleText(message);
-    game.lastMessage = safeMessage;
-    return { ok: false, state: game, message: safeMessage };
+    game.lastMessage = message;
+    return { ok: false, state: game, message };
   }
 
   function sanitizeVisibleText(message) {
     if (!message) return "";
     const text = String(message);
     if (!looksCorrupted(text)) return text;
-    if (text.includes("ターン")) return "ターンを開始しました。";
-    if (text.includes("ドロー")) return "カードをドローしました。";
-    if (text.includes("攻撃")) return "攻撃しました。";
-    if (text.includes("捨札") || text.includes("手札")) return "カードを手札に加えました。";
-    if (text.includes("装備")) return "持ち物を装備しました。";
-    if (text.includes("召喚")) return "モンスターを召喚しました。";
-    if (text.includes("倒れ")) return "モンスターは倒れました。";
     if (text.startsWith("────")) return text.replace(/[縺繧繝譛螻蛻謇莠蜿蟇逶譫蜉隕騾驕縲Ａ・]/g, "").trim() || "──── ターン ────";
-    return "効果を処理しました。";
+    return "ログを更新しました。";
   }
 
   function looksCorrupted(text) {

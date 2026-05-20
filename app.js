@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=98");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=99");
 }
 
 let game = engine.createGame();
@@ -247,6 +247,14 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v0.99",
+    title: "ログ内容を復旧",
+    items: [
+      "ログが「効果を処理しました」ばかりになる問題を修正しました。",
+      "ドロー、召喚、攻撃、持ち物公開などのログが具体的に分かるように戻しました。"
+    ]
+  },
   {
     version: "v0.98",
     title: "ログ表示とレイアウト崩れを修正",
