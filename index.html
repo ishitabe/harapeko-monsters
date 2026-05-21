@@ -8,10 +8,10 @@
     <meta name="apple-mobile-web-app-title" content="かんハピ">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>しょーかんハッピーズ</title>
-    <link rel="manifest" href="manifest.json?v=101">
+    <link rel="manifest" href="manifest.json?v=102">
     <link rel="icon" type="image/png" sizes="192x192" href="pwa-icon-192.png">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-    <link rel="stylesheet" href="styles.css?v=101">
+    <link rel="stylesheet" href="styles.css?v=102">
     <script src="constants.js?v=77"></script>
     <script>
       document.title = window.AppConstants.APP_DISPLAY_NAME;
@@ -24,8 +24,9 @@
     <script src="avatars.js?v=77" defer></script>
     <script src="currency.js?v=78" defer></script>
     <script src="cards.js?v=62" defer></script>
-    <script src="gameEngine.js?v=101" defer></script>
-    <script src="app.js?v=101" defer></script>
+    <script src="challenges.js?v=102" defer></script>
+    <script src="gameEngine.js?v=102" defer></script>
+    <script src="app.js?v=102" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -40,7 +41,7 @@
       <div class="title-content">
         <p class="eyebrow">CARD BATTLE</p>
         <h1 data-app-display-name>しょーかんハッピーズ</h1>
-        <p class="version-label">v1.01</p>
+        <p class="version-label">v1.02</p>
         <div class="profile-summary" id="profileSummary" aria-label="現在のプロフィール">
           <img id="profileSummaryAvatar" src="assets/player.png" alt="">
           <div>
@@ -134,18 +135,9 @@
             <button class="small-button" id="challengeBackButton" type="button">戻る</button>
           </div>
           <h2>チャレンジ</h2>
-          <div class="challenge-list">
-            <article class="challenge-card">
-              <div class="challenge-card-head">
-                <strong>サドンデス</strong>
-                <span class="challenge-status" id="suddenDeathStatus"></span>
-              </div>
-              <p>自分ライフ1、相手ライフ12で始まる特殊CPU戦です。CPUは強い設定です。回復は通常通り使えます。</p>
-              <p class="challenge-reward">勝利報酬：200ハピコイン（1日1回）</p>
-              <p class="challenge-reset-note">報酬は端末のローカル日付が変わる0:00に更新されます。</p>
-              <button class="title-button primary" id="suddenDeathButton" type="button">挑戦する</button>
-            </article>
-          </div>
+          <section class="challenge-daily" id="todayChallengeContent"></section>
+          <button class="title-button challenge-free-toggle" id="freeChallengeToggleButton" type="button">フリーチャレンジ</button>
+          <div class="challenge-list challenge-free-list hidden" id="freeChallengeList"></div>
         </div>
         <div class="title-lobby hidden" id="titleLobby">
           <strong id="titleLobbyStatus">対人</strong>

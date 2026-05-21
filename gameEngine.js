@@ -25,6 +25,7 @@
       piles: pileDefinitions.map((pile) => ({ id: pile.id, name: pile.name, deck: [] })),
       discard: [],
       log: [],
+      ruleModifiers: {},
       lastMessage: "山札を1つ選んでドローしてください。",
     };
 
@@ -758,7 +759,7 @@
     player.noCounterThisTurn = false;
     player.hasDrawnThisTurn = false;
     player.field.forEach((unit) => {
-      unit.canAct = unit.summonedTurn < game.turn && !(unit.sleepUntilTurn > game.turn);
+      unit.canAct = (unit.summonedTurn < game.turn || game.ruleModifiers?.noSummonSickness) && !(unit.sleepUntilTurn > game.turn);
     });
     applyTurnStartEffects(game, playerId);
   }
@@ -1008,7 +1009,7 @@
       increasePower(game, unit, game.players[opponentId].field.length);
       onSummonEffect = "mustBeAttackedPower";
     }
-    if (card.effectKey === "useTargetPowerAsHpNoSummonSick" || hasItemEffect(unit, "canActOnSummon")) {
+    if (game.ruleModifiers?.noSummonSickness || card.effectKey === "useTargetPowerAsHpNoSummonSick" || hasItemEffect(unit, "canActOnSummon")) {
       unit.canAct = true;
     }
     player.field.push(unit);

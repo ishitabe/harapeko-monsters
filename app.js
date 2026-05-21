@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=101");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=102");
 }
 
 let game = engine.createGame();
@@ -103,6 +103,7 @@ let titleRecordsOpen = false;
 let titleCpuOpen = false;
 let titleBattleOpen = false;
 let titleChallengeOpen = false;
+let freeChallengeOpen = false;
 let titleMenuOpen = false;
 let titleReturnTarget = "main";
 let titleCardsFromBattle = false;
@@ -156,19 +157,26 @@ const AVATAR_FALLBACK_OPTIONS = [
   "assets/avatars/avatar-genius-slime.png",
 ];
 
-const CHALLENGES = {
-  suddenDeath: {
-    id: "suddenDeath",
+const CHALLENGE_DATA = window.AppChallenges || {};
+const CHALLENGE_LIST = Array.isArray(CHALLENGE_DATA.challenges) ? CHALLENGE_DATA.challenges : [];
+if (CHALLENGE_LIST.length === 0) {
+  CHALLENGE_LIST.push({
+    challengeId: "suddenDeath",
     name: "サドンデス",
-    description: "自分ライフ1、相手ライフ12で始まる特殊CPU戦です。CPUは強い設定です。回復は通常通り使えます。",
-    reward: 200,
-    playerLife: 1,
-    cpuLife: 12,
-    cpuDifficulty: "hard",
+    description: "ライフ1で勝ち抜け！",
+    rules: ["自分ライフ1", "相手ライフ12", "回復などは通常通り"],
+    rewardCoins: 200,
     cpuName: "サドンデス君",
-    cpuAvatarId: "gollem"
-  }
-};
+    cpuIcon: "gollem",
+    cpuDifficulty: "strong",
+    ruleModifiers: { playerLife: 1, cpuLife: 12 }
+  });
+}
+const CHALLENGES = Object.fromEntries(CHALLENGE_LIST.map((challenge) => [challenge.challengeId, challenge]));
+const DAILY_CHALLENGE_START_DATE = CHALLENGE_DATA.dailyStartDate || "2026-05-21";
+const DAILY_CHALLENGE_SEQUENCE = Array.isArray(CHALLENGE_DATA.dailySequence) && CHALLENGE_DATA.dailySequence.length > 0
+  ? CHALLENGE_DATA.dailySequence
+  : CHALLENGE_LIST.map((challenge) => challenge.challengeId);
 if (AVATAR_OPTIONS.length === 0) AVATAR_OPTIONS.push(...AVATAR_FALLBACK_OPTIONS);
 const AVATAR_ASSET_BY_ID = new Map(AVATAR_DEFINITIONS.map((avatar, index) => [avatar.id, AVATAR_FALLBACK_OPTIONS[index] || AVATAR_FALLBACK_OPTIONS[0]]));
 const DEFAULT_LEADERBOARD_AVATAR = AVATAR_FALLBACK_OPTIONS[0];
@@ -247,6 +255,16 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.02",
+    title: "チャレンジを追加",
+    items: [
+      "新チャレンジ「生き急ぎ」を追加しました。全モンスターが召喚したターンからすぐ行動できます。",
+      "チャレンジ画面に「今日のチャレンジ」と「フリーチャレンジ」を分けて表示するようにしました。",
+      "フリーチャレンジでは、サドンデスと生き急ぎを報酬なしで何度でも遊べます。",
+      "今日のチャレンジ報酬は、1日1回だけ獲得できるようにしました。"
+    ]
+  },
   {
     version: "v1.01",
     title: "カード効果を調整",
@@ -743,8 +761,9 @@ const elements = {
   titleBattleBackButton: document.querySelector("#titleBattleBackButton"),
   titleChallenge: document.querySelector("#titleChallenge"),
   challengeBackButton: document.querySelector("#challengeBackButton"),
-  suddenDeathButton: document.querySelector("#suddenDeathButton"),
-  suddenDeathStatus: document.querySelector("#suddenDeathStatus"),
+  todayChallengeContent: document.querySelector("#todayChallengeContent"),
+  freeChallengeToggleButton: document.querySelector("#freeChallengeToggleButton"),
+  freeChallengeList: document.querySelector("#freeChallengeList"),
   titleCpu: document.querySelector("#titleCpu"),
   cpuStreakNote: document.querySelector("#cpuStreakNote"),
   cpuNormalButton: document.querySelector("#cpuNormalButton"),
@@ -1076,14 +1095,17 @@ function completeCpuBattleIfNeeded(view) {
 function completeChallengeBattleIfNeeded(view) {
   if (!activeChallenge || challengeResultHandled || view.winner === null) return null;
   const challenge = activeChallenge;
+  const challengeId = normalizeChallengeId(challenge);
+  const challengeMode = challenge.mode || (challenge.rewardEligible ? "daily" : "free");
+  const rewardEligible = Boolean(challenge.rewardEligible);
   const selfWon = view.winner === 0;
-  const alreadyClaimed = isChallengeRewardClaimed(challenge.id);
+  const alreadyClaimed = rewardEligible && isChallengeRewardClaimed(challengeId);
   let coinReward = null;
-  if (selfWon && !alreadyClaimed) {
-    coinReward = addHapiCoins(challenge.reward, `challenge-${challenge.id}`);
-    markChallengeRewardClaimed(challenge.id);
+  if (selfWon && rewardEligible && !alreadyClaimed) {
+    coinReward = addHapiCoins(challengeRewardAmount(challenge), `challenge-${challengeId}`);
+    markChallengeRewardClaimed(challengeId);
     console.log("Challenge hapi coin reward", {
-      challengeId: challenge.id,
+      challengeId,
       earnedHapiCoins: coinReward.added,
       totalHapiCoins: coinReward.total
     });
@@ -1095,8 +1117,10 @@ function completeChallengeBattleIfNeeded(view) {
   updateHapiCoinDisplay();
   return {
     isChallenge: true,
-    challengeId: challenge.id,
+    challengeId,
     challengeName: challenge.name,
+    challengeMode,
+    rewardEligible,
     selfWon,
     coinReward,
     alreadyClaimed: selfWon && alreadyClaimed
@@ -1232,6 +1256,46 @@ function localDateDiffDays(fromKey, toKey) {
   return Math.round((to.getTime() - from.getTime()) / dayMs);
 }
 
+function normalizeChallengeId(challenge) {
+  return challenge?.challengeId || challenge?.id || CHALLENGE_LIST[0]?.challengeId || "suddenDeath";
+}
+
+function challengeRewardAmount(challenge) {
+  return Math.max(0, Number(challenge?.rewardCoins ?? challenge?.reward ?? 0) || 0);
+}
+
+function normalizeCpuDifficulty(difficulty) {
+  return difficulty === "strong" ? "hard" : difficulty || "hard";
+}
+
+function challengeById(challengeId) {
+  return CHALLENGES[challengeId] || CHALLENGE_LIST[0] || null;
+}
+
+function challengeAtOffset(offset = 0) {
+  const sequence = DAILY_CHALLENGE_SEQUENCE.length > 0 ? DAILY_CHALLENGE_SEQUENCE : CHALLENGE_LIST.map((challenge) => challenge.challengeId);
+  const diff = Math.max(0, localDateDiffDays(DAILY_CHALLENGE_START_DATE, todayKey()) ?? 0);
+  const challengeId = sequence[(diff + offset) % sequence.length];
+  return challengeById(challengeId);
+}
+
+function getTodayChallenge() {
+  return challengeAtOffset(0);
+}
+
+function getTomorrowChallenge() {
+  return challengeAtOffset(1);
+}
+
+function applyChallengeRuleModifiers(gameState, challenge) {
+  const modifiers = challenge?.ruleModifiers || {};
+  gameState.ruleModifiers = { ...(gameState.ruleModifiers || {}), ...modifiers };
+  const playerLife = Number(modifiers.playerLife ?? challenge?.playerLife);
+  const cpuLife = Number(modifiers.cpuLife ?? challenge?.cpuLife);
+  if (Number.isFinite(playerLife) && playerLife > 0) gameState.players[0].life = playerLife;
+  if (Number.isFinite(cpuLife) && cpuLife > 0) gameState.players[1].life = cpuLife;
+}
+
 function loadLoginBonusState() {
   try {
     const parsed = JSON.parse(readStorage("loginBonus", "{}") || "{}");
@@ -1289,7 +1353,7 @@ function markChallengeRewardClaimed(challengeId) {
 }
 
 function challengeCpuAvatar(challenge) {
-  return AVATAR_BY_ID.get(challenge.cpuAvatarId)
+  return AVATAR_BY_ID.get(challenge.cpuIcon || challenge.cpuAvatarId)
     || AVATAR_FALLBACK_OPTIONS[2]
     || AVATAR_OPTIONS[0];
 }
@@ -1757,12 +1821,64 @@ function renderCpuSetup() {
 }
 
 function renderChallengeList() {
-  if (!titleChallengeOpen || !elements.suddenDeathStatus) return;
-  const challenge = CHALLENGES.suddenDeath;
-  const claimed = isChallengeRewardClaimed(challenge.id);
-  elements.suddenDeathStatus.innerHTML = claimed
-    ? `<span class="challenge-clear">CLEAR</span><span class="challenge-claimed">報酬獲得済み</span>`
-    : `<span class="challenge-reward-open">本日報酬あり</span>`;
+  if (!titleChallengeOpen || !elements.todayChallengeContent) return;
+  const todayChallenge = getTodayChallenge();
+  const tomorrowChallenge = getTomorrowChallenge();
+  const todayId = normalizeChallengeId(todayChallenge);
+  const claimed = isChallengeRewardClaimed(todayId);
+  elements.todayChallengeContent.innerHTML = renderChallengeCard(todayChallenge, {
+    mode: "daily",
+    claimed,
+    tomorrowName: tomorrowChallenge?.name || ""
+  });
+  if (elements.freeChallengeToggleButton) {
+    elements.freeChallengeToggleButton.textContent = freeChallengeOpen ? "フリーチャレンジを閉じる" : "フリーチャレンジ";
+  }
+  if (elements.freeChallengeList) {
+    elements.freeChallengeList.classList.toggle("hidden", !freeChallengeOpen);
+    elements.freeChallengeList.innerHTML = freeChallengeOpen
+      ? CHALLENGE_LIST.map((challenge) => renderChallengeCard(challenge, { mode: "free" })).join("")
+      : "";
+  }
+}
+
+function renderChallengeCard(challenge, options = {}) {
+  if (!challenge) return "";
+  const challengeId = normalizeChallengeId(challenge);
+  const reward = challengeRewardAmount(challenge);
+  const isDaily = options.mode === "daily";
+  const clearedToday = isChallengeRewardClaimed(challengeId);
+  const status = isDaily
+    ? options.claimed
+      ? `<span class="challenge-clear">CLEAR</span><span class="challenge-claimed">本日の報酬獲得済み</span>`
+      : `<span class="challenge-reward-open">本日報酬あり</span>`
+    : clearedToday
+      ? `<span class="challenge-clear">CLEAR</span><span class="challenge-claimed">報酬なし</span>`
+      : `<span class="challenge-claimed">報酬なし</span>`;
+  const rules = Array.isArray(challenge.rules) && challenge.rules.length > 0
+    ? `<ul class="challenge-rules">${challenge.rules.map((rule) => `<li>${rule}</li>`).join("")}</ul>`
+    : "";
+  const tomorrow = isDaily && options.tomorrowName
+    ? `<p class="challenge-reset-note">報酬は端末のローカル日付が変わる0:00に更新されます。明日のチャレンジ：${options.tomorrowName}</p>`
+    : "";
+  return `
+    <article class="challenge-card ${isDaily ? "daily" : "free"}">
+      <div class="challenge-card-head">
+        <div>
+          <span class="challenge-section-label">${isDaily ? "今日のチャレンジ" : "フリーチャレンジ"}</span>
+          <strong>${challenge.name}</strong>
+        </div>
+        <span class="challenge-status">${status}</span>
+      </div>
+      <p>${challenge.description}</p>
+      ${rules}
+      <p class="challenge-reward">${isDaily ? `勝利報酬：${reward}ハピコイン（1日1回）` : "勝利報酬：なし"}</p>
+      ${tomorrow}
+      <button class="title-button ${isDaily ? "primary" : ""}" data-challenge-action="${isDaily ? "daily" : "free"}" data-challenge-id="${challengeId}" type="button">
+        ${isDaily ? "挑戦する" : "遊ぶ"}
+      </button>
+    </article>
+  `;
 }
 
 function showLoginBonusOverlay(result) {
@@ -2719,7 +2835,7 @@ function renderWinnerOverlay(view) {
       });
       return;
     }
-    if (cpuResult?.isChallenge) startChallengeGame(cpuResult.challengeId);
+    if (cpuResult?.isChallenge) startChallengeGame(cpuResult.challengeId, { mode: cpuResult.challengeMode || "daily" });
     else startCpuGame(cpuDifficulty);
   });
   node.querySelector("#winnerTitle").addEventListener("click", () => {
@@ -3321,16 +3437,24 @@ function startCpuGame(difficulty = "normal") {
 function openChallengeList() {
   closeTitlePanels();
   titleChallengeOpen = true;
+  freeChallengeOpen = false;
   titleReturnTarget = "battle";
   render();
 }
 
-function startChallengeGame(challengeId = "suddenDeath") {
-  const challenge = CHALLENGES[challengeId] || CHALLENGES.suddenDeath;
+function startChallengeGame(challengeId = normalizeChallengeId(getTodayChallenge()), options = {}) {
+  const baseChallenge = challengeById(challengeId) || getTodayChallenge();
+  const challengeMode = options.mode || "daily";
+  const challenge = {
+    ...baseChallenge,
+    id: normalizeChallengeId(baseChallenge),
+    mode: challengeMode,
+    rewardEligible: challengeMode === "daily"
+  };
   if (socket) socket.emit("room:leave");
   clearOnlineSession();
   clearCurrentCpuBattle();
-  cpuDifficulty = challenge.cpuDifficulty;
+  cpuDifficulty = normalizeCpuDifficulty(challenge.cpuDifficulty);
   onlineMode = false;
   onlineState = null;
   onlinePlayerId = 0;
@@ -3348,8 +3472,7 @@ function startChallengeGame(challengeId = "suddenDeath") {
   game.players[0].avatar = selfProfile.avatar;
   game.players[1].name = challenge.cpuName;
   game.players[1].avatar = challengeCpuAvatar(challenge);
-  game.players[0].life = challenge.playerLife;
-  game.players[1].life = challenge.cpuLife;
+  applyChallengeRuleModifiers(game, challenge);
   titleActive = false;
   titleLobbyOpen = false;
   titleRulesOpen = false;
@@ -3359,6 +3482,7 @@ function startChallengeGame(challengeId = "suddenDeath") {
   titleCpuOpen = false;
   titleBattleOpen = false;
   titleChallengeOpen = false;
+  freeChallengeOpen = false;
   titleMenuOpen = false;
   optionsOpen = false;
   clearSelection();
@@ -3378,6 +3502,7 @@ function closeTitlePanels() {
   titleCpuOpen = false;
   titleBattleOpen = false;
   titleChallengeOpen = false;
+  freeChallengeOpen = false;
   titleMenuOpen = false;
 }
 
@@ -3501,7 +3626,21 @@ elements.challengeBackButton?.addEventListener("click", () => {
   titleBattleOpen = true;
   render();
 });
-elements.suddenDeathButton?.addEventListener("click", () => startChallengeGame("suddenDeath"));
+elements.freeChallengeToggleButton?.addEventListener("click", () => {
+  freeChallengeOpen = !freeChallengeOpen;
+  render();
+});
+elements.titleChallenge?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-challenge-action]");
+  if (!button) return;
+  const action = button.dataset.challengeAction;
+  const challengeId = button.dataset.challengeId || normalizeChallengeId(getTodayChallenge());
+  if (action === "daily") {
+    startChallengeGame(challengeId, { mode: "daily" });
+  } else if (action === "free") {
+    startChallengeGame(challengeId, { mode: "free" });
+  }
+});
 elements.cpuNormalButton?.addEventListener("click", () => startCpuGame("normal"));
 elements.cpuHardButton?.addEventListener("click", () => startCpuGame("hard"));
 elements.cpuBackButton?.addEventListener("click", () => {

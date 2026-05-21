@@ -2591,6 +2591,20 @@ body.title-cpu-active .version-label {
   gap: 16px;
 }
 
+.challenge-daily {
+  display: grid;
+  gap: 14px;
+}
+
+.challenge-free-toggle {
+  justify-self: center;
+  width: min(360px, 100%);
+}
+
+.challenge-free-list.hidden {
+  display: none;
+}
+
 .challenge-card {
   display: grid;
   gap: 14px;
@@ -2601,11 +2615,35 @@ body.title-cpu-active .version-label {
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
 }
 
+.challenge-card.daily {
+  border-color: rgba(255, 220, 104, 0.72);
+  background:
+    radial-gradient(circle at top left, rgba(255, 217, 104, 0.2), transparent 38%),
+    linear-gradient(135deg, rgba(16, 28, 42, 0.95), rgba(55, 34, 18, 0.92));
+}
+
+.challenge-card.free {
+  border-color: rgba(126, 185, 255, 0.45);
+  background: linear-gradient(135deg, rgba(16, 28, 42, 0.92), rgba(14, 34, 48, 0.9));
+}
+
 .challenge-card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.challenge-card-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+.challenge-section-label {
+  color: #88c9ff;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
 }
 
 .challenge-card-head strong {
@@ -2622,6 +2660,15 @@ body.title-cpu-active .version-label {
 .challenge-reward {
   color: #fff1bd !important;
   font-weight: 900;
+}
+
+.challenge-rules {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 1.2em;
+  color: #d9e4f5;
+  line-height: 1.45;
 }
 
 .challenge-status {

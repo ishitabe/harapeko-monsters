@@ -1,4 +1,4 @@
-const CACHE_NAME = "summon-happys-pwa-v19";
+const CACHE_NAME = "summon-happys-pwa-v20";
 const OFFLINE_URL = "offline.html";
 const PRECACHE_URLS = [
   OFFLINE_URL,
