@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=102");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=103");
 }
 
 let game = engine.createGame();
@@ -114,6 +114,7 @@ let rulesPageIndex = 0;
 let selectedKey = null;
 let detailKey = null;
 let detailData = null;
+let detailRenderSignature = "";
 let previousView = null;
 let animationLock = false;
 let hardCpuMatchActive = false;
@@ -255,6 +256,14 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.03",
+    title: "オンライン対戦の選択画面を修正",
+    items: [
+      "マルチ対戦中、カードや山札やモンスターを選ぶ画面が勝手に一番上へ戻る問題を修正しました。",
+      "オンライン対戦中の定期更新が入っても、選択画面のスクロール位置と選択中の状態が維持されるようにしました。"
+    ]
+  },
   {
     version: "v1.02",
     title: "チャレンジを追加",
@@ -2152,9 +2161,16 @@ function renderDetail() {
   if (!detailKey || !detailData) {
     elements.detailPanel.classList.add("hidden");
     elements.detailContent.replaceChildren();
+    detailRenderSignature = "";
     return;
   }
   elements.detailPanel.classList.remove("hidden");
+  const nextSignature = detailSignature(detailKey, detailData);
+  if (nextSignature && detailRenderSignature === nextSignature && elements.detailContent.childElementCount > 0) {
+    return;
+  }
+  const previousScrollTop = elements.detailPanel.scrollTop;
+  detailRenderSignature = nextSignature;
 
   if (detailData.list) {
     elements.detailContent.innerHTML = `
@@ -2178,6 +2194,7 @@ function renderDetail() {
       });
       list.append(item);
     });
+    elements.detailPanel.scrollTop = previousScrollTop;
     return;
   }
 
@@ -2191,6 +2208,7 @@ function renderDetail() {
       </div>
     `;
     renderDetailActions(elements.detailContent.querySelector("#detailActions"), detailData);
+    elements.detailPanel.scrollTop = previousScrollTop;
     return;
   }
 
@@ -2221,6 +2239,46 @@ function renderDetail() {
     `;
   if (cardUiMode === "modern") attachHeldItemClick(elements.detailContent, unit?.item, detailKey);
   renderDetailActions(elements.detailContent.querySelector("#detailActions"), detailData);
+  elements.detailPanel.scrollTop = previousScrollTop;
+}
+
+function detailSignature(key, data) {
+  if (!data) return "";
+  if (!isPendingDetailSource(data.source)) return "";
+  const view = getView();
+  if (data.source === "pendingDiscardSelection") {
+    return `${key}:${data.source}:${data.count}:${view.players[getSelfId()].hand.join(",")}`;
+  }
+  if (data.source === "pendingDiscardTake") {
+    return `${key}:${data.source}:${view.discard.join(",")}`;
+  }
+  if (data.source === "pendingPileDrawSelection") {
+    const pileState = view.piles.map((pile) => `${pile.id}:${pile.count}:${pile.topCardId || ""}`).join("|");
+    return `${key}:${data.source}:${data.count}:${data.totalCount || ""}:${pileState}`;
+  }
+  if (data.source === "pendingPileSearch") {
+    const cards = (data.entries || data.cards || []).map((entry) => typeof entry === "string" ? entry : `${entry.value}:${entry.cardId}`).join(",");
+    return `${key}:${data.source}:${data.count}:${cards}`;
+  }
+  if (data.source === "pendingDoubleCheck") {
+    const opponentId = view.activePlayer === 0 ? 1 : 0;
+    return `${key}:${data.source}:${data.count}:${view.players[opponentId].hand.join(",")}:${view.players[opponentId].handCount}`;
+  }
+  if (data.source === "pendingQuickReplay") {
+    return `${key}:${data.source}:${data.card?.id || ""}`;
+  }
+  return "";
+}
+
+function isPendingDetailSource(source) {
+  return [
+    "pendingDoubleCheck",
+    "pendingQuickReplay",
+    "pendingDiscardSelection",
+    "pendingDiscardTake",
+    "pendingPileDrawSelection",
+    "pendingPileSearch"
+  ].includes(source);
 }
 
 function renderPendingDoubleCheck() {
@@ -2766,6 +2824,7 @@ function clearSelection() {
   selectedKey = null;
   detailKey = null;
   detailData = null;
+  detailRenderSignature = "";
 }
 
 function updateDrawPrompt(view, locked) {
