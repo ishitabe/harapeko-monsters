@@ -266,6 +266,7 @@ p {
     "streak streak"
     "avatar hp"
     "avatar hand"
+    "status status"
     "actions actions";
   align-items: center;
   justify-items: center;
@@ -274,6 +275,38 @@ p {
   min-height: 0;
   padding: 7px 10px;
   overflow: hidden;
+}
+
+.life-box.status-mystic-guard,
+.life-box.status-aurora-veil {
+  position: relative;
+  overflow: hidden;
+}
+
+.life-box.status-mystic-guard::before,
+.life-box.status-aurora-veil::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: 0;
+  opacity: 0.42;
+  pointer-events: none;
+  animation: defenseAuraPulse 1.8s ease-in-out infinite;
+}
+
+.life-box.status-mystic-guard::before {
+  background: radial-gradient(circle at 50% 42%, rgba(185, 156, 255, 0.42), transparent 58%);
+}
+
+.life-box.status-aurora-veil::before {
+  background:
+    radial-gradient(circle at 35% 35%, rgba(103, 183, 255, 0.36), transparent 44%),
+    radial-gradient(circle at 70% 55%, rgba(104, 211, 145, 0.28), transparent 48%);
+}
+
+.life-box > * {
+  position: relative;
+  z-index: 1;
 }
 
 .player-avatar {
@@ -350,6 +383,61 @@ p {
   gap: 6px;
   transform: scale(0.82);
   transform-origin: center;
+}
+
+.defense-status-list {
+  grid-area: status;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 20px;
+  max-width: 100%;
+}
+
+.defense-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-height: 18px;
+  padding: 2px 7px 2px 3px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  color: #f4efe7;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 0 14px rgba(255,255,255,0.08);
+}
+
+.defense-status-badge b {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: #08111c;
+  font-size: 0.68rem;
+}
+
+.defense-status-badge.mysticGuard {
+  background: linear-gradient(180deg, rgba(185,156,255,0.32), rgba(44,31,76,0.72));
+  border-color: rgba(185,156,255,0.58);
+}
+
+.defense-status-badge.mysticGuard b {
+  background: #d8c8ff;
+}
+
+.defense-status-badge.auroraVeil {
+  background: linear-gradient(180deg, rgba(103,183,255,0.3), rgba(25,68,82,0.72));
+  border-color: rgba(103,183,255,0.62);
+}
+
+.defense-status-badge.auroraVeil b {
+  background: #9fe5ff;
 }
 
 .life-box.player {
@@ -683,6 +771,68 @@ p {
 
 .field-line.wall-active {
   position: relative;
+}
+
+.field-line.field-mystic-guard,
+.field-line.field-aurora-veil {
+  position: relative;
+}
+
+.field-defense-aura {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: min(520px, 86%);
+  height: 74%;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: rgba(244, 239, 231, 0.78);
+  font-size: 0.88rem;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0.78;
+  animation: defenseAuraPulse 1.9s ease-in-out infinite;
+}
+
+.field-mystic-guard .field-defense-aura {
+  border: 1px solid rgba(185, 156, 255, 0.5);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(185,156,255,0.22), transparent 58%),
+    linear-gradient(90deg, transparent, rgba(185,156,255,0.12), transparent);
+  box-shadow: 0 0 28px rgba(185,156,255,0.22), inset 0 0 22px rgba(185,156,255,0.14);
+}
+
+.field-aurora-veil .field-defense-aura {
+  border: 1px solid rgba(103, 183, 255, 0.5);
+  background:
+    radial-gradient(circle at 35% 38%, rgba(103,183,255,0.22), transparent 48%),
+    radial-gradient(circle at 68% 55%, rgba(104,211,145,0.18), transparent 48%),
+    linear-gradient(90deg, transparent, rgba(103,183,255,0.12), transparent);
+  box-shadow: 0 0 28px rgba(103,183,255,0.22), inset 0 0 22px rgba(104,211,145,0.12);
+}
+
+.field-line.field-mystic-guard.field-aurora-veil .field-defense-aura {
+  border-color: rgba(218, 211, 255, 0.62);
+  background:
+    radial-gradient(circle at 35% 40%, rgba(185,156,255,0.2), transparent 46%),
+    radial-gradient(circle at 65% 56%, rgba(103,183,255,0.2), transparent 48%),
+    linear-gradient(90deg, transparent, rgba(244,239,231,0.12), transparent);
+}
+
+@keyframes defenseAuraPulse {
+  0%, 100% {
+    opacity: 0.52;
+    filter: brightness(0.95);
+  }
+  50% {
+    opacity: 0.88;
+    filter: brightness(1.18);
+  }
 }
 
 .field-line.wall-active::before {

@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=103");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=104");
 }
 
 let game = engine.createGame();
@@ -256,6 +256,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.04",
+    title: "防御状態を見やすく表示",
+    items: [
+      "神秘の守り状態のプレイヤーに専用バッジと紫のバリア演出を表示するようにしました。",
+      "オーロラベール状態のプレイヤーに専用バッジと青緑のバリア演出を表示するようにしました。",
+      "相手にも自分にも、効果が残っている間は盤面上で状態が分かるようにしました。"
+    ]
+  },
   {
     version: "v1.03",
     title: "オンライン対戦の選択画面を修正",
@@ -1547,6 +1556,10 @@ function renderPlayerInfo(view) {
     avatarNode.src = player.avatar || (slotId === 0 ? AVATAR_OPTIONS[0] : AVATAR_OPTIONS[1]);
     const lifeBox = elements.playerName[slotId].parentElement;
     lifeBox.dataset.lifeOwnerId = String(playerId);
+    const statusEffects = playerDefenseEffects(player, view.turn);
+    lifeBox.classList.toggle("status-mystic-guard", statusEffects.some((effect) => effect.id === "mysticGuard"));
+    lifeBox.classList.toggle("status-aurora-veil", statusEffects.some((effect) => effect.id === "auroraVeil"));
+    renderDefenseStatusBadges(lifeBox, statusEffects);
     elements.life[slotId].textContent = `HP ${player.life}`;
     elements.life[slotId].onclick = null;
     if (slotId === 1) {
@@ -1571,6 +1584,34 @@ function renderPlayerInfo(view) {
     }
     elements.handCount[slotId].textContent = `手札 ${player.handCount}`;
     renderActionLamps(elements.actions[slotId], player.actions, previousView?.players[playerId]?.actions);
+  });
+}
+
+function playerDefenseEffects(player, turn) {
+  const effects = [];
+  if ((player.mysticGuardUntilTurn || 0) > turn) {
+    effects.push({ id: "mysticGuard", label: "神秘の守り", short: "守", note: "効果耐性 / ライフ-1" });
+  }
+  if ((player.damageReductionUntilTurn || 0) > turn) {
+    effects.push({ id: "auroraVeil", label: "オーロラベール", short: "減", note: "全ダメージ-2" });
+  }
+  return effects;
+}
+
+function renderDefenseStatusBadges(lifeBox, effects) {
+  let node = lifeBox.querySelector(".defense-status-list");
+  if (!node) {
+    node = document.createElement("div");
+    node.className = "defense-status-list";
+    lifeBox.append(node);
+  }
+  node.replaceChildren();
+  effects.forEach((effect) => {
+    const badge = document.createElement("span");
+    badge.className = `defense-status-badge ${effect.id}`;
+    badge.title = `${effect.label}: ${effect.note}`;
+    badge.innerHTML = `<b>${effect.short}</b><span>${effect.label}</span>`;
+    node.append(badge);
   });
 }
 
@@ -2023,6 +2064,17 @@ function renderDiscard(discard) {
 function renderField(container, field, maxFieldSize, view, playerId) {
   container.replaceChildren();
   container.classList.toggle("wall-active", field.length >= maxFieldSize);
+  const owner = view.players[playerId];
+  const defenseEffects = playerDefenseEffects(owner, view.turn);
+  container.classList.toggle("field-mystic-guard", defenseEffects.some((effect) => effect.id === "mysticGuard"));
+  container.classList.toggle("field-aurora-veil", defenseEffects.some((effect) => effect.id === "auroraVeil"));
+  let statusAura = null;
+  if (defenseEffects.length > 0) {
+    statusAura = document.createElement("div");
+    statusAura.className = "field-defense-aura";
+    statusAura.textContent = defenseEffects.map((effect) => effect.label).join(" / ");
+    container.append(statusAura);
+  }
   for (let index = 0; index < maxFieldSize; index += 1) {
     const unit = field[index];
     const slot = document.createElement("article");
