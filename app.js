@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=104");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=105");
 }
 
 let game = engine.createGame();
@@ -256,6 +256,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.05",
+    title: "対象選択を見やすく改善",
+    items: [
+      "石投げ、消し去る、生贄などでモンスターを選ぶ時、カード風の大きな選択肢で選べるようにしました。",
+      "対象選択では、自分の場か相手の場か、HPやパワーも一緒に確認できるようにしました。",
+      "タイトルの対戦メニューを2列表示にして、CPU戦・マルチ対戦・チャレンジ・記録を見やすく並べました。"
+    ]
+  },
   {
     version: "v1.04",
     title: "防御状態を見やすく表示",
@@ -2728,10 +2737,10 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
     controls.pile = appendPileChoicePicker(form, "山札", view.piles);
   }
   if (["discardUnit"].includes(card.effectKey)) {
-    controls.target = appendSelect(form, "対象", orderedUnitOptions(view));
+    controls.target = appendTargetChoicePicker(form, "対象", unitTargetOptions(view));
   }
   if (card.effectKey === "sacrifice") {
-    controls.target = appendSelect(form, "対象", ownUnitOptions(view));
+    controls.target = appendTargetChoicePicker(form, "対象", unitTargetOptions(view, { ownOnly: true }));
   }
   if (card.effectKey === "discardAnyGainActions") {
     const choices = active.hand
@@ -2740,10 +2749,7 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
     controls.discards = appendClickMultiPicker(form, "捨てる手札", choices, choices.length);
   }
   if (card.effectKey === "dealTwoToUnitOrLife") {
-    controls.target = appendSelect(form, "対象", [
-      ["life", "相手ライフ"],
-      ...orderedUnitOptions(view),
-    ]);
+    controls.target = appendTargetChoicePicker(form, "対象", unitTargetOptions(view, { includeLife: true }));
   }
   if (card.effectKey === "swapUnits") {
     const note = document.createElement("p");
@@ -3321,6 +3327,54 @@ function appendPileChoicePicker(form, label, piles) {
   return picker;
 }
 
+function appendTargetChoicePicker(form, label, options) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "click-picker-wrap target-choice-wrap";
+  const title = document.createElement("span");
+  title.textContent = label;
+  const grid = document.createElement("div");
+  grid.className = "click-picker target-choice-grid";
+  const picker = { value: options[0]?.value || "" };
+  const update = () => {
+    grid.querySelectorAll("button").forEach((button) => {
+      button.classList.toggle("selected", button.value === picker.value);
+    });
+  };
+  options.forEach((option) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.value = option.value;
+    button.className = `target-choice-card ${option.kind || "unit"} ${option.ownerRole || ""}`;
+    if (option.kind === "life") {
+      button.innerHTML = `
+        <span class="target-owner opponent">相手</span>
+        <strong>相手ライフ</strong>
+        <span class="target-life-value">HP ${option.life}</span>
+        <small>石投げで3ダメージ</small>
+      `;
+    } else {
+      const card = CARD_DEFINITIONS[option.unit.cardId];
+      button.innerHTML = `
+        <span class="target-owner ${option.ownerRole}">${option.ownerLabel}</span>
+        <strong>${card.name}</strong>
+        ${unitStatsMarkup(card, option.unit)}
+        ${option.unit.item?.hasItem ? itemBadgeMarkup(option.unit.item) : ""}
+        <p>${card.text}</p>
+      `;
+    }
+    button.addEventListener("click", () => {
+      picker.value = option.value;
+      playSound("select");
+      update();
+    });
+    grid.append(button);
+  });
+  wrapper.append(title, grid);
+  form.append(wrapper);
+  update();
+  return picker;
+}
+
 function appendClickMultiPicker(form, label, options, maxCount) {
   const wrapper = document.createElement("div");
   wrapper.className = "click-picker-wrap";
@@ -3379,6 +3433,36 @@ function replaceOptions(select, options) {
 
 function getAllUnits(view) {
   return view.players.flatMap((player, ownerId) => player.field.map((unit) => ({ unit, ownerId, ownerName: player.name })));
+}
+
+function unitTargetOptions(view, options = {}) {
+  const opponentId = view.activePlayer === 0 ? 1 : 0;
+  const ownerOrder = options.ownOnly ? [view.activePlayer] : [opponentId, view.activePlayer];
+  const targets = [];
+  if (options.includeLife) {
+    targets.push({
+      value: "life",
+      kind: "life",
+      ownerId: opponentId,
+      ownerRole: "opponent",
+      ownerLabel: "相手",
+      life: view.players[opponentId].life
+    });
+  }
+  ownerOrder.forEach((ownerId) => {
+    view.players[ownerId].field.forEach((unit) => {
+      const isOpponent = ownerId === opponentId;
+      targets.push({
+        value: unit.id,
+        kind: "unit",
+        unit,
+        ownerId,
+        ownerRole: isOpponent ? "opponent" : "self",
+        ownerLabel: isOpponent ? "相手の場" : "自分の場"
+      });
+    });
+  });
+  return targets;
 }
 
 function orderedUnitOptions(view) {
