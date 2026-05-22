@@ -2331,7 +2331,7 @@ body.card-dragging * {
   z-index: 2000;
   display: grid;
   place-items: center;
-  padding: 40px;
+  padding: 40px 40px 98px;
   background:
     radial-gradient(circle at 50% 34%, rgba(242, 189, 92, 0.18), transparent 28%),
     radial-gradient(circle at 20% 75%, rgba(240, 122, 69, 0.15), transparent 30%),
@@ -2351,7 +2351,7 @@ body.battle-cards-active .title-menu-panel {
 
 .title-content {
   width: min(1040px, 92vw);
-  max-height: calc(100vh - 80px);
+  max-height: calc(100vh - 140px);
   overflow: auto;
   padding: 42px 48px;
   text-align: center;
@@ -2364,6 +2364,7 @@ body.battle-cards-active .title-menu-panel {
 }
 
 .hapi-coin-display {
+  display: none;
   position: fixed;
   top: 18px;
   left: 18px;
@@ -2427,6 +2428,84 @@ body.battle-cards-active .title-menu-panel {
   grid-template-columns: 1fr 1fr;
   gap: 18px;
   margin-top: 24px;
+}
+
+.home-actions {
+  grid-template-columns: 1fr;
+}
+
+.home-update-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  gap: 16px;
+  align-items: center;
+  padding: 18px;
+  border: 1px solid rgba(103, 183, 255, 0.22);
+  border-radius: 16px;
+  background: rgba(8, 17, 30, 0.64);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.3);
+  text-align: left;
+}
+
+.home-update-card span,
+.profile-summary em {
+  display: block;
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.home-update-card strong {
+  display: block;
+  margin-top: 4px;
+  color: #fff6df;
+  font-size: 1.45rem;
+}
+
+.home-update-card .title-button {
+  min-height: 58px;
+  font-size: 1rem;
+}
+
+.title-bottom-tabs {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  z-index: 2004;
+  width: min(820px, calc(100vw - 28px));
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(103, 183, 255, 0.2);
+  border-radius: 20px;
+  background: rgba(8, 17, 30, 0.92);
+  box-shadow: 0 18px 52px rgba(0,0,0,0.44);
+  transform: translateX(-50%);
+  backdrop-filter: blur(16px);
+}
+
+.title-bottom-tab {
+  min-width: 0;
+  min-height: 54px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: rgba(238, 246, 255, 0.68);
+  font-weight: 1000;
+  cursor: pointer;
+}
+
+.title-bottom-tab.active {
+  border-color: rgba(112, 190, 255, 0.62);
+  background: linear-gradient(180deg, rgba(61, 142, 210, 0.46), rgba(13, 29, 48, 0.88));
+  color: #fff6df;
+  box-shadow: 0 0 20px rgba(103, 183, 255, 0.18);
+}
+
+.title-bottom-tab.disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
 .title-battle-menu {
@@ -2515,6 +2594,11 @@ body.battle-cards-active .title-menu-panel {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.profile-summary em {
+  margin-top: 8px;
+  color: #ffe2a3;
 }
 
 .profile-setup {
@@ -2734,6 +2818,24 @@ body.title-battle-active .version-label,
 body.title-challenge-active .version-label,
 body.title-cpu-active .version-label {
   display: none;
+}
+
+body:not(.title-active) .title-bottom-tabs {
+  display: none;
+}
+
+body.title-tab-guide #rulesCloseButton,
+body.title-tab-guide #cardsCloseButton,
+body.title-tab-records #recordsCloseButton,
+body.title-tab-battle #titleBattleBackButton {
+  display: none;
+}
+
+body.title-tab-guide .title-rules,
+body.title-tab-guide .title-cards,
+body.title-tab-records .title-records,
+body.title-tab-battle .title-battle-menu {
+  margin-top: 18px;
 }
 
 body.title-lobby-active .eyebrow,
@@ -3083,7 +3185,8 @@ body.title-cpu-active .title-content > h1 {
 }
 
 .record-mode-tabs,
-.record-ranking-tabs {
+.record-ranking-tabs,
+.guide-switch {
   display: grid;
   gap: 10px;
   position: sticky;
@@ -3101,6 +3204,14 @@ body.title-cpu-active .title-content > h1 {
 .record-ranking-tabs {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   top: 58px;
+}
+
+.guide-switch {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  position: static;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .record-tab {
@@ -4009,7 +4120,7 @@ body.title-cpu-active .title-content > h1 {
   }
 
   .title-screen {
-    padding: 8px;
+    padding: 8px 8px 84px;
     place-items: stretch;
   }
 
@@ -4037,8 +4148,8 @@ body.title-cpu-active .title-content > h1 {
 
   .title-content {
     width: 100%;
-    min-height: calc(100dvh - 16px);
-    max-height: calc(100dvh - 16px);
+    min-height: calc(100dvh - 92px);
+    max-height: calc(100dvh - 92px);
     align-self: center;
     display: grid;
     align-content: start;
@@ -4068,6 +4179,34 @@ body.title-cpu-active .title-content > h1 {
     grid-template-columns: 1fr 1fr;
     gap: 10px;
     margin-top: 12px;
+  }
+
+  .home-update-card {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .home-update-card strong {
+    font-size: 1.05rem;
+  }
+
+  .home-update-card .title-button {
+    min-height: 48px;
+  }
+
+  .title-bottom-tabs {
+    bottom: 8px;
+    width: calc(100vw - 16px);
+    gap: 4px;
+    padding: 6px;
+    border-radius: 16px;
+  }
+
+  .title-bottom-tab {
+    min-height: 48px;
+    border-radius: 12px;
+    font-size: 0.78rem;
   }
 
   .title-action-group {

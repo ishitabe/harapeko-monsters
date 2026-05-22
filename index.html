@@ -8,10 +8,10 @@
     <meta name="apple-mobile-web-app-title" content="かんハピ">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>しょーかんハッピーズ</title>
-    <link rel="manifest" href="manifest.json?v=108">
+    <link rel="manifest" href="manifest.json?v=109">
     <link rel="icon" type="image/png" sizes="192x192" href="pwa-icon-192.png">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-    <link rel="stylesheet" href="styles.css?v=108">
+    <link rel="stylesheet" href="styles.css?v=109">
     <script src="constants.js?v=77"></script>
     <script>
       document.title = window.AppConstants.APP_DISPLAY_NAME;
@@ -24,9 +24,9 @@
     <script src="avatars.js?v=77" defer></script>
     <script src="currency.js?v=78" defer></script>
     <script src="cards.js?v=62" defer></script>
-    <script src="challenges.js?v=108" defer></script>
-    <script src="gameEngine.js?v=108" defer></script>
-    <script src="app.js?v=108" defer></script>
+    <script src="challenges.js?v=109" defer></script>
+    <script src="gameEngine.js?v=109" defer></script>
+    <script src="app.js?v=109" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -41,12 +41,13 @@
       <div class="title-content">
         <p class="eyebrow">CARD BATTLE</p>
         <h1 data-app-display-name>しょーかんハッピーズ</h1>
-        <p class="version-label">v1.08</p>
+        <p class="version-label">v1.09</p>
         <div class="profile-summary" id="profileSummary" aria-label="現在のプロフィール">
           <img id="profileSummaryAvatar" src="assets/player.png" alt="">
           <div>
             <span>プレイヤー</span>
             <strong id="profileSummaryName">プレイヤー</strong>
+            <em id="homeHapiCoinDisplay">ハピコイン：0枚</em>
           </div>
         </div>
         <div class="profile-setup hidden" id="profileEditor" aria-label="プレイヤー設定">
@@ -75,16 +76,23 @@
             <button class="title-button record-button" id="titleBattleRecordsButton" type="button">記録</button>
           </div>
         </div>
-        <div class="title-actions">
-          <button class="title-button primary" id="startCpuButton" type="button">対戦</button>
-          <button class="title-button rules-button" id="showRulesButton" type="button">ルール</button>
-          <button class="title-button cards-button" id="showCardsButton" type="button">カード一覧</button>
-          <button class="title-button disabled-title-button" id="titleTodoButton" type="button" disabled>未定</button>
+        <div class="title-actions home-actions">
+          <section class="home-update-card">
+            <div>
+              <span>アップデート</span>
+              <strong>最新の変更を確認</strong>
+            </div>
+            <button class="title-button update-button" id="showUpdatesButton" type="button">履歴を見る</button>
+          </section>
         </div>
         <div class="title-rules hidden" id="titleRules" aria-label="ルール説明">
           <div class="rules-head">
             <span id="rulesPageLabel">RULE 1 / 1</span>
             <button class="small-button" id="rulesCloseButton" type="button">閉じる</button>
+          </div>
+          <div class="guide-switch" role="tablist" aria-label="ガイド切替">
+            <button class="record-tab active" id="guideRulesButton" type="button">ルール</button>
+            <button class="record-tab" id="guideCardsButton" type="button">カード一覧</button>
           </div>
           <h2 id="rulesTitle">ルール</h2>
           <div class="rules-body" id="rulesBody"></div>
@@ -97,6 +105,10 @@
           <div class="rules-head">
             <span id="cardListSummary">CARD LIST</span>
             <button class="small-button" id="cardsCloseButton" type="button">閉じる</button>
+          </div>
+          <div class="guide-switch" role="tablist" aria-label="ガイド切替">
+            <button class="record-tab" id="guideRulesFromCardsButton" type="button">ルール</button>
+            <button class="record-tab active" id="guideCardsFromCardsButton" type="button">カード一覧</button>
           </div>
           <h2>カード一覧</h2>
           <div class="card-list-body" id="cardListBody"></div>
@@ -157,6 +169,13 @@
         </div>
         <p class="title-note">山札を選び、モンスターを出して、相手のHPを0にしよう。</p>
       </div>
+      <nav class="title-bottom-tabs" aria-label="メインナビゲーション">
+        <button class="title-bottom-tab" type="button" data-title-tab="home">ホーム</button>
+        <button class="title-bottom-tab" type="button" data-title-tab="battle">対戦</button>
+        <button class="title-bottom-tab" type="button" data-title-tab="guide">ガイド</button>
+        <button class="title-bottom-tab" type="button" data-title-tab="records">記録</button>
+        <button class="title-bottom-tab disabled" type="button" data-title-tab="todo" disabled>未定</button>
+      </nav>
     </section>
     <main class="battle-shell">
       <section class="left-rail" aria-label="山札と捨札">

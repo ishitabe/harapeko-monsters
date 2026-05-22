@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=108");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=109");
 }
 
 let game = engine.createGame();
@@ -106,6 +106,7 @@ let titleChallengeOpen = false;
 let freeChallengeOpen = false;
 let titleMenuOpen = false;
 let titleReturnTarget = "main";
+let titleTab = "home";
 let titleCardsFromBattle = false;
 let cardUiMode = localStorage.getItem(`${APP_INTERNAL_ID}-card-ui-mode`) || "classic";
 let profileEditorOpen = false;
@@ -257,6 +258,16 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.09",
+    title: "タイトル画面を下タブ型に変更",
+    items: [
+      "タイトル画面にホーム、対戦、ガイド、記録、未定の下タブを追加しました。",
+      "ホームにはタイトル、プロフィール、ハピコイン、アップデート履歴への入口をまとめました。",
+      "対戦、ガイド、記録は下タブで切り替えられるようにし、閉じるボタンに頼らない画面構成にしました。",
+      "ガイドではルールとカード一覧を切り替えて見られるようにしました。"
+    ]
+  },
   {
     version: "v1.08",
     title: "記録画面を調整",
@@ -790,6 +801,7 @@ const elements = {
   battleCardListButton: document.querySelector("#battleCardListButton"),
   titleScreen: document.querySelector("#titleScreen"),
   hapiCoinDisplay: document.querySelector("#hapiCoinDisplay"),
+  homeHapiCoinDisplay: document.querySelector("#homeHapiCoinDisplay"),
   titleMenuButton: document.querySelector("#titleMenuButton"),
   titleMenuPanel: document.querySelector("#titleMenuPanel"),
   menuUpdatesButton: document.querySelector("#menuUpdatesButton"),
@@ -833,6 +845,10 @@ const elements = {
   rulesPrevButton: document.querySelector("#rulesPrevButton"),
   rulesNextButton: document.querySelector("#rulesNextButton"),
   rulesCloseButton: document.querySelector("#rulesCloseButton"),
+  guideRulesButton: document.querySelector("#guideRulesButton"),
+  guideCardsButton: document.querySelector("#guideCardsButton"),
+  guideRulesFromCardsButton: document.querySelector("#guideRulesFromCardsButton"),
+  guideCardsFromCardsButton: document.querySelector("#guideCardsFromCardsButton"),
   titleCards: document.querySelector("#titleCards"),
   cardListSummary: document.querySelector("#cardListSummary"),
   cardListBody: document.querySelector("#cardListBody"),
@@ -843,6 +859,7 @@ const elements = {
   titleRecords: document.querySelector("#titleRecords"),
   recordListBody: document.querySelector("#recordListBody"),
   recordsCloseButton: document.querySelector("#recordsCloseButton"),
+  titleBottomTabs: document.querySelectorAll("[data-title-tab]"),
   titleLobby: document.querySelector("#titleLobby"),
   titleLobbyStatus: document.querySelector("#titleLobbyStatus"),
   titleLobbyNote: document.querySelector("#titleLobbyNote"),
@@ -1288,8 +1305,9 @@ function renderProfileSummary() {
 }
 
 function updateHapiCoinDisplay() {
-  if (!elements.hapiCoinDisplay) return;
-  elements.hapiCoinDisplay.textContent = `ハピコイン：${getHapiCoins()}枚`;
+  const text = `ハピコイン：${getHapiCoins()}枚`;
+  if (elements.hapiCoinDisplay) elements.hapiCoinDisplay.textContent = text;
+  if (elements.homeHapiCoinDisplay) elements.homeHapiCoinDisplay.textContent = text;
 }
 
 function cpuProfile(difficulty) {
@@ -1459,10 +1477,18 @@ function render() {
   document.body.classList.toggle("title-cpu-active", titleCpuOpen);
   document.body.classList.toggle("title-battle-active", titleBattleOpen);
   document.body.classList.toggle("title-challenge-active", titleChallengeOpen);
+  document.body.classList.toggle("title-tab-home", titleActive && titleTab === "home");
+  document.body.classList.toggle("title-tab-battle", titleActive && titleTab === "battle");
+  document.body.classList.toggle("title-tab-guide", titleActive && titleTab === "guide");
+  document.body.classList.toggle("title-tab-records", titleActive && titleTab === "records");
   document.body.classList.toggle("profile-editor-active", profileEditorOpen);
   document.body.classList.toggle("modern-card-ui", cardUiMode === "modern");
-  elements.titleMenuPanel?.classList.toggle("hidden", !titleMenuOpen);
+  elements.titleMenuButton?.classList.toggle("hidden", !titleActive || titleTab !== "home");
+  elements.titleMenuPanel?.classList.toggle("hidden", !titleMenuOpen || titleTab !== "home");
   if (elements.menuCardUiButton) elements.menuCardUiButton.textContent = cardUiMode === "modern" ? "カード表示: 新UI" : "カード表示: 旧UI";
+  elements.titleBottomTabs?.forEach((button) => {
+    button.classList.toggle("active", button.dataset.titleTab === titleTab);
+  });
   elements.titleBattleMenu?.classList.toggle("hidden", !titleBattleOpen);
   elements.titleLobby?.classList.toggle("hidden", !titleLobbyOpen);
   elements.titleRules?.classList.toggle("hidden", !titleRulesOpen);
@@ -1472,7 +1498,7 @@ function render() {
   elements.titleCpu?.classList.toggle("hidden", !titleCpuOpen);
   elements.titleChallenge?.classList.toggle("hidden", !titleChallengeOpen);
   elements.profileEditor?.classList.toggle("hidden", !profileEditorOpen);
-  elements.profileSummary?.classList.toggle("hidden", profileEditorOpen || titleLobbyOpen || titleRulesOpen || titleCardsOpen || titleUpdatesOpen || titleRecordsOpen || titleCpuOpen || titleBattleOpen || titleChallengeOpen);
+  elements.profileSummary?.classList.toggle("hidden", profileEditorOpen || titleTab !== "home" || titleLobbyOpen || titleRulesOpen || titleCardsOpen || titleUpdatesOpen || titleRecordsOpen || titleCpuOpen || titleBattleOpen || titleChallengeOpen);
   elements.optionsPanel?.classList.toggle("hidden", !optionsOpen);
   updateOptionsVisibility();
 
@@ -3620,6 +3646,7 @@ function runGameAction(type, payload, localAction, afterResult = null) {
 
 function startCpuSetup() {
   profileEditorOpen = false;
+  titleTab = "battle";
   titleCpuOpen = true;
   titleBattleOpen = false;
   titleMenuOpen = false;
@@ -3682,6 +3709,7 @@ function startCpuGame(difficulty = "normal") {
 
 function openChallengeList() {
   closeTitlePanels();
+  titleTab = "battle";
   titleChallengeOpen = true;
   freeChallengeOpen = false;
   titleReturnTarget = "battle";
@@ -3752,8 +3780,29 @@ function closeTitlePanels() {
   titleMenuOpen = false;
 }
 
+function openTitleTab(tab) {
+  if (tab === "todo") return;
+  titleTab = tab;
+  closeTitlePanels();
+  if (tab === "battle") {
+    titleBattleOpen = true;
+    titleReturnTarget = "battle";
+  } else if (tab === "guide") {
+    titleRulesOpen = true;
+    titleReturnTarget = "guide";
+    rulesPageIndex = 0;
+  } else if (tab === "records") {
+    titleRecordsOpen = true;
+    titleReturnTarget = "records";
+    sharedLeaderboardLoaded = false;
+    loadSharedLeaderboard();
+  }
+  render();
+}
+
 function openBattleMenu() {
   closeTitlePanels();
+  titleTab = "battle";
   titleBattleOpen = true;
   titleReturnTarget = "main";
   render();
@@ -3768,6 +3817,7 @@ function returnToPreviousTitlePanel() {
 
 function openProfileEditor(returnTarget = "main") {
   closeTitlePanels();
+  titleTab = "home";
   profileEditorOpen = true;
   titleReturnTarget = returnTarget;
   render();
@@ -3775,6 +3825,7 @@ function openProfileEditor(returnTarget = "main") {
 
 function openUpdateHistory(returnTarget = "main") {
   closeTitlePanels();
+  titleTab = "home";
   titleUpdatesOpen = true;
   titleReturnTarget = returnTarget;
   render();
@@ -3782,6 +3833,7 @@ function openUpdateHistory(returnTarget = "main") {
 
 function openRecords(returnTarget = "battle") {
   closeTitlePanels();
+  titleTab = "records";
   titleRecordsOpen = true;
   titleReturnTarget = returnTarget;
   sharedLeaderboardLoaded = false;
@@ -3803,6 +3855,7 @@ function startMultiSetup() {
   challengeResultHandled = false;
   cpuThinking = false;
   titleActive = true;
+  titleTab = "battle";
   titleLobbyOpen = true;
   titleLobbyMode = "menu";
   titleRulesOpen = false;
@@ -3837,6 +3890,7 @@ async function backToTitle(options = {}) {
   cpuThinking = false;
   optionsOpen = false;
   titleActive = true;
+  titleTab = "home";
   titleLobbyOpen = false;
   titleLobbyMode = "menu";
   titleRulesOpen = false;
@@ -3859,6 +3913,9 @@ elements.endTurnButton.addEventListener("click", () => {
 });
 
 elements.startCpuButton?.addEventListener("click", openBattleMenu);
+elements.titleBottomTabs?.forEach((button) => {
+  button.addEventListener("click", () => openTitleTab(button.dataset.titleTab));
+});
 elements.titleBattleCpuButton?.addEventListener("click", startCpuSetup);
 elements.titleBattleMultiButton?.addEventListener("click", startMultiSetup);
 elements.titleBattleChallengeButton?.addEventListener("click", openChallengeList);
@@ -3908,6 +3965,7 @@ elements.menuCardUiButton?.addEventListener("click", () => {
 });
 elements.menuTitleButton?.addEventListener("click", () => {
   closeTitlePanels();
+  titleTab = "home";
   titleReturnTarget = "main";
   render();
 });
@@ -3917,6 +3975,7 @@ elements.closeProfileButton?.addEventListener("click", () => {
 });
 elements.showRulesButton?.addEventListener("click", () => {
   profileEditorOpen = false;
+  titleTab = "guide";
   titleRulesOpen = true;
   titleCardsOpen = false;
   titleUpdatesOpen = false;
@@ -3931,6 +3990,7 @@ elements.showRulesButton?.addEventListener("click", () => {
 });
 elements.showCardsButton?.addEventListener("click", () => {
   profileEditorOpen = false;
+  titleTab = "guide";
   titleCardsFromBattle = false;
   titleCardsOpen = true;
   titleRulesOpen = false;
@@ -3943,6 +4003,42 @@ elements.showCardsButton?.addEventListener("click", () => {
   titleMenuOpen = false;
   render();
 });
+function openGuideRules() {
+  profileEditorOpen = false;
+  titleTab = "guide";
+  titleRulesOpen = true;
+  titleCardsOpen = false;
+  titleUpdatesOpen = false;
+  titleRecordsOpen = false;
+  titleCpuOpen = false;
+  titleLobbyOpen = false;
+  titleBattleOpen = false;
+  titleChallengeOpen = false;
+  titleMenuOpen = false;
+  titleCardsFromBattle = false;
+  render();
+}
+
+function openGuideCards() {
+  profileEditorOpen = false;
+  titleTab = "guide";
+  titleCardsFromBattle = false;
+  titleCardsOpen = true;
+  titleRulesOpen = false;
+  titleUpdatesOpen = false;
+  titleRecordsOpen = false;
+  titleCpuOpen = false;
+  titleLobbyOpen = false;
+  titleBattleOpen = false;
+  titleChallengeOpen = false;
+  titleMenuOpen = false;
+  render();
+}
+
+elements.guideRulesButton?.addEventListener("click", openGuideRules);
+elements.guideCardsButton?.addEventListener("click", openGuideCards);
+elements.guideRulesFromCardsButton?.addEventListener("click", openGuideRules);
+elements.guideCardsFromCardsButton?.addEventListener("click", openGuideCards);
 elements.cardsCloseButton?.addEventListener("click", () => {
   if (titleCardsFromBattle) {
     titleCardsOpen = false;
