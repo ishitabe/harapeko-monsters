@@ -3051,6 +3051,38 @@ body.title-cpu-active .version-label {
   gap: 12px;
 }
 
+.record-mode-tabs,
+.record-ranking-tabs {
+  display: grid;
+  gap: 10px;
+}
+
+.record-mode-tabs {
+  grid-template-columns: 1fr;
+}
+
+.record-ranking-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.record-tab {
+  min-height: 46px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 12px;
+  background: rgba(14, 22, 33, 0.86);
+  color: var(--ink);
+  font-weight: 1000;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.record-tab.active {
+  border-color: rgba(112, 190, 255, 0.78);
+  background: linear-gradient(135deg, rgba(51, 136, 210, 0.42), rgba(10, 24, 40, 0.94));
+  color: #fff6df;
+  box-shadow: 0 0 22px rgba(102, 185, 255, 0.18);
+}
+
 .record-summary div,
 .record-ranking {
   padding: 18px;
@@ -3148,6 +3180,14 @@ body.title-cpu-active .version-label {
 
 .shared-rank-row strong {
   color: #fff6df;
+}
+
+.record-empty-row {
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+  font-weight: 900;
 }
 
 .winner-streak {

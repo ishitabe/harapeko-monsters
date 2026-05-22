@@ -130,7 +130,7 @@ app.get("/api/leaderboard", async (_req, res) => {
       SELECT id, player_name, avatar_id, mode, difficulty, win_streak, run_id, created_at
       FROM leaderboard
       ORDER BY win_streak DESC, created_at ASC
-      LIMIT 50
+      LIMIT 100
     `);
     res.json({ entries: result.rows });
   } catch (error) {
