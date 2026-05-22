@@ -2736,6 +2736,25 @@ body.title-cpu-active .version-label {
   display: none;
 }
 
+body.title-lobby-active .eyebrow,
+body.title-rules-active .eyebrow,
+body.title-cards-active .eyebrow,
+body.title-updates-active .eyebrow,
+body.title-records-active .eyebrow,
+body.title-battle-active .eyebrow,
+body.title-challenge-active .eyebrow,
+body.title-cpu-active .eyebrow,
+body.title-lobby-active .title-content > h1,
+body.title-rules-active .title-content > h1,
+body.title-cards-active .title-content > h1,
+body.title-updates-active .title-content > h1,
+body.title-records-active .title-content > h1,
+body.title-battle-active .title-content > h1,
+body.title-challenge-active .title-content > h1,
+body.title-cpu-active .title-content > h1 {
+  display: none;
+}
+
 .title-lobby {
   display: grid;
   gap: 16px;
@@ -3045,6 +3064,18 @@ body.title-cpu-active .version-label {
   padding-right: 8px;
 }
 
+.records-head {
+  justify-content: flex-start;
+  grid-template-columns: auto 1fr;
+}
+
+.compact-close-button {
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  border-radius: 10px;
+}
+
 .record-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3055,14 +3086,21 @@ body.title-cpu-active .version-label {
 .record-ranking-tabs {
   display: grid;
   gap: 10px;
+  position: sticky;
+  z-index: 8;
+  padding: 6px 0;
+  background: rgba(7, 11, 18, 0.94);
+  backdrop-filter: blur(10px);
 }
 
 .record-mode-tabs {
   grid-template-columns: 1fr;
+  top: 0;
 }
 
 .record-ranking-tabs {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  top: 58px;
 }
 
 .record-tab {
@@ -4166,6 +4204,16 @@ body.title-cpu-active .version-label {
   .record-list-body {
     max-height: 62dvh;
     padding-right: 4px;
+  }
+
+  .record-ranking-tabs {
+    top: 56px;
+  }
+
+  .compact-close-button {
+    min-height: 34px;
+    padding: 7px 12px;
+    font-size: 0.82rem;
   }
 
   .card-list-grid {

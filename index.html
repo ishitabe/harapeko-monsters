@@ -8,10 +8,10 @@
     <meta name="apple-mobile-web-app-title" content="かんハピ">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>しょーかんハッピーズ</title>
-    <link rel="manifest" href="manifest.json?v=107">
+    <link rel="manifest" href="manifest.json?v=108">
     <link rel="icon" type="image/png" sizes="192x192" href="pwa-icon-192.png">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-    <link rel="stylesheet" href="styles.css?v=107">
+    <link rel="stylesheet" href="styles.css?v=108">
     <script src="constants.js?v=77"></script>
     <script>
       document.title = window.AppConstants.APP_DISPLAY_NAME;
@@ -24,9 +24,9 @@
     <script src="avatars.js?v=77" defer></script>
     <script src="currency.js?v=78" defer></script>
     <script src="cards.js?v=62" defer></script>
-    <script src="challenges.js?v=107" defer></script>
-    <script src="gameEngine.js?v=107" defer></script>
-    <script src="app.js?v=107" defer></script>
+    <script src="challenges.js?v=108" defer></script>
+    <script src="gameEngine.js?v=108" defer></script>
+    <script src="app.js?v=108" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -41,7 +41,7 @@
       <div class="title-content">
         <p class="eyebrow">CARD BATTLE</p>
         <h1 data-app-display-name>しょーかんハッピーズ</h1>
-        <p class="version-label">v1.07</p>
+        <p class="version-label">v1.08</p>
         <div class="profile-summary" id="profileSummary" aria-label="現在のプロフィール">
           <img id="profileSummaryAvatar" src="assets/player.png" alt="">
           <div>
@@ -110,9 +110,9 @@
           <div class="update-list-body" id="updateListBody"></div>
         </div>
         <div class="title-records hidden" id="titleRecords" aria-label="記録">
-          <div class="rules-head">
-            <span>RECORDS</span>
-            <button class="small-button" id="recordsCloseButton" type="button">閉じる</button>
+          <div class="rules-head records-head">
+            <button class="small-button compact-close-button" id="recordsCloseButton" type="button">閉じる</button>
+            <span>記録</span>
           </div>
           <h2>記録</h2>
           <div class="record-list-body" id="recordListBody"></div>

@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=107");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=108");
 }
 
 let game = engine.createGame();
@@ -257,6 +257,17 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.08",
+    title: "記録画面を調整",
+    items: [
+      "記録画面ではゲームタイトルを表示せず、記録に集中して見られる画面にしました。",
+      "閉じるボタンを小さくして、記録見出しの左側に配置しました。",
+      "記録画面をスクロールしても、CPU連勝数とオンライン/ローカルの切替タブを押せるようにしました。",
+      "ランキング切替の表示名を、オンライン/ローカルに短くしました。",
+      "ローカルランキングは最高1件だけではなく、上位10件まで残るようにしました。"
+    ]
+  },
   {
     version: "v1.07",
     title: "記録画面をタブ表示に変更",
@@ -924,7 +935,7 @@ function loadHardCpuRecords() {
         }))
         .filter((entry) => entry.best > 0)
         .sort((a, b) => b.best - a.best)
-        .slice(0, 100) : [],
+        .slice(0, 10) : [],
     };
   } catch {
     return { current: 0, best: 0, ranking: [] };
@@ -1003,14 +1014,11 @@ function clearHardCpuRunId() {
 function updateHardCpuRanking(records, name, streak) {
   const profile = currentPlayerProfile();
   const ranking = [...records.ranking];
-  const existing = ranking.find((entry) => entry.name === name);
-  if (existing) {
-    existing.best = Math.max(existing.best, streak);
-    existing.avatar = avatarIdForLeaderboard(profile.avatar);
-  } else {
+  const existsSameScore = ranking.some((entry) => entry.name === name && entry.best === streak);
+  if (!existsSameScore) {
     ranking.push({ name, avatar: avatarIdForLeaderboard(profile.avatar), best: streak });
   }
-  records.ranking = ranking.sort((a, b) => b.best - a.best).slice(0, 100);
+  records.ranking = ranking.sort((a, b) => b.best - a.best).slice(0, 10);
 }
 
 function resolveHardCpuResultIfNeeded(view) {
@@ -1859,7 +1867,7 @@ function renderRecords() {
   if (!elements.titleRecords || !titleRecordsOpen) return;
   const records = loadHardCpuRecords();
   const localItems = records.ranking.length > 0
-    ? records.ranking.slice(0, 100).map((entry, index) => `
+    ? records.ranking.slice(0, 10).map((entry, index) => `
         <li class="shared-rank-row rank-${index + 1}">
           <b>${index + 1}位</b>
           <span class="shared-rank-avatar" aria-hidden="true">
@@ -1886,7 +1894,7 @@ function renderRecords() {
       : `<li class="record-empty-row">まだ共有記録がありません。</li>`;
   const isOnlineTab = recordsRankingTab === "online";
   const shownItems = isOnlineTab ? sharedItems : localItems;
-  const shownTitle = isOnlineTab ? "オンラインランキング 1〜100位" : "ローカルランキング 1〜100位";
+  const shownTitle = isOnlineTab ? "オンラインランキング 1〜100位" : "ローカルランキング 1〜10位";
   elements.recordListBody.innerHTML = `
     <div class="record-mode-tabs" role="tablist" aria-label="記録カテゴリ">
       <button class="record-tab active" type="button" aria-selected="true">CPU連勝数</button>
@@ -1896,8 +1904,8 @@ function renderRecords() {
       <div><span>最高</span><strong>${records.best}連勝</strong></div>
     </section>
     <div class="record-ranking-tabs" role="tablist" aria-label="ランキング切替">
-      <button class="record-tab ${isOnlineTab ? "active" : ""}" type="button" data-record-ranking-tab="online" aria-selected="${isOnlineTab}">オンラインランキング</button>
-      <button class="record-tab ${!isOnlineTab ? "active" : ""}" type="button" data-record-ranking-tab="local" aria-selected="${!isOnlineTab}">ローカルランキング</button>
+      <button class="record-tab ${isOnlineTab ? "active" : ""}" type="button" data-record-ranking-tab="online" aria-selected="${isOnlineTab}">オンライン</button>
+      <button class="record-tab ${!isOnlineTab ? "active" : ""}" type="button" data-record-ranking-tab="local" aria-selected="${!isOnlineTab}">ローカル</button>
     </div>
     <section class="record-ranking">
       <h3>${shownTitle}</h3>
