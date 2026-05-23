@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=109");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=110");
 }
 
 let game = engine.createGame();
@@ -258,6 +258,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.10",
+    title: "下タブ画面の余白と戻り先を調整",
+    items: [
+      "対人画面から戻る時、ホームではなく対戦画面へ戻るようにしました。",
+      "ルール画面の表示位置を上に詰め、ページ送りボタンを押しやすい位置に調整しました。",
+      "記録画面の左上に出ていた小さい見出しを消し、対戦画面の見出しを中央で大きく表示するようにしました。"
+    ]
+  },
   {
     version: "v1.09",
     title: "タイトル画面を下タブ型に変更",
@@ -4090,12 +4099,13 @@ elements.rulesNextButton?.addEventListener("click", () => {
 elements.titleBackButton?.addEventListener("click", () => {
   if (socket) socket.emit("room:leave");
   clearOnlineSession();
+  titleTab = "battle";
   titleLobbyOpen = false;
   titleLobbyMode = "menu";
   titleRulesOpen = false;
   titleCardsOpen = false;
   titleCpuOpen = false;
-  titleBattleOpen = false;
+  titleBattleOpen = true;
   titleChallengeOpen = false;
   titleMenuOpen = false;
   onlineMode = false;
