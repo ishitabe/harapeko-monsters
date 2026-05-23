@@ -714,8 +714,11 @@ p {
   display: flex;
   align-items: flex-end;
   min-height: 190px;
-  padding: 10px 34px 0 0;
-  overflow: visible;
+  padding: 10px 96px 10px 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  scroll-padding-inline: 24px 110px;
+  scrollbar-width: thin;
 }
 
 .hand-grid > .empty-note {
@@ -2353,6 +2356,7 @@ body.battle-cards-active .title-menu-panel {
   width: min(1040px, 92vw);
   max-height: calc(100vh - 116px);
   overflow: auto;
+  min-height: 0;
   padding: 30px 48px 34px;
   text-align: center;
   border: 1px solid rgba(242, 189, 92, 0.32);
@@ -2849,6 +2853,10 @@ body.title-tab-battle .title-battle-menu {
   margin-top: 0;
 }
 
+body.title-tab-battle .title-challenge .rules-head {
+  display: none;
+}
+
 body.title-lobby-active .eyebrow,
 body.title-rules-active .eyebrow,
 body.title-cards-active .eyebrow,
@@ -2889,6 +2897,7 @@ body.title-cpu-active .title-content > h1 {
   text-align: left;
   min-height: 0;
   max-height: calc(100vh - 178px);
+  overflow: hidden;
 }
 
 .title-rules.hidden {
@@ -2927,8 +2936,10 @@ body.title-cpu-active .title-content > h1 {
 
 .title-challenge {
   display: grid;
-  gap: 18px;
-  margin-top: 28px;
+  gap: 12px;
+  margin-top: 0;
+  max-height: calc(100vh - 178px);
+  overflow: auto;
 }
 
 .title-cpu.hidden,
@@ -2940,18 +2951,18 @@ body.title-cpu-active .title-content > h1 {
 .title-challenge h2 {
   margin: 0;
   color: #fff6df;
-  font-size: 2.1rem;
+  font-size: 1.85rem;
   text-align: center;
 }
 
 .challenge-list {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .challenge-daily {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .challenge-free-toggle {
@@ -2965,8 +2976,8 @@ body.title-cpu-active .title-content > h1 {
 
 .challenge-card {
   display: grid;
-  gap: 14px;
-  padding: 18px;
+  gap: 10px;
+  padding: 14px;
   border: 1px solid rgba(239, 190, 96, 0.45);
   border-radius: 18px;
   background: linear-gradient(135deg, rgba(16, 28, 42, 0.92), rgba(45, 28, 19, 0.9));
@@ -3006,13 +3017,16 @@ body.title-cpu-active .title-content > h1 {
 
 .challenge-card-head strong {
   color: #ffe08a;
-  font-size: 1.45rem;
+  font-size: 1.28rem;
+  line-height: 1.1;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 .challenge-card p {
   margin: 0;
   color: #d9e4f5;
-  line-height: 1.65;
+  line-height: 1.42;
 }
 
 .challenge-reward {
@@ -3022,11 +3036,11 @@ body.title-cpu-active .title-content > h1 {
 
 .challenge-rules {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   margin: 0;
   padding-left: 1.2em;
   color: #d9e4f5;
-  line-height: 1.45;
+  line-height: 1.35;
 }
 
 .challenge-status {
@@ -3068,8 +3082,8 @@ body.title-cpu-active .title-content > h1 {
 
 .challenge-reset-note {
   color: rgba(217, 228, 245, 0.72) !important;
-  font-size: 0.86rem;
-  line-height: 1.45 !important;
+  font-size: 0.8rem;
+  line-height: 1.35 !important;
 }
 
 .login-bonus-overlay {
@@ -3173,7 +3187,7 @@ body.title-cpu-active .title-content > h1 {
 .record-list-body {
   display: grid;
   gap: 16px;
-  max-height: min(62vh, 640px);
+  max-height: min(70vh, 760px);
   overflow: auto;
   padding-right: 8px;
 }
@@ -3537,6 +3551,10 @@ body.title-cpu-active .title-content > h1 {
   gap: 14px;
   align-self: end;
   padding-top: 2px;
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background: linear-gradient(180deg, rgba(7, 11, 18, 0), rgba(7, 11, 18, 0.96) 26%);
 }
 
 .rules-nav .title-button {
@@ -4168,7 +4186,7 @@ body.title-cpu-active .title-content > h1 {
     align-content: start;
     padding: 18px 12px 14px;
     border-radius: 16px;
-    overflow: hidden;
+    overflow: auto;
   }
 
   .title-content .eyebrow {
@@ -4350,6 +4368,39 @@ body.title-cpu-active .title-content > h1 {
     gap: 10px;
   }
 
+  .title-challenge {
+    max-height: calc(100dvh - 116px);
+    gap: 10px;
+    padding-bottom: 8px;
+  }
+
+  .title-challenge h2 {
+    font-size: 1.72rem;
+  }
+
+  .challenge-card {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .challenge-card-head {
+    align-items: flex-start;
+  }
+
+  .challenge-card-head strong {
+    font-size: 1.16rem;
+    white-space: nowrap;
+  }
+
+  .challenge-card p,
+  .challenge-rules {
+    font-size: 0.88rem;
+  }
+
+  .challenge-free-toggle {
+    min-height: 46px;
+  }
+
   .title-battle-menu .rules-head span,
   .title-records h2 {
     font-size: 2rem;
@@ -4361,8 +4412,21 @@ body.title-cpu-active .title-content > h1 {
   }
 
   .record-list-body {
-    max-height: 62dvh;
+    max-height: 72dvh;
     padding-right: 4px;
+  }
+
+  .record-summary div,
+  .record-ranking {
+    padding: 12px;
+  }
+
+  .record-summary strong {
+    font-size: 1.75rem;
+  }
+
+  .shared-rank-row {
+    min-height: 0;
   }
 
   .record-ranking-tabs {

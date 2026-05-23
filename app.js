@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=110");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=111");
 }
 
 let game = engine.createGame();
@@ -258,6 +258,16 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.11",
+    title: "記録とチャレンジ画面の見切れを調整",
+    items: [
+      "記録画面でランキング欄が下で見切れにくいよう、表示領域を広げました。",
+      "ルール画面の前へ・次へボタンの位置がページごとに変わりにくいように調整しました。",
+      "チャレンジ画面を小さめに整理し、フリーチャレンジまで見やすくしました。",
+      "PC版で手札が多い時、右端のカードまで横スクロールで選べるようにしました。"
+    ]
+  },
   {
     version: "v1.10",
     title: "下タブ画面の余白と戻り先を調整",
@@ -1968,13 +1978,11 @@ function renderCpuSetup() {
 function renderChallengeList() {
   if (!titleChallengeOpen || !elements.todayChallengeContent) return;
   const todayChallenge = getTodayChallenge();
-  const tomorrowChallenge = getTomorrowChallenge();
   const todayId = normalizeChallengeId(todayChallenge);
   const claimed = isChallengeRewardClaimed(todayId);
   elements.todayChallengeContent.innerHTML = renderChallengeCard(todayChallenge, {
     mode: "daily",
-    claimed,
-    tomorrowName: tomorrowChallenge?.name || ""
+    claimed
   });
   if (elements.freeChallengeToggleButton) {
     elements.freeChallengeToggleButton.textContent = freeChallengeOpen ? "フリーチャレンジを閉じる" : "フリーチャレンジ";
@@ -2003,8 +2011,8 @@ function renderChallengeCard(challenge, options = {}) {
   const rules = Array.isArray(challenge.rules) && challenge.rules.length > 0
     ? `<ul class="challenge-rules">${challenge.rules.map((rule) => `<li>${rule}</li>`).join("")}</ul>`
     : "";
-  const tomorrow = isDaily && options.tomorrowName
-    ? `<p class="challenge-reset-note">報酬は端末のローカル日付が変わる0:00に更新されます。明日のチャレンジ：${options.tomorrowName}</p>`
+  const resetNote = isDaily
+    ? `<p class="challenge-reset-note">報酬は端末のローカル日付が変わる0:00に更新されます。</p>`
     : "";
   return `
     <article class="challenge-card ${isDaily ? "daily" : "free"}">
@@ -2018,7 +2026,7 @@ function renderChallengeCard(challenge, options = {}) {
       <p>${challenge.description}</p>
       ${rules}
       <p class="challenge-reward">${isDaily ? `勝利報酬：${reward}ハピコイン（1日1回）` : "勝利報酬：なし"}</p>
-      ${tomorrow}
+      ${resetNote}
       <button class="title-button ${isDaily ? "primary" : ""}" data-challenge-action="${isDaily ? "daily" : "free"}" data-challenge-id="${challengeId}" type="button">
         ${isDaily ? "挑戦する" : "遊ぶ"}
       </button>
