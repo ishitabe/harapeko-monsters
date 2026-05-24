@@ -1008,6 +1008,8 @@
     const unit = createUnit(cardId, game.turn);
     let onSummonEffect = "none";
 
+    applyEnterFieldRuleModifiers(game, playerId, unit);
+
     if (card.effectKey === "mustBeAttacked") {
       increasePower(game, unit, game.players[opponentId].field.length);
       onSummonEffect = "mustBeAttackedPower";
@@ -1033,6 +1035,21 @@
       }
     }
     return unit;
+  }
+
+  function applyEnterFieldRuleModifiers(game, playerId, unit) {
+    const buff = game.ruleModifiers?.cpuEnterFieldBuff;
+    if (!buff || playerId !== 1 || unit.challengeEnterFieldBuffApplied) return;
+    const maxHpBonus = Math.max(0, Number(buff.maxHp ?? 0) || 0);
+    const currentHpBonus = Math.max(0, Number(buff.currentHp ?? maxHpBonus) || 0);
+    const powerBonus = Math.max(0, Number(buff.power ?? 0) || 0);
+    if (maxHpBonus > 0) unit.maxHp += maxHpBonus;
+    if (currentHpBonus > 0) unit.hp += currentHpBonus;
+    if (powerBonus > 0) unit.power += powerBonus;
+    unit.challengeEnterFieldBuffApplied = true;
+    if (maxHpBonus > 0 || currentHpBonus > 0 || powerBonus > 0) {
+      addLog(game, `${cards[unit.cardId].name}は強化軍団で最大HP+${maxHpBonus}、現在HP+${currentHpBonus}、パワー+${powerBonus}。`);
+    }
   }
 
   function publicUnit(game, unit, ownerId, viewerId) {

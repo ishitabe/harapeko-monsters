@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=111");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=112");
 }
 
 let game = engine.createGame();
@@ -258,6 +258,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.12",
+    title: "チャレンジ「強化軍団」を追加",
+    items: [
+      "新しいチャレンジ「強化軍団」を追加しました。",
+      "強化軍団では、CPU側のモンスターが場に出た時に最大HP、現在HP、パワーがそれぞれ+1されます。",
+      "強化軍団をフリーチャレンジ一覧と今日のチャレンジ候補に追加しました。"
+    ]
+  },
   {
     version: "v1.11",
     title: "記録とチャレンジ画面の見切れを調整",

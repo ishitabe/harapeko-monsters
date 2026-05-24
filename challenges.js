@@ -1,6 +1,6 @@
 (() => {
   const DAILY_CHALLENGE_START_DATE = "2026-05-21";
-  const DAILY_CHALLENGE_SEQUENCE = ["suddenDeath", "rush"];
+  const DAILY_CHALLENGE_SEQUENCE = ["suddenDeath", "enhancedArmy", "rush"];
 
   const CHALLENGE_DEFINITIONS = [
     {
@@ -36,6 +36,27 @@
       cpuDifficulty: "strong",
       ruleModifiers: {
         noSummonSickness: true
+      }
+    },
+    {
+      challengeId: "enhancedArmy",
+      name: "強化軍団",
+      description: "敵のモンスターはみんな一回り強い！",
+      rules: [
+        "CPU側のモンスターは場に出た時、最大HP+1",
+        "CPU側のモンスターは場に出た時、現在HP+1",
+        "CPU側のモンスターは場に出た時、パワー+1"
+      ],
+      rewardCoins: 200,
+      cpuName: "強化付与くん",
+      cpuIcon: "akudaruma",
+      cpuDifficulty: "strong",
+      ruleModifiers: {
+        cpuEnterFieldBuff: {
+          maxHp: 1,
+          currentHp: 1,
+          power: 1
+        }
       }
     }
   ];
