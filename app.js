@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=113");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=114");
 }
 
 let game = engine.createGame();
@@ -259,6 +259,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.14",
+    title: "スマホ版の選択UIを改善",
+    items: [
+      "旧UIのスマホ版で、カードや対象を3列のカード型ボタンから選びやすくしました。",
+      "山札を選ぶ場面では、普段の山札に近い見た目で3つ並ぶようにしました。",
+      "効果処理の決定ボタンを閉じるボタンの横に置き、下までスクロールしなくても押せるようにしました。"
+    ]
+  },
   {
     version: "v1.13",
     title: "チャレンジの連勝処理を修正",
@@ -2337,6 +2346,7 @@ function renderDetail() {
   if (!detailKey || !detailData) {
     elements.detailPanel.classList.add("hidden");
     elements.detailContent.replaceChildren();
+    syncDetailCommandBar();
     detailRenderSignature = "";
     return;
   }
@@ -2384,6 +2394,7 @@ function renderDetail() {
       </div>
     `;
     renderDetailActions(elements.detailContent.querySelector("#detailActions"), detailData);
+    syncDetailCommandBar();
     elements.detailPanel.scrollTop = previousScrollTop;
     return;
   }
@@ -2415,7 +2426,32 @@ function renderDetail() {
     `;
   if (cardUiMode === "modern") attachHeldItemClick(elements.detailContent, unit?.item, detailKey);
   renderDetailActions(elements.detailContent.querySelector("#detailActions"), detailData);
+  syncDetailCommandBar();
   elements.detailPanel.scrollTop = previousScrollTop;
+}
+
+function syncDetailCommandBar() {
+  let bar = document.querySelector("#detailCommandBar");
+  if (!bar && elements.detailPanel) {
+    bar = document.createElement("div");
+    bar.id = "detailCommandBar";
+    bar.className = "detail-command-bar";
+    elements.detailPanel.insertBefore(bar, elements.detailPanel.firstChild);
+  }
+  if (!bar) return;
+  bar.replaceChildren();
+  if (!detailKey || !detailData || elements.detailPanel.classList.contains("hidden")) {
+    bar.hidden = true;
+    return;
+  }
+  const closeButton = elements.closeDetailButton;
+  if (closeButton) bar.append(closeButton);
+  const confirmButton = elements.detailContent.querySelector(".action-form > .small-button:last-child");
+  if (confirmButton) {
+    confirmButton.classList.add("detail-confirm-button");
+    bar.append(confirmButton);
+  }
+  bar.hidden = false;
 }
 
 function detailSignature(key, data) {
