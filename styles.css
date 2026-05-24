@@ -1535,6 +1535,21 @@ body.card-dragging * {
   box-shadow: 0 12px 26px rgba(0,0,0,0.34);
 }
 
+.click-picker .choice-card.unit {
+  border-color: rgba(240, 122, 69, 0.7);
+  background:
+    radial-gradient(circle at 18% 10%, rgba(240, 122, 69, 0.24), transparent 44%),
+    linear-gradient(180deg, rgba(54, 37, 32, 0.98), rgba(22, 25, 34, 0.98));
+}
+
+.click-picker .choice-card.action,
+.click-picker .choice-card.item {
+  border-color: rgba(114, 214, 107, 0.64);
+  background:
+    radial-gradient(circle at 18% 10%, rgba(114, 214, 107, 0.2), transparent 44%),
+    linear-gradient(180deg, rgba(25, 51, 34, 0.98), rgba(16, 27, 26, 0.98));
+}
+
 .click-picker .choice-card .card-name {
   font-size: 1rem;
 }
@@ -1557,8 +1572,19 @@ body.card-dragging * {
 }
 
 .click-picker .pile-choice-card {
-  min-height: 190px;
+  min-height: 132px;
   align-content: start;
+}
+
+.click-picker .pile-choice-card .card-text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #d8e6ef;
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1.25;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .target-choice-grid {
@@ -1677,13 +1703,14 @@ body.card-dragging * {
 .detail-command-bar {
   position: sticky;
   top: 0;
-  z-index: 8;
+  z-index: 30;
   display: flex;
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
   padding: 0 0 10px;
   background: linear-gradient(180deg, rgba(15, 22, 32, 0.98), rgba(15, 22, 32, 0.72));
+  pointer-events: auto;
 }
 
 .detail-command-bar .close-detail {
@@ -3853,8 +3880,8 @@ body.title-cpu-active .title-content > h1 {
   }
 
   .opponent-row {
-    grid-template-columns: minmax(0, 1fr) 124px;
-    gap: 4px;
+    grid-template-columns: minmax(0, 1fr) 154px;
+    gap: 6px;
   }
 
   .player-row {
@@ -3887,14 +3914,14 @@ body.title-cpu-active .title-content > h1 {
 
   .life-box {
     grid-template-columns: 42px minmax(0, 1fr);
-    padding: 7px 5px;
+    padding: 7px 7px;
     gap: 3px;
     width: 100%;
     box-sizing: border-box;
   }
 
   .life-box strong {
-    font-size: 1.58rem;
+    font-size: 1.42rem;
   }
 
   .life-box span,
@@ -3906,6 +3933,23 @@ body.title-cpu-active .title-content > h1 {
   .action-lamps {
     gap: 5px;
     flex-wrap: wrap;
+  }
+
+  .life-box .action-lamps {
+    display: grid;
+    grid-template-columns: repeat(2, 18px);
+    justify-content: center;
+    justify-items: center;
+    row-gap: 4px;
+    column-gap: 6px;
+    transform: none;
+  }
+
+  .life-box .action-lamps .action-label {
+    grid-column: 1 / -1;
+    white-space: nowrap;
+    font-size: 0.62rem;
+    line-height: 1;
   }
 
   .lamp {
@@ -3984,7 +4028,7 @@ body.title-cpu-active .title-content > h1 {
   .player-controls {
     grid-area: controls;
     display: grid;
-    grid-template-columns: minmax(88px, 1fr) minmax(92px, 1fr) minmax(104px, 1.25fr);
+    grid-template-columns: minmax(94px, 1.05fr) minmax(88px, 0.9fr) minmax(92px, 1fr);
     grid-template-areas: "life actions end";
     align-items: stretch;
     gap: 8px;
@@ -3996,7 +4040,9 @@ body.title-cpu-active .title-content > h1 {
   .end-button {
     grid-area: end;
     width: 100%;
-    min-height: 58px;
+    min-height: 52px;
+    line-height: 1.05;
+    white-space: pre-line;
   }
 
   .player-controls .life-box {
@@ -4006,14 +4052,22 @@ body.title-cpu-active .title-content > h1 {
   .player-controls .action-lamps {
     grid-area: actions;
     display: grid;
+    grid-template-columns: repeat(2, 18px);
     place-content: center;
     justify-items: center;
-    min-height: 58px;
+    min-height: 52px;
     padding: 6px;
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 8px;
     background: rgba(21, 27, 36, 0.82);
     box-shadow: var(--shadow);
+  }
+
+  .player-controls .action-lamps .action-label {
+    grid-column: 1 / -1;
+    white-space: nowrap;
+    font-size: 0.62rem;
+    line-height: 1;
   }
 
   .hand-wrap {
@@ -4241,9 +4295,17 @@ body.title-cpu-active .title-content > h1 {
   .click-picker .choice-card,
   .click-picker .pile-choice-card,
   .click-picker .target-choice-card {
-    min-height: 150px;
     padding: 8px;
     gap: 5px;
+  }
+
+  .click-picker .choice-card,
+  .click-picker .target-choice-card {
+    min-height: 150px;
+  }
+
+  .click-picker .pile-choice-card {
+    min-height: 106px;
   }
 
   .click-picker .choice-card .card-name,
@@ -4256,7 +4318,7 @@ body.title-cpu-active .title-content > h1 {
   .target-choice-card p,
   .target-choice-card small,
   .deck-card small {
-    font-size: 0.62rem;
+    font-size: 0.6rem;
     line-height: 1.25;
   }
 

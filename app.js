@@ -81,7 +81,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=115");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=116");
 }
 
 let game = engine.createGame();
@@ -260,6 +260,16 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.16",
+    title: "スマホの選択画面とバトル表示を調整",
+    items: [
+      "カードを選ぶ画面で、モンスター、アクション、持ち物の色が分かるようにしました。",
+      "山札をタップしてドローした時に、大きなカード詳細が出ないようにしました。",
+      "ザ・サーチで山札のカードを選ぶ時、カードを五十音順に並べるようにしました。",
+      "スマホ版で相手HPやアクション権が見切れにくいように表示を調整しました。"
+    ]
+  },
   {
     version: "v1.15",
     title: "ホーム画面と選択画面を整理",
@@ -2270,7 +2280,6 @@ function renderDecks(piles, activePlayer, winner, lockedForCpu) {
       `;
     button.addEventListener("click", () => {
       playSound("select");
-      selectDetail(key, topCard, `${pile.name} トップ`, null, { source: "deck" });
       if (winner === null && !lockedForCpu && !activePlayer.hasDrawnThisTurn) {
         addFx(key, "fx-draw");
         playSound("draw");
@@ -2700,7 +2709,7 @@ function renderDetailActions(container, data) {
 
   if (data.source === "pendingDoubleCheck") {
     const opponent = view.players[view.activePlayer === 0 ? 1 : 0];
-    const choices = opponent.hand.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name]);
+    const choices = opponent.hand.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name, cardId]);
     const picker = appendClickMultiPicker(container, "加える手札", choices, data.count || 1);
     container.append(createSmallButton("手札に加える", choices.length === 0, () => {
       const opponentHandIndex = picker.getSelectedValues();
@@ -3024,7 +3033,7 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
   }
   if (card.effectKey === "discardAnyGainActions") {
     const choices = active.hand
-      .map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name])
+      .map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name, cardId])
       .filter(([value]) => Number(value) !== actionHandIndex);
     controls.discards = appendClickMultiPicker(form, "捨てる手札", choices, choices.length);
   }
@@ -3120,9 +3129,14 @@ function renderPileSearchControls(container, data) {
   note.className = "empty-note";
   note.textContent = `山札から手札に加えるカードを${data.count}枚まで選んでください。`;
   form.append(note);
-  const choices = data.entries
+  const choices = (data.entries
     ? data.entries.map((entry) => [entry.value, entry.label, entry.cardId])
-    : (data.cards || []).map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name, cardId]);
+    : (data.cards || []).map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name, cardId]))
+    .sort((a, b) => {
+      const cardA = CARD_DEFINITIONS[a[2]];
+      const cardB = CARD_DEFINITIONS[b[2]];
+      return (cardA?.name || a[1] || "").localeCompare(cardB?.name || b[1] || "", "ja");
+    });
   const picker = appendClickMultiPicker(form, "山札の中身", choices, data.count);
   form.append(createSmallButton("手札に加える", choices.length === 0, () => {
     const pileIndexes = picker.getSelectedValues();
@@ -3593,7 +3607,7 @@ function appendPileChoicePicker(form, label, piles) {
         <strong>${pile.name}</strong>
         <span>残り ${pile.count}枚</span>
       </div>
-      ${topCard ? compactCardMarkup(topCard) : "<p class=\"empty-note\">空</p>"}
+      ${topCard ? compactCardMarkup(topCard, { hideType: true, pileChoice: true }) : "<p class=\"empty-note\">空</p>"}
     `;
     button.addEventListener("click", () => {
       picker.value = pile.id;

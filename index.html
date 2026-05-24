@@ -8,10 +8,10 @@
     <meta name="apple-mobile-web-app-title" content="かんハピ">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>しょーかんハッピーズ</title>
-    <link rel="manifest" href="manifest.json?v=115">
+    <link rel="manifest" href="manifest.json?v=116">
     <link rel="icon" type="image/png" sizes="192x192" href="pwa-icon-192.png">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-    <link rel="stylesheet" href="styles.css?v=115">
+    <link rel="stylesheet" href="styles.css?v=116">
     <script src="constants.js?v=77"></script>
     <script>
       document.title = window.AppConstants.APP_DISPLAY_NAME;
@@ -26,7 +26,7 @@
     <script src="cards.js?v=62" defer></script>
     <script src="challenges.js?v=109" defer></script>
     <script src="gameEngine.js?v=109" defer></script>
-    <script src="app.js?v=115" defer></script>
+    <script src="app.js?v=116" defer></script>
   </head>
   <body class="title-active">
     <section class="title-screen" id="titleScreen">
@@ -41,7 +41,7 @@
       <div class="title-content">
         <p class="eyebrow">CARD BATTLE</p>
         <h1 data-app-display-name>しょーかんハッピーズ</h1>
-        <p class="version-label">v1.15</p>
+        <p class="version-label">v1.16</p>
         <div class="profile-summary" id="profileSummary" aria-label="現在のプロフィール">
           <img id="profileSummaryAvatar" src="assets/player.png" alt="">
           <div>
@@ -90,7 +90,6 @@
           <section class="home-today-record-card" id="homeTodayRecordCard" role="button" tabindex="0">
             <div class="home-card-head">
               <span>本日の記録</span>
-              <strong>今日のプレイ</strong>
             </div>
             <div class="home-record-stats" id="homeTodayRecordStats"></div>
           </section>
@@ -240,7 +239,7 @@
 
         <section class="player-row" aria-label="自分情報">
           <div class="player-controls">
-            <button class="end-button" id="endTurnButton" type="button">ターン終了</button>
+            <button class="end-button" id="endTurnButton" type="button">ターン<br>終了</button>
             <div class="action-lamps own" id="p0Actions"></div>
             <div class="life-box player">
               <span id="p0Name">プレイヤー1</span>
