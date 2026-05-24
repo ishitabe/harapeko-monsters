@@ -23,7 +23,8 @@ const STORAGE_KEYS = {
   hardCpuRun: `${APP_INTERNAL_ID}-hard-cpu-run`,
   currentCpuBattle: `${APP_INTERNAL_ID}-current-cpu-battle`,
   challengeRewards: `${APP_INTERNAL_ID}-challenge-rewards`,
-  loginBonus: `${APP_INTERNAL_ID}-login-bonus`
+  loginBonus: `${APP_INTERNAL_ID}-login-bonus`,
+  dailyStats: `${APP_INTERNAL_ID}-daily-stats`
 };
 const LEGACY_STORAGE_KEYS = {
   player: ["hara" + "pekoPlayerProfile"],
@@ -80,7 +81,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=114");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=115");
 }
 
 let game = engine.createGame();
@@ -259,6 +260,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.15",
+    title: "ホーム画面と選択画面を整理",
+    items: [
+      "ホーム画面に最新アップデート、今日のチャレンジ、本日の記録をまとめて表示するようにしました。",
+      "カードや対象を選ぶ画面で、カード名の重複表示をなくし、効果テキストを読みやすくしました。",
+      "ターン開始時の通常ドローでは、ドロー後に大きなカード詳細を出さないようにしました。"
+    ]
+  },
   {
     version: "v1.14",
     title: "スマホ版の選択UIを改善",
@@ -868,6 +878,12 @@ const elements = {
   showRulesButton: document.querySelector("#showRulesButton"),
   showCardsButton: document.querySelector("#showCardsButton"),
   showUpdatesButton: document.querySelector("#showUpdatesButton"),
+  homeDashboard: document.querySelector("#homeDashboard"),
+  homeUpdatesCard: document.querySelector("#homeUpdatesCard"),
+  homeUpdatesList: document.querySelector("#homeUpdatesList"),
+  homeChallengeCard: document.querySelector("#homeChallengeCard"),
+  homeTodayRecordCard: document.querySelector("#homeTodayRecordCard"),
+  homeTodayRecordStats: document.querySelector("#homeTodayRecordStats"),
   showRecordsButton: document.querySelector("#showRecordsButton"),
   titleBattleMenu: document.querySelector("#titleBattleMenu"),
   titleBattleCpuButton: document.querySelector("#titleBattleCpuButton"),
@@ -1015,7 +1031,75 @@ function getHapiCoins() {
 }
 
 function addHapiCoins(amount, reason = "") {
-  return hapiCoinWallet.addHapiCoins(amount, reason);
+  const reward = hapiCoinWallet.addHapiCoins(amount, reason);
+  if (reward.added > 0) recordDailyHapiCoins(reward.added);
+  return reward;
+}
+
+function blankDailyStats(date = todayKey()) {
+  return {
+    date,
+    battles: 0,
+    wins: 0,
+    bestStreak: 0,
+    earnedCoins: 0
+  };
+}
+
+function loadDailyStats() {
+  const today = todayKey();
+  try {
+    const parsed = JSON.parse(readStorage("dailyStats", "{}") || "{}");
+    if (!parsed || parsed.date !== today) return blankDailyStats(today);
+    return {
+      date: today,
+      battles: Math.max(0, Number(parsed.battles) || 0),
+      wins: Math.max(0, Number(parsed.wins) || 0),
+      bestStreak: Math.max(0, Number(parsed.bestStreak) || 0),
+      earnedCoins: Math.max(0, Number(parsed.earnedCoins) || 0)
+    };
+  } catch {
+    return blankDailyStats(today);
+  }
+}
+
+function saveDailyStats(stats) {
+  writeStorage("dailyStats", JSON.stringify({
+    date: stats.date || todayKey(),
+    battles: Math.max(0, Number(stats.battles) || 0),
+    wins: Math.max(0, Number(stats.wins) || 0),
+    bestStreak: Math.max(0, Number(stats.bestStreak) || 0),
+    earnedCoins: Math.max(0, Number(stats.earnedCoins) || 0)
+  }));
+}
+
+function recordDailyBattleStarted(targetGame = game) {
+  const stats = loadDailyStats();
+  stats.battles += 1;
+  saveDailyStats(stats);
+  if (targetGame) {
+    targetGame.dailyStatsBattleTracked = true;
+    targetGame.dailyStatsResultTracked = false;
+  }
+}
+
+function recordDailyBattleResult(targetGame, selfWon, streak = 0) {
+  if (!targetGame?.dailyStatsBattleTracked || targetGame.dailyStatsResultTracked) return;
+  const stats = loadDailyStats();
+  if (selfWon) {
+    stats.wins += 1;
+    stats.bestStreak = Math.max(stats.bestStreak, Math.max(1, Number(streak) || 1));
+  }
+  saveDailyStats(stats);
+  targetGame.dailyStatsResultTracked = true;
+}
+
+function recordDailyHapiCoins(amount) {
+  const value = Math.max(0, Number(amount) || 0);
+  if (!value) return;
+  const stats = loadDailyStats();
+  stats.earnedCoins += value;
+  saveDailyStats(stats);
 }
 
 function calculateCpuVictoryCoins(difficulty, streakAfterWin) {
@@ -1546,6 +1630,7 @@ function render() {
   elements.titleRecords?.classList.toggle("hidden", !titleRecordsOpen);
   elements.titleCpu?.classList.toggle("hidden", !titleCpuOpen);
   elements.titleChallenge?.classList.toggle("hidden", !titleChallengeOpen);
+  elements.homeDashboard?.classList.toggle("hidden", titleTab !== "home" || profileEditorOpen || titleLobbyOpen || titleRulesOpen || titleCardsOpen || titleUpdatesOpen || titleRecordsOpen || titleCpuOpen || titleBattleOpen || titleChallengeOpen);
   elements.profileEditor?.classList.toggle("hidden", !profileEditorOpen);
   elements.profileSummary?.classList.toggle("hidden", profileEditorOpen || titleTab !== "home" || titleLobbyOpen || titleRulesOpen || titleCardsOpen || titleUpdatesOpen || titleRecordsOpen || titleCpuOpen || titleBattleOpen || titleChallengeOpen);
   elements.optionsPanel?.classList.toggle("hidden", !optionsOpen);
@@ -1559,6 +1644,7 @@ function render() {
   renderRecords();
   renderCpuSetup();
   renderChallengeList();
+  renderHomeDashboard();
   updateTitleRecordButton();
   updateHapiCoinDisplay();
   renderPlayerInfo(view);
@@ -1904,6 +1990,49 @@ function renderUpdateHistory() {
   });
 }
 
+function renderHomeDashboard() {
+  if (!titleActive || titleTab !== "home") return;
+  if (elements.homeUpdatesList) {
+    elements.homeUpdatesList.innerHTML = UPDATE_HISTORY.slice(0, 3).map((entry, index) => `
+      <button class="home-update-item" type="button" data-home-updates="1">
+        ${index === 0 ? `<span class="new-badge">NEW</span>` : ""}
+        <strong>${entry.version}</strong>
+        <span>${entry.title}</span>
+      </button>
+    `).join("");
+  }
+  if (elements.homeChallengeCard) {
+    const challenge = getTodayChallenge();
+    const challengeId = normalizeChallengeId(challenge);
+    const claimed = isChallengeRewardClaimed(challengeId);
+    const reward = challengeRewardAmount(challenge);
+    elements.homeChallengeCard.innerHTML = `
+      <div class="home-card-head">
+        <span>今日のチャレンジ</span>
+        <strong>${challenge.name}</strong>
+      </div>
+      <p>${challenge.description}</p>
+      <div class="home-challenge-meta">
+        <span>${reward}ハピコイン</span>
+        ${claimed ? `<b class="challenge-clear">CLEAR</b><small>報酬獲得済み</small>` : ""}
+      </div>
+      <button class="title-button challenge-button" id="homeChallengeStartButton" type="button">${claimed ? "もう一度挑戦" : "挑戦する"}</button>
+    `;
+    elements.homeChallengeCard.querySelector("#homeChallengeStartButton")?.addEventListener("click", () => {
+      startChallengeGame(challengeId, { mode: "daily" });
+    });
+  }
+  if (elements.homeTodayRecordStats) {
+    const stats = loadDailyStats();
+    elements.homeTodayRecordStats.innerHTML = `
+      <div><span>対戦</span><strong>${stats.battles}</strong></div>
+      <div><span>勝利</span><strong>${stats.wins}</strong></div>
+      <div><span>最高連勝</span><strong>${stats.bestStreak}</strong></div>
+      <div><span>獲得</span><strong>${stats.earnedCoins}枚</strong></div>
+    `;
+  }
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -2145,7 +2274,7 @@ function renderDecks(piles, activePlayer, winner, lockedForCpu) {
       if (winner === null && !lockedForCpu && !activePlayer.hasDrawnThisTurn) {
         addFx(key, "fx-draw");
         playSound("draw");
-        runGameAction("draw", { pileId: pile.id }, () => engine.drawFromPile(game, game.activePlayer, pile.id), showDrawnCards);
+        runGameAction("draw", { pileId: pile.id }, () => engine.drawFromPile(game, game.activePlayer, pile.id));
       }
       if (!onlineMode) render();
     });
@@ -3066,6 +3195,7 @@ function renderWinnerOverlay(view) {
   const cpuResult = completeCpuBattleIfNeeded(view);
   const winner = view.players[view.winner];
   const selfWon = view.winner === getSelfId();
+  recordDailyBattleResult(game, selfWon, cpuResult?.streak || loadHardCpuRecords().current || 0);
   const resultLine = cpuResult?.isChallenge
     ? `<p class="winner-streak">${cpuResult.selfWon ? `${cpuResult.challengeName}クリア！` : `${cpuResult.challengeName}失敗...`}</p>`
     : cpuResult?.isHard
@@ -3134,13 +3264,13 @@ function itemBadgeMarkup(item) {
   `;
 }
 
-function compactCardMarkup(card) {
+function compactCardMarkup(card, options = {}) {
   if (cardUiMode === "modern") return modernCardMarkup(card, { mini: true });
   return `
-    ${typeBadge(card.type)}
+    ${options.hideType ? "" : typeBadge(card.type)}
     <div class="card-name">${card.name}</div>
     ${unitStatsMarkup(card, null)}
-    <small>${card.text}</small>
+    <small class="card-text">${card.text}</small>
   `;
 }
 
@@ -3546,11 +3676,7 @@ function appendClickMultiPicker(form, label, options, maxCount) {
     button.value = value;
     if (cardId && CARD_DEFINITIONS[cardId]) {
       button.className = `choice-card ${CARD_DEFINITIONS[cardId].type}`;
-      button.innerHTML = compactCardMarkup(CARD_DEFINITIONS[cardId]);
-      const source = document.createElement("span");
-      source.className = "choice-source";
-      source.textContent = text;
-      button.prepend(source);
+      button.innerHTML = compactCardMarkup(CARD_DEFINITIONS[cardId], { hideType: true });
     } else {
       button.textContent = text;
     }
@@ -3762,6 +3888,7 @@ function startCpuGame(difficulty = "normal") {
   game.players[0].avatar = selfProfile.avatar;
   game.players[1].name = opponentProfile.name;
   game.players[1].avatar = opponentProfile.avatar;
+  recordDailyBattleStarted(game);
   titleActive = false;
   titleLobbyOpen = false;
   titleRulesOpen = false;
@@ -3823,6 +3950,7 @@ function startChallengeGame(challengeId = normalizeChallengeId(getTodayChallenge
   game.players[1].name = challenge.cpuName;
   game.players[1].avatar = challengeCpuAvatar(challenge);
   applyChallengeRuleModifiers(game, challenge);
+  recordDailyBattleStarted(game);
   titleActive = false;
   titleLobbyOpen = false;
   titleRulesOpen = false;
@@ -4144,10 +4272,24 @@ elements.battleCardListButton?.addEventListener("click", () => {
   render();
 });
 elements.showUpdatesButton?.addEventListener("click", openUpdateHistory);
+elements.homeUpdatesCard?.addEventListener("click", openUpdateHistory);
+elements.homeUpdatesCard?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    openUpdateHistory();
+  }
+});
 elements.updatesCloseButton?.addEventListener("click", () => {
   returnToPreviousTitlePanel();
 });
 elements.showRecordsButton?.addEventListener("click", openRecords);
+elements.homeTodayRecordCard?.addEventListener("click", () => openRecords("home"));
+elements.homeTodayRecordCard?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    openRecords("home");
+  }
+});
 elements.recordsCloseButton?.addEventListener("click", () => {
   returnToPreviousTitlePanel();
 });
