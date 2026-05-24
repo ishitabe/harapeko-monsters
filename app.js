@@ -80,7 +80,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=112");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=113");
 }
 
 let game = engine.createGame();
@@ -128,6 +128,7 @@ let sharedLeaderboardLoaded = false;
 let recordsRankingTab = "online";
 let activeChallenge = null;
 let challengeResultHandled = false;
+let lastChallengeResult = null;
 let cardPreviewNode = null;
 let cardDragState = null;
 let suppressClickUntil = 0;
@@ -258,6 +259,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.13",
+    title: "チャレンジの連勝処理を修正",
+    items: [
+      "チャレンジとフリーチャレンジの勝敗が、CPU（強い）の連勝数に影響しないようにしました。",
+      "チャレンジで「もう一度戦う」を押した時、同じチャレンジでもう一度遊べるようにしました。",
+      "チャレンジ結果画面で、CPU（強い）の連勝表示が混ざって出ないようにしました。"
+    ]
+  },
   {
     version: "v1.12",
     title: "チャレンジ「強化軍団」を追加",
@@ -1175,6 +1185,7 @@ function abandonCpuBattle(reason = "abandon") {
   cpuCoinRewardHandled = true;
   activeChallenge = null;
   challengeResultHandled = true;
+  lastChallengeResult = null;
   cpuThinking = false;
   clearCurrentCpuBattle();
   console.warn("CPU battle abandoned as defeat", { reason, difficulty: cpuDifficulty });
@@ -1201,7 +1212,8 @@ function completeCpuBattleIfNeeded(view) {
 }
 
 function completeChallengeBattleIfNeeded(view) {
-  if (!activeChallenge || challengeResultHandled || view.winner === null) return null;
+  if (!activeChallenge || view.winner === null) return null;
+  if (challengeResultHandled) return lastChallengeResult;
   const challenge = activeChallenge;
   const challengeId = normalizeChallengeId(challenge);
   const challengeMode = challenge.mode || (challenge.rewardEligible ? "daily" : "free");
@@ -1219,11 +1231,10 @@ function completeChallengeBattleIfNeeded(view) {
     });
   }
   challengeResultHandled = true;
-  activeChallenge = null;
   cpuThinking = false;
   clearCurrentCpuBattle();
   updateHapiCoinDisplay();
-  return {
+  lastChallengeResult = {
     isChallenge: true,
     challengeId,
     challengeName: challenge.name,
@@ -1233,6 +1244,7 @@ function completeChallengeBattleIfNeeded(view) {
     coinReward,
     alreadyClaimed: selfWon && alreadyClaimed
   };
+  return lastChallengeResult;
 }
 
 async function submitLeaderboard(streak) {
@@ -1639,7 +1651,7 @@ function renderPlayerInfo(view) {
       streakNode.className = "streak-note";
       elements.playerName[slotId].after(streakNode);
     }
-    if (!onlineMode && cpuDifficulty === "hard" && slotId === 0 && (hardCpuMatchActive || view.winner !== null)) {
+    if (!onlineMode && !activeChallenge && cpuDifficulty === "hard" && slotId === 0 && (hardCpuMatchActive || view.winner !== null)) {
       streakNode.textContent = `${loadHardCpuRecords().current}連勝中`;
       streakNode.hidden = false;
     } else {
@@ -3703,6 +3715,7 @@ function startCpuGame(difficulty = "normal") {
   cpuThinking = false;
   activeChallenge = null;
   challengeResultHandled = false;
+  lastChallengeResult = null;
   game = engine.createGame();
   const selfProfile = currentPlayerProfile();
   const opponentProfile = cpuProfile(difficulty);
@@ -3763,6 +3776,7 @@ function startChallengeGame(challengeId = normalizeChallengeId(getTodayChallenge
   cpuThinking = false;
   activeChallenge = challenge;
   challengeResultHandled = false;
+  lastChallengeResult = null;
   hardCpuMatchActive = false;
   hardCpuResultHandled = true;
   cpuCoinRewardHandled = true;
@@ -3879,6 +3893,7 @@ function startMultiSetup() {
   cpuEnabled = false;
   activeChallenge = null;
   challengeResultHandled = false;
+  lastChallengeResult = null;
   cpuThinking = false;
   titleActive = true;
   titleTab = "battle";
@@ -3895,6 +3910,7 @@ function startMultiSetup() {
   profileEditorOpen = false;
   activeChallenge = null;
   challengeResultHandled = false;
+  lastChallengeResult = null;
   optionsOpen = false;
   clearSelection();
   previousView = null;
@@ -3928,6 +3944,9 @@ async function backToTitle(options = {}) {
   titleChallengeOpen = false;
   titleMenuOpen = false;
   profileEditorOpen = false;
+  activeChallenge = null;
+  challengeResultHandled = false;
+  lastChallengeResult = null;
   clearSelection();
   render();
 }
