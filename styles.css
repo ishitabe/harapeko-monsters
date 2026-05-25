@@ -330,13 +330,13 @@ p {
   text-shadow: 0 0 14px rgba(255,109,109,0.34);
 }
 
-.life-box span,
-.life-box small {
+.life-box > span,
+.life-box > small {
   color: var(--muted);
   font-weight: 800;
 }
 
-.life-box span {
+.life-box > span {
   grid-area: name;
   max-width: 100%;
   overflow: hidden;
@@ -356,7 +356,7 @@ p {
   text-shadow: 0 0 22px rgba(242, 189, 92, 0.42);
 }
 
-.life-box small {
+.life-box > small {
   grid-area: hand;
   justify-self: center;
   font-size: 0.76rem;
@@ -465,6 +465,7 @@ p {
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .lamp {
@@ -1584,39 +1585,6 @@ body.card-dragging * {
 
 .click-picker .pile-choice-card {
   min-height: 132px;
-  align-content: start;
-}
-
-.click-picker .pile-choice-card.unit {
-  border-color: rgba(240, 122, 69, 0.7);
-  background:
-    linear-gradient(160deg, rgba(240, 122, 69, 0.22), transparent 42%),
-    linear-gradient(180deg, #2f2b30, #171f2a);
-}
-
-.click-picker .pile-choice-card.item {
-  border-color: rgba(82, 168, 255, 0.72);
-  background:
-    linear-gradient(160deg, rgba(82, 168, 255, 0.22), transparent 42%),
-    linear-gradient(180deg, #243247, #161f2d);
-}
-
-.click-picker .pile-choice-card.action {
-  border-color: rgba(114, 214, 107, 0.7);
-  background:
-    linear-gradient(160deg, rgba(114, 214, 107, 0.2), transparent 42%),
-    linear-gradient(180deg, #24352d, #151f1b);
-}
-
-.click-picker .pile-choice-card .card-text {
-  display: -webkit-box;
-  overflow: hidden;
-  color: #d8e6ef;
-  font-size: 0.68rem;
-  font-weight: 750;
-  line-height: 1.25;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 
 .target-choice-grid {
@@ -3963,7 +3931,7 @@ body.title-cpu-active .title-content > h1 {
     font-size: 1.34rem;
   }
 
-  .life-box span {
+  .life-box > span {
     font-size: 0.68rem;
   }
 
@@ -3971,8 +3939,8 @@ body.title-cpu-active .title-content > h1 {
     font-size: 0.6rem;
   }
 
-  .life-box span,
-  .life-box small,
+  .life-box > span,
+  .life-box > small,
   .action-label {
     font-size: 0.68rem;
   }
@@ -3987,26 +3955,32 @@ body.title-cpu-active .title-content > h1 {
     grid-template-columns: repeat(2, 18px);
     justify-content: center;
     justify-items: center;
+    align-content: center;
     row-gap: 4px;
     column-gap: 6px;
     transform: none;
+    width: 100%;
   }
 
   .life-box .action-lamps .action-label {
     grid-column: 1 / -1;
     white-space: nowrap;
-    font-size: 0.62rem;
+    font-size: 0.66rem;
     line-height: 1;
+    overflow: visible;
+    text-overflow: clip;
   }
 
   .player-controls .life-box {
-    grid-template-columns: 54px minmax(0, 1fr);
+    grid-area: life;
+    grid-template-columns: 58px minmax(0, 1fr);
     grid-template-areas:
       "name name"
       "avatar hp"
       "avatar hand"
       "actions actions";
-    min-height: 92px;
+    min-height: 124px;
+    align-self: stretch;
   }
 
   .player-controls .life-box .streak-note {
@@ -4018,7 +3992,7 @@ body.title-cpu-active .title-content > h1 {
     font-size: 0.62rem;
   }
 
-  .player-controls .life-box span {
+  .player-controls .life-box > span {
     justify-self: start;
     max-width: 52%;
     padding-left: 4px;
@@ -4031,7 +4005,7 @@ body.title-cpu-active .title-content > h1 {
 
   .player-controls .life-box strong {
     justify-self: center;
-    font-size: 1.72rem;
+    font-size: 1.62rem;
   }
 
   .lamp {
@@ -4110,7 +4084,7 @@ body.title-cpu-active .title-content > h1 {
   .player-controls {
     grid-area: controls;
     display: grid;
-    grid-template-columns: minmax(130px, 1.2fr) minmax(92px, 0.9fr);
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     grid-template-areas: "life end";
     align-items: stretch;
     gap: 8px;
@@ -4122,15 +4096,17 @@ body.title-cpu-active .title-content > h1 {
   .end-button {
     grid-area: end;
     width: 100%;
-    min-height: 52px;
+    min-height: 96px;
     line-height: 1.05;
     white-space: pre-line;
+    align-self: stretch;
+    padding-inline: 8px;
   }
 
   .player-controls .action-lamps .action-label {
     grid-column: 1 / -1;
     white-space: nowrap;
-    font-size: 0.62rem;
+    font-size: 0.66rem;
     line-height: 1;
   }
 
@@ -4257,6 +4233,10 @@ body.title-cpu-active .title-content > h1 {
     gap: 5px;
   }
 
+  .click-picker .deck-card.pile-choice-card {
+    min-height: 108px;
+  }
+
   body.modern-card-ui .deck-top-card {
     height: 84px;
     min-height: 84px;
@@ -4369,7 +4349,7 @@ body.title-cpu-active .title-content > h1 {
   }
 
   .click-picker .pile-choice-card {
-    min-height: 128px;
+    min-height: 108px;
   }
 
   .click-picker .choice-card .card-name,

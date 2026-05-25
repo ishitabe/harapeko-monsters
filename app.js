@@ -81,7 +81,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=117");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=118");
 }
 
 let game = engine.createGame();
@@ -260,6 +260,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.18",
+    title: "スマホの山札選択と下部表示を調整",
+    items: [
+      "効果で山札を選ぶ画面の見た目を、通常の山札表示と同じ形に揃えました。",
+      "スマホ版のターン終了ボタンを山札1つ分くらいの幅にし、プレイヤー情報は山札2つ分くらいの幅にしました。",
+      "アクション権の文字が省略されず、その下にランプが並ぶように調整しました。"
+    ]
+  },
   {
     version: "v1.17",
     title: "山札選択とスマホ表示を調整",
@@ -3609,14 +3618,14 @@ function appendPileChoicePicker(form, label, piles) {
     const button = document.createElement("button");
     button.type = "button";
     button.value = pile.id;
-    button.className = `pile-choice-card ${topCard ? topCard.type : "empty"}`;
+    button.className = `deck-card pile-choice-card ${topCard ? topCard.type : "empty"}`;
     button.disabled = pile.count <= 0;
     button.innerHTML = `
-      <div class="pile-choice-head">
-        <strong>${pile.name}</strong>
-        <span>残り ${pile.count}枚</span>
+      <div class="deck-thumb ${topCard ? topCard.type : ""}">${topCard ? typeBadge(topCard.type) : ""}</div>
+      <div>
+        <div class="deck-meta"><span class="deck-name">${pile.name}</span><small>残り ${pile.count} 枚</small></div>
+        ${topCard ? `<div class="card-name">${topCard.name}</div><p class="card-text">${topCard.text}</p>` : "<p class=\"empty-note\">空</p>"}
       </div>
-      ${topCard ? compactCardMarkup(topCard, { hideType: true, pileChoice: true }) : "<p class=\"empty-note\">空</p>"}
     `;
     button.addEventListener("click", () => {
       picker.value = pile.id;
