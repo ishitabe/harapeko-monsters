@@ -81,7 +81,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=116");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=117");
 }
 
 let game = engine.createGame();
@@ -260,6 +260,15 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.17",
+    title: "山札選択とスマホ表示を調整",
+    items: [
+      "アクロバットや研究室などで山札を選ぶ時、山札カードの色と見た目を実際の山札表示に近づけました。",
+      "選択中のカードを黄色い枠と光で分かりやすくしました。",
+      "スマホ版のHPとアクション権表示を見切れにくく、まとまって見えるように調整しました。"
+    ]
+  },
   {
     version: "v1.16",
     title: "スマホの選択画面とバトル表示を調整",
@@ -2234,7 +2243,7 @@ function renderActionLamps(container, actions, previousActions) {
   container.replaceChildren();
   const label = document.createElement("span");
   label.className = "action-label";
-  label.textContent = `アクション権 ${actions}`;
+  label.textContent = "アクション権";
   container.append(label);
   const lampCount = Math.max(2, Math.min(5, actions));
   for (let index = 0; index < lampCount; index += 1) {

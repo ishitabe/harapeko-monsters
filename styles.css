@@ -1527,6 +1527,17 @@ body.card-dragging * {
   box-shadow: 0 0 0 2px rgba(242, 189, 92, 0.18), 0 0 24px rgba(242, 189, 92, 0.2);
 }
 
+.click-picker .choice-card.selected,
+.click-picker .pile-choice-card.selected,
+.click-picker .target-choice-card.selected {
+  border-color: #ffd85f;
+  box-shadow:
+    0 0 0 3px rgba(255, 216, 95, 0.36),
+    0 0 34px rgba(255, 216, 95, 0.34),
+    0 18px 34px rgba(0,0,0,0.48);
+  transform: translateY(-2px);
+}
+
 .click-picker .choice-card {
   display: grid;
   gap: 6px;
@@ -1574,6 +1585,27 @@ body.card-dragging * {
 .click-picker .pile-choice-card {
   min-height: 132px;
   align-content: start;
+}
+
+.click-picker .pile-choice-card.unit {
+  border-color: rgba(240, 122, 69, 0.7);
+  background:
+    linear-gradient(160deg, rgba(240, 122, 69, 0.22), transparent 42%),
+    linear-gradient(180deg, #2f2b30, #171f2a);
+}
+
+.click-picker .pile-choice-card.item {
+  border-color: rgba(82, 168, 255, 0.72);
+  background:
+    linear-gradient(160deg, rgba(82, 168, 255, 0.22), transparent 42%),
+    linear-gradient(180deg, #243247, #161f2d);
+}
+
+.click-picker .pile-choice-card.action {
+  border-color: rgba(114, 214, 107, 0.7);
+  background:
+    linear-gradient(160deg, rgba(114, 214, 107, 0.2), transparent 42%),
+    linear-gradient(180deg, #24352d, #151f1b);
 }
 
 .click-picker .pile-choice-card .card-text {
@@ -3880,7 +3912,7 @@ body.title-cpu-active .title-content > h1 {
   }
 
   .opponent-row {
-    grid-template-columns: minmax(0, 1fr) 154px;
+    grid-template-columns: minmax(0, 1fr) 168px;
     gap: 6px;
   }
 
@@ -3914,6 +3946,13 @@ body.title-cpu-active .title-content > h1 {
 
   .life-box {
     grid-template-columns: 42px minmax(0, 1fr);
+    grid-template-areas:
+      "name name"
+      "streak streak"
+      "avatar hp"
+      "avatar hand"
+      "status status"
+      "actions actions";
     padding: 7px 7px;
     gap: 3px;
     width: 100%;
@@ -3921,7 +3960,15 @@ body.title-cpu-active .title-content > h1 {
   }
 
   .life-box strong {
-    font-size: 1.42rem;
+    font-size: 1.34rem;
+  }
+
+  .life-box span {
+    font-size: 0.68rem;
+  }
+
+  .life-box .streak-note {
+    font-size: 0.6rem;
   }
 
   .life-box span,
@@ -3950,6 +3997,41 @@ body.title-cpu-active .title-content > h1 {
     white-space: nowrap;
     font-size: 0.62rem;
     line-height: 1;
+  }
+
+  .player-controls .life-box {
+    grid-template-columns: 54px minmax(0, 1fr);
+    grid-template-areas:
+      "name name"
+      "avatar hp"
+      "avatar hand"
+      "actions actions";
+    min-height: 92px;
+  }
+
+  .player-controls .life-box .streak-note {
+    grid-area: name;
+    justify-self: end;
+    align-self: center;
+    max-width: 46%;
+    padding-left: 4px;
+    font-size: 0.62rem;
+  }
+
+  .player-controls .life-box span {
+    justify-self: start;
+    max-width: 52%;
+    padding-left: 4px;
+  }
+
+  .player-controls .life-box .player-avatar {
+    width: 50px;
+    height: 50px;
+  }
+
+  .player-controls .life-box strong {
+    justify-self: center;
+    font-size: 1.72rem;
   }
 
   .lamp {
@@ -4028,8 +4110,8 @@ body.title-cpu-active .title-content > h1 {
   .player-controls {
     grid-area: controls;
     display: grid;
-    grid-template-columns: minmax(94px, 1.05fr) minmax(88px, 0.9fr) minmax(92px, 1fr);
-    grid-template-areas: "life actions end";
+    grid-template-columns: minmax(130px, 1.2fr) minmax(92px, 0.9fr);
+    grid-template-areas: "life end";
     align-items: stretch;
     gap: 8px;
     align-self: stretch;
@@ -4043,24 +4125,6 @@ body.title-cpu-active .title-content > h1 {
     min-height: 52px;
     line-height: 1.05;
     white-space: pre-line;
-  }
-
-  .player-controls .life-box {
-    grid-area: life;
-  }
-
-  .player-controls .action-lamps {
-    grid-area: actions;
-    display: grid;
-    grid-template-columns: repeat(2, 18px);
-    place-content: center;
-    justify-items: center;
-    min-height: 52px;
-    padding: 6px;
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px;
-    background: rgba(21, 27, 36, 0.82);
-    box-shadow: var(--shadow);
   }
 
   .player-controls .action-lamps .action-label {
@@ -4305,7 +4369,7 @@ body.title-cpu-active .title-content > h1 {
   }
 
   .click-picker .pile-choice-card {
-    min-height: 106px;
+    min-height: 128px;
   }
 
   .click-picker .choice-card .card-name,
@@ -4320,6 +4384,17 @@ body.title-cpu-active .title-content > h1 {
   .deck-card small {
     font-size: 0.6rem;
     line-height: 1.25;
+  }
+
+  .click-picker .pile-choice-card .card-name {
+    font-size: 0.82rem;
+  }
+
+  .click-picker .pile-choice-card .card-text {
+    font-size: 0.58rem;
+    font-weight: 700;
+    line-height: 1.2;
+    -webkit-line-clamp: 3;
   }
 
   .click-picker .choice-card .card-text,
