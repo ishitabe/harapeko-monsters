@@ -81,7 +81,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=118");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=119");
 }
 
 let game = engine.createGame();
@@ -260,6 +260,14 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.19",
+    title: "ローカルランキングの連勝記録を修正",
+    items: [
+      "強いCPUとの同じ連勝中に、1連勝、2連勝、3連勝が別々にランキングへ並ばないようにしました。",
+      "同じ連勝中のローカル記録は1枠だけを更新し、最終的な連勝数が残るようにしました。"
+    ]
+  },
   {
     version: "v1.18",
     title: "スマホの山札選択と下部表示を調整",
@@ -1032,18 +1040,40 @@ function clearOnlineSession() {
 function loadHardCpuRecords() {
   try {
     const saved = JSON.parse(readStorage("records", "{}") || "{}");
+    const ranking = Array.isArray(saved.ranking) ? saved.ranking
+      .map((entry) => ({
+        name: String(entry.name || "ななし").slice(0, 16),
+        avatar: String(entry.avatar || ""),
+        best: Math.max(0, Number(entry.best) || 0),
+        runId: String(entry.runId || "")
+      }))
+      .filter((entry) => entry.best > 0)
+      .reduce((entries, entry) => {
+        if (entry.runId) {
+          const sameRun = entries.find((candidate) => candidate.runId === entry.runId);
+          if (sameRun) {
+            sameRun.best = Math.max(sameRun.best, entry.best);
+            sameRun.name = entry.name;
+            sameRun.avatar = entry.avatar;
+          } else {
+            entries.push(entry);
+          }
+          return entries;
+        }
+        const legacySamePlayer = entries.find((candidate) => !candidate.runId && candidate.name === entry.name && candidate.avatar === entry.avatar);
+        if (legacySamePlayer) {
+          legacySamePlayer.best = Math.max(legacySamePlayer.best, entry.best);
+        } else {
+          entries.push(entry);
+        }
+        return entries;
+      }, [])
+      .sort((a, b) => b.best - a.best)
+      .slice(0, 10) : [];
     return {
       current: Math.max(0, Number(saved.current) || 0),
       best: Math.max(0, Number(saved.best) || 0),
-      ranking: Array.isArray(saved.ranking) ? saved.ranking
-        .map((entry) => ({
-          name: String(entry.name || "ななし").slice(0, 16),
-          avatar: String(entry.avatar || ""),
-          best: Math.max(0, Number(entry.best) || 0)
-        }))
-        .filter((entry) => entry.best > 0)
-        .sort((a, b) => b.best - a.best)
-        .slice(0, 10) : [],
+      ranking,
     };
   } catch {
     return { current: 0, best: 0, ranking: [] };
@@ -1051,7 +1081,21 @@ function loadHardCpuRecords() {
 }
 
 function saveHardCpuRecords(records) {
-  writeStorage("records", JSON.stringify(records));
+  const normalized = {
+    current: Math.max(0, Number(records.current) || 0),
+    best: Math.max(0, Number(records.best) || 0),
+    ranking: Array.isArray(records.ranking) ? records.ranking
+      .map((entry) => ({
+        name: String(entry.name || "ななし").slice(0, 16),
+        avatar: String(entry.avatar || ""),
+        best: Math.max(0, Number(entry.best) || 0),
+        runId: String(entry.runId || "")
+      }))
+      .filter((entry) => entry.best > 0)
+      .sort((a, b) => b.best - a.best)
+      .slice(0, 10) : []
+  };
+  writeStorage("records", JSON.stringify(normalized));
 }
 
 function getHapiCoins() {
@@ -1189,10 +1233,21 @@ function clearHardCpuRunId() {
 
 function updateHardCpuRanking(records, name, streak) {
   const profile = currentPlayerProfile();
+  const runId = ensureHardCpuRunId();
+  const avatar = avatarIdForLeaderboard(profile.avatar);
   const ranking = [...records.ranking];
-  const existsSameScore = ranking.some((entry) => entry.name === name && entry.best === streak);
-  if (!existsSameScore) {
-    ranking.push({ name, avatar: avatarIdForLeaderboard(profile.avatar), best: streak });
+  const sameRunIndex = ranking.findIndex((entry) => entry.runId && entry.runId === runId);
+  if (sameRunIndex >= 0) {
+    ranking[sameRunIndex] = {
+      ...ranking[sameRunIndex],
+      name,
+      avatar,
+      best: Math.max(ranking[sameRunIndex].best || 0, streak),
+      runId
+    };
+  } else {
+    const existsSameScore = ranking.some((entry) => entry.name === name && entry.avatar === avatar && entry.best === streak);
+    if (!existsSameScore) ranking.push({ name, avatar, best: streak, runId });
   }
   records.ranking = ranking.sort((a, b) => b.best - a.best).slice(0, 10);
 }
