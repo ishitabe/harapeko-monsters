@@ -9,7 +9,7 @@ try {
   Pool = null;
 }
 
-const { CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL } = require("./cards");
+const { CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL, SPECIAL_CARD_POOL } = require("./cards");
 const createGameEngine = require("./gameEngine");
 
 const app = express();
@@ -19,7 +19,7 @@ const io = new Server(server, {
   transports: ["websocket", "polling"],
 });
 
-const engine = createGameEngine(CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL);
+const engine = createGameEngine(CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL, SPECIAL_CARD_POOL);
 const rooms = new Map();
 let randomWaitingSocketId = null;
 const db = createDbPool();
@@ -532,6 +532,8 @@ function applyAction(game, playerId, payload) {
       return engine.resolvePendingPileDrawSelection(game, playerId, payload.pileIds);
     case "pileSearch":
       return engine.resolvePendingPileSearch(game, playerId, payload.pileIndexes);
+    case "ultraSearch":
+      return engine.resolvePendingUltraSearch(game, playerId, payload.choiceValue);
     case "attackLife":
       return engine.attackLife(game, playerId, payload.attackerId);
     case "attackLifeAll":
@@ -559,6 +561,7 @@ function pendingInfo(game) {
     ["discardTake", game.pendingDiscardTake, "discardTake"],
     ["pileDrawSelection", game.pendingPileDrawSelection, "pileDrawSelection"],
     ["pileSearch", game.pendingPileSearch, "pileSearch"],
+    ["ultraSearch", game.pendingUltraSearch, "ultraSearch"],
   ];
   const found = entries.find(([, value]) => Boolean(value));
   if (!found) return null;
@@ -707,6 +710,7 @@ function createWaitingView(room, viewerId) {
     pendingDiscardTake: null,
     pendingPileDrawSelection: null,
     pendingPileSearch: null,
+    pendingUltraSearch: null,
     lastPlayedAction: null,
     maxFieldSize: 3,
     maxHandSize: 10,

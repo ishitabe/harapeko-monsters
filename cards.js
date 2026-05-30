@@ -5,17 +5,17 @@ const CARD_DEFINITIONS = {
   zapdos: { id: "zapdos", name: "サンダー", type: "unit", hp: 3, power: 3, effectKey: "attackOrGainLife", text: "攻撃の代わりに自分のライフを+3できる。" },
   tyranitar: { id: "tyranitar", name: "バンギラス", type: "unit", hp: 5, power: 1, effectKey: "damageAllOthersTurnEnd", text: "ターン終了時、自分以外の全体に1ダメージ。ライフにもダメージを与える。" },
   rillaboom: { id: "rillaboom", name: "ゴリラ", type: "unit", hp: 3, power: 2, effectKey: "useTargetPowerAsHpNoSummonSick", text: "このモンスターは召喚酔いしない。モンスター攻撃時、相手はパワーをHPとして扱う。" },
-  quagsire: { id: "quagsire", name: "ヌオー", type: "unit", hp: 3, power: 1, effectKey: "ignorePowerIncreases", text: "場にいる間、すべてのパワー上昇を無効化。持ち物による上昇も含む。" },
+  quagsire: { id: "quagsire", name: "ヌオー", type: "unit", hp: 3, power: 1, effectKey: "ignorePowerIncreases", text: "場にいる間、場全体の攻撃ダメージはカード本来のパワーになる。持ち物による上昇も無効。" },
   snorlax: { id: "snorlax", name: "カビゴン", type: "unit", hp: 5, power: 0, effectKey: "mustBeAttacked", text: "召喚時、相手の場のモンスターの数だけパワーを増やす。相手はこのモンスターしか攻撃できない。" },
-  pikachu: { id: "pikachu", name: "ピカチュウ", type: "unit", hp: 1, power: 1, effectKey: "none", text: "効果なし。" },
-  ferrothorn: { id: "ferrothorn", name: "ナットレイ", type: "unit", hp: 2, power: 2, effectKey: "healLifeOnTurnEnd", text: "自分のターン終了時、ライフを+1する。" },
+  pikachu: { id: "pikachu", name: "ピカチュウ", type: "unit", hp: 1, power: 1, effectKey: "gainSpecialInsteadAttack", text: "攻撃の代わりにスペシャルカードを1枚手札に加えられる。" },
+  ferrothorn: { id: "ferrothorn", name: "ナットレイ", type: "unit", hp: 2, power: 2, effectKey: "healLifeOnTurnEnd", text: "自分のターン終了時、ライフを+1し、相手ライフを-1する。このモンスターが場にいる時、コートチェンジは無効。" },
   kyogre: { id: "kyogre", name: "カイオーガ", type: "unit", hp: 3, power: 2, effectKey: "powerPlusIfLifeTen", text: "自分のライフが10以上ならパワー+4。" },
   eternatus: { id: "eternatus", name: "ムゲンダイナ", type: "unit", hp: 3, power: 2, effectKey: "maxHpPlusOneOnTurnEnd", text: "自分のターンが終わるたびに最大HPを+1する。" },
   landorus: { id: "landorus", name: "ランドロス", type: "unit", hp: 2, power: 3, effectKey: "enemyPowerMinusOneOnSummon", text: "召喚時、相手モンスター全員のパワー-1。" },
   incineroar: { id: "incineroar", name: "ガオガエン", type: "unit", hp: 2, power: 2, effectKey: "damageOnSummonZeroPowerAndReturn", text: "召喚時、好きな相手モンスター1体に1ダメージ。攻撃の代わりに相手モンスター1体のパワーを0にして、このカードを手札に戻せる。" },
   farigiraf: { id: "farigiraf", name: "リキキリン", type: "unit", hp: 1, power: 1, effectKey: "allyMonsterAttackPowerPlusTwo", text: "味方はモンスターに攻撃するときパワー+2。攻撃の代わりに、場全体のHPとパワーを入れ替えられる。" },
   calyrexIce: { id: "calyrexIce", name: "白バド", type: "unit", hp: 4, power: 2, effectKey: "attackAllEnemies", text: "相手モンスター全体に攻撃する。" },
-  mimikyu: { id: "mimikyu", name: "ミミッキュ", type: "unit", hp: 2, power: 2, effectKey: "doubleOwnPower", text: "場に出て初めて受けるダメージを1にする。攻撃の代わりに自分のパワーを2倍にできる。" },
+  mimikyu: { id: "mimikyu", name: "ミミッキュ", type: "unit", hp: 2, power: 2, effectKey: "doubleOwnPower", text: "場に出て初めてこのモンスターが受けるダメージを1にする。攻撃の代わりに自分のパワーを2倍にできる。" },
   urshifu: { id: "urshifu", name: "ウーラオス", type: "unit", hp: 2, power: 4, effectKey: "ignoreWallLifeAttack", text: "このモンスターは攻撃対象を制限されない。" },
   hippowdon: { id: "hippowdon", name: "カバルドン", type: "unit", hp: 4, power: 1, effectKey: "sleepTargetNextTurn", text: "攻撃の代わりに相手モンスター1体を選び、次ターン行動できなくする。" },
 
@@ -29,7 +29,7 @@ const CARD_DEFINITIONS = {
   contraryMask: { id: "contraryMask", name: "天邪鬼マスク", type: "item", effectKey: "powerDropTurnsToPlusFour", text: "相手にパワーを下げられた時、パワー+4。" },
   lifePower: { id: "lifePower", name: "ライフパワー", type: "item", effectKey: "powerEqualsHp", text: "このモンスターのパワーはHPと同じ値になる。" },
 
-  robbery: { id: "robbery", name: "強奪", type: "action", effectKey: "stealOpponentItems", text: "相手のモンスターの持ち物をすべて自分の手札に加える。" },
+  robbery: { id: "robbery", name: "強奪", type: "action", effectKey: "stealOpponentItems", text: "スペシャルカードを1枚手札に加える。相手のモンスターの持ち物をすべて自分の手札に加える。" },
   endingBell: { id: "endingBell", name: "終わりの鐘", type: "action", effectKey: "setAllMaxHpToOne", text: "相手の場の全てのモンスターの最大HPを1にする。" },
   erase: { id: "erase", name: "消し去る", type: "action", effectKey: "discardUnit", text: "モンスター1体を捨札に送る。" },
   courtChange: { id: "courtChange", name: "コートチェンジ", type: "action", effectKey: "swapUnits", text: "自分と相手の場のモンスターすべてを、持ち物ごと入れ替える。" },
@@ -37,14 +37,14 @@ const CARD_DEFINITIONS = {
   reviveCrystal: { id: "reviveCrystal", name: "元気の塊", type: "action", effectKey: "reviveUnit", text: "捨札からモンスター1体を自分の場に出す。そのモンスターのHPとパワーを+1する。" },
   laboratory: { id: "laboratory", name: "研究室", type: "action", effectKey: "drawTwoGainAction", text: "1山から2枚ドローし、アクション権+1。同じ山から相手も2枚ドローする。" },
   excavation: { id: "excavation", name: "発掘", type: "action", effectKey: "takeDiscardToHandGainAction", text: "捨札からカード1枚を手札に加え、アクション権+1。" },
-  doubleCheck: { id: "doubleCheck", name: "二重チェック", type: "action", effectKey: "discardOpponentHand", text: "相手の手札を見て1枚自分の手札に加える。" },
+  doubleCheck: { id: "doubleCheck", name: "二重チェック", type: "action", effectKey: "discardOpponentHand", text: "相手の手札を見て1枚を自分の手札に加える。" },
   stoneThrow: { id: "stoneThrow", name: "石投げ", type: "action", effectKey: "dealTwoToUnitOrLife", text: "モンスター1体、または相手ライフに3ダメージ。" },
-  mysticGuard: { id: "mysticGuard", name: "神秘の守り", type: "action", effectKey: "mysticGuard", text: "次の自分のターンまで、相手のアクションや持ち物の効果を受けない。ライフも含む。さらに自分のライフへのダメージを-1する。" },
-  redCard: { id: "redCard", name: "レッドカード", type: "action", effectKey: "redCard", text: "相手は手札をすべて捨て、3山から1枚ずつドローする。" },
+  mysticGuard: { id: "mysticGuard", name: "神秘の守り", type: "action", effectKey: "mysticGuard", text: "次の自分のターンまで、相手のアクションや持ち物の効果を受けない。コートチェンジとライフへの効果も含む。さらに自分のライフへのダメージを-1する。" },
+  redCard: { id: "redCard", name: "レッドカード", type: "action", effectKey: "redCard", text: "相手の手札をすべて捨て、3山から1枚ずつドローする。" },
   sacrifice: { id: "sacrifice", name: "生贄", type: "action", effectKey: "sacrifice", text: "手札からアクションカードを全て捨て、好きな自分の場のモンスターのパワー+3。" },
   shockWave: { id: "shockWave", name: "衝撃波", type: "action", effectKey: "shockWave", text: "相手モンスター全体の最大HPとパワーを-1。" },
   acrobat: { id: "acrobat", name: "アクロバット", type: "action", effectKey: "drawPileDiscardTwo", text: "山を1つ選び6枚ドロー。その後手札を3枚捨てる。" },
-  protectivePads: { id: "protectivePads", name: "防護パッド", type: "action", effectKey: "noCounterThisTurn", text: "このターン、相手モンスターから反撃を受けない。" },
+  wish: { id: "wish", name: "願い事", type: "action", effectKey: "wish", text: "このターン、相手から反撃を受けない。このターン相手のモンスターを倒す度にスペシャルカードを手札に加える。" },
   healingWater: { id: "healingWater", name: "癒し水", type: "action", effectKey: "healLifeThree", text: "自分のライフ+4。好きな山から1枚ドロー。" },
   preparation: { id: "preparation", name: "下準備", type: "action", effectKey: "searchTwoFromPile", text: "好きな山を見て好きな2枚を自分の手札に加え、手札から好きな1枚を捨てる。" },
   battleDrum: { id: "battleDrum", name: "バトルドラム", type: "action", effectKey: "drawOneBuffOwnField", text: "山札から1枚ドロー。自分の場のモンスターのパワー+2。" },
@@ -52,16 +52,34 @@ const CARD_DEFINITIONS = {
   auroraVeil: { id: "auroraVeil", name: "オーロラベール", type: "action", effectKey: "damageMinusOneUntilNextTurn", text: "好きな山から1枚ドロー。次の自分のターンまで自分が受ける全てのダメージを-2する。" },
   theSearch: { id: "theSearch", name: "ザ・サーチ", type: "action", effectKey: "searchOneFromEachPile", text: "全ての山札からカードを1枚選び手札に加える。その後、山札をシャッフルして3山に再分配する。" },
   restock: { id: "restock", name: "補充", type: "action", effectKey: "discardAnyGainActions", text: "手札を好きな枚数捨てる。捨てた数+1だけアクション権を増やす。" },
+
+  hoOh: { id: "hoOh", name: "ホウオウ", type: "unit", hp: 4, power: 3, effectKey: "discardLeftHandOnLifeAttack", text: "このモンスターが相手ライフを攻撃した時、相手の手札から一番左のカードを捨札に送る。", special: true },
+  lugia: { id: "lugia", name: "ルギア", type: "unit", hp: 6, power: 1, effectKey: "returnEnemyToHand", text: "自分のライフが10以下なら最大HP-4。攻撃の代わりに相手モンスター1体を相手の手札に戻せる。", special: true },
+  koraidon: { id: "koraidon", name: "コライドン", type: "unit", hp: 4, power: 4, effectKey: "turnStartHpDownPowerUp", text: "ターン開始時、最大HP-1、パワー+2。", special: true },
+  miraidon: { id: "miraidon", name: "ミライドン", type: "unit", hp: 2, power: 2, effectKey: "summonShockGainActions", text: "召喚時、相手の場全体に1ダメージ。その時倒した相手モンスターの数だけ自分のアクション権+1。", special: true },
+  zygarde: { id: "zygarde", name: "ジガルデ", type: "unit", hp: 5, power: 2, effectKey: "healLifeOnceWhenLowHp", text: "このモンスターのHPが3以下になった時、一度だけ自分のライフを+7する。", special: true },
+  mew: { id: "mew", name: "ミュウ", type: "unit", hp: 1, power: 1, effectKey: "returnToHandOnDeath", text: "このモンスターが倒れた時、自分の手札に戻る。", special: true },
+  xerneas: { id: "xerneas", name: "ゼルネアス", type: "unit", hp: 4, power: 2, effectKey: "noItemTriplePower", text: "このモンスターは持ち物を装備できない。攻撃の代わりに自分のパワーを3倍にできる。", special: true },
+  yveltal: { id: "yveltal", name: "イベルタル", type: "unit", hp: 3, power: 4, effectKey: "damageOnOpponentCardGain", text: "このモンスターが場にいる時、相手は手札にカードを加える度にライフに1ダメージ受ける。", special: true },
+  specialCharge: { id: "specialCharge", name: "特攻指令", type: "action", effectKey: "specialCharge", text: "自分の場のモンスター1体を選び、そのパワー分のダメージを相手の場全体とライフに与え、そのモンスターを捨札に送る。", special: true },
+  beGood: { id: "beGood", name: "いい子にしてな", type: "action", effectKey: "actionLockNextTurn", text: "相手は次のターン、アクションカードを使えない。", special: true },
+  thunderShock: { id: "thunderShock", name: "サンダーショック", type: "action", effectKey: "thunderShock", text: "相手の場全体と相手ライフに2ダメージ与える。", special: true },
+  curse: { id: "curse", name: "呪い", type: "action", effectKey: "curseNoDraw", text: "相手の手札が5枚以上ある場合、相手は2ターンの間カードをドローできない。", special: true },
+  watchdog: { id: "watchdog", name: "番犬化", type: "action", effectKey: "watchdog", text: "自分の場のモンスター1体を選び「相手はこのモンスターしか攻撃できない。」を付与する。", special: true },
+  comeback: { id: "comeback", name: "起死回生", type: "action", effectKey: "comeback", text: "山札を1つ選び3枚ドロー。自分のライフが6以下なら追加で2枚ドローし、ライフを4回復する。", special: true },
+  copyPaste: { id: "copyPaste", name: "コピーペースト", type: "action", effectKey: "doubleNextAction", text: "このターン、次に使うアクションは2回効果を発動する。", special: true },
+  ultraSearch: { id: "ultraSearch", name: "ウルトラサーチ", type: "action", effectKey: "ultraSearch", text: "山札、捨札、相手手札すべての中から1枚カードを選び自分の手札に加える。", special: true },
 };
 
-const CARD_POOL = Object.keys(CARD_DEFINITIONS);
+const SPECIAL_CARD_POOL = Object.keys(CARD_DEFINITIONS).filter((cardId) => CARD_DEFINITIONS[cardId].special);
+const CARD_POOL = Object.keys(CARD_DEFINITIONS).filter((cardId) => !CARD_DEFINITIONS[cardId].special);
 const PILE_DEFINITIONS = [
   { id: "pileA", name: "山札A" },
   { id: "pileB", name: "山札B" },
   { id: "pileC", name: "山札C" },
 ];
 
-const cardGameCards = { CARD_DEFINITIONS, CARD_POOL, PILE_DEFINITIONS };
+const cardGameCards = { CARD_DEFINITIONS, CARD_POOL, SPECIAL_CARD_POOL, PILE_DEFINITIONS };
 if (typeof window !== "undefined") window.CardGameCards = cardGameCards;
 if (typeof module !== "undefined") module.exports = cardGameCards;
 })();

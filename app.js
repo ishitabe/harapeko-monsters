@@ -5,8 +5,8 @@ if (window.__CARD_APP_INITIALIZED) {
 }
 window.__CARD_APP_INITIALIZED = true;
 
-const { CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL } = window.CardGameCards;
-const engine = window.CardGameEngine(CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL);
+const { CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL, SPECIAL_CARD_POOL } = window.CardGameCards;
+const engine = window.CardGameEngine(CARD_DEFINITIONS, PILE_DEFINITIONS, CARD_POOL, SPECIAL_CARD_POOL);
 const APP_CONFIG = window.AppConstants || {
   APP_INTERNAL_ID: "summon-happys",
   APP_DISPLAY_NAME: "\u3057\u3087\u30fc\u304b\u3093\u30cf\u30c3\u30d4\u30fc\u30ba",
@@ -81,7 +81,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=119");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=121");
 }
 
 let game = engine.createGame();
@@ -260,6 +260,26 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.21",
+    title: "スペシャルカードと願い事を追加",
+    items: [
+      "防護パッドを削除し、願い事を追加しました。願い事は反撃を受けなくなり、そのターンに相手モンスターを倒すたびスペシャルカードを手札に加えます。",
+      "ピカチュウは攻撃の代わりにスペシャルカードを1枚手札に加えられる効果に変更しました。",
+      "強奪はスペシャルカードを1枚手札に加えてから、相手モンスターの持ち物をすべて奪う効果に変更しました。",
+      "スペシャルカードを追加しました。スペシャルカードは通常山札には入らず、効果で専用の山から手札に加わります。",
+      "カード一覧にスペシャルカードを表示し、スペシャルカードは金色の枠で分かるようにしました。"
+    ]
+  },
+  {
+    version: "v1.20",
+    title: "ヌオー、ナットレイ、神秘の守りを調整",
+    items: [
+      "ヌオーが場にいる間、パワー表示は変化したままですが、攻撃ダメージはカード本来のパワーになるようにしました。",
+      "ナットレイに、ターン終了時に相手ライフへ1ダメージを与える効果と、コートチェンジを無効にする効果を追加しました。",
+      "神秘の守りでコートチェンジも無効にするようにしました。"
+    ]
+  },
   {
     version: "v1.19",
     title: "ローカルランキングの連勝記録を修正",
@@ -1745,6 +1765,7 @@ function render() {
   renderPendingDiscardTake();
   renderPendingPileDrawSelection();
   renderPendingPileSearch();
+  renderPendingUltraSearch();
   updateDrawPrompt(view, locked);
   renderWinnerOverlay(view);
   flushFx();
@@ -1772,6 +1793,7 @@ function createOnlinePlaceholderView() {
     pendingDiscardTake: null,
     pendingPileDrawSelection: null,
     pendingPileSearch: null,
+    pendingUltraSearch: null,
     lastPlayedAction: null,
     lastRevealedItem: null,
     maxFieldSize: 3,
@@ -2020,7 +2042,7 @@ function renderCardList() {
   if (!elements.titleCards || !titleCardsOpen) return;
   const typeLabels = { unit: "モンスター", item: "持ち物", action: "アクション" };
   const cardsByType = { unit: [], item: [], action: [] };
-  CARD_POOL.forEach((cardId) => {
+  Object.keys(CARD_DEFINITIONS).forEach((cardId) => {
     const card = CARD_DEFINITIONS[cardId];
     if (card && cardsByType[card.type]) cardsByType[card.type].push(card);
   });
@@ -2040,7 +2062,7 @@ function renderCardList() {
     grid.className = "card-list-grid";
     cardsByType[type].forEach((card) => {
       const article = document.createElement("article");
-      article.className = `card-list-entry ${card.type}`;
+      article.className = `card-list-entry ${card.type} ${card.special ? "special-card" : ""}`;
       const stats = card.type === "unit" ? `<div class="card-list-stats"><span>HP ${card.hp}</span><span>PW ${card.power}</span></div>` : "";
       article.innerHTML = cardUiMode === "modern"
         ? modernCardMarkup(card, { mini: true })
@@ -2336,7 +2358,7 @@ function renderDecks(piles, activePlayer, winner, lockedForCpu) {
     const key = `deck:${pile.id}`;
     const button = document.createElement("button");
     button.dataset.key = key;
-    button.className = `deck-card ${topCard ? topCard.type : ""} ${selectedKey === key ? "selected" : ""} ${fxClassFor(key)}`;
+    button.className = `deck-card ${topCard ? topCard.type : ""} ${topCard?.special ? "special-card" : ""} ${selectedKey === key ? "selected" : ""} ${fxClassFor(key)}`;
     button.type = "button";
     button.disabled = !pile.topCardId;
     button.innerHTML = cardUiMode === "modern"
@@ -2392,7 +2414,7 @@ function renderDiscard(discard) {
     const key = `discard:${index}`;
     const item = document.createElement("button");
     item.dataset.key = key;
-    item.className = `mini-card ${card.type} ${selectedKey === key ? "selected" : ""} ${index === 0 ? "fx-discard-pop" : ""}`;
+    item.className = `mini-card ${card.type} ${card.special ? "special-card" : ""} ${selectedKey === key ? "selected" : ""} ${index === 0 ? "fx-discard-pop" : ""}`;
     item.type = "button";
     item.innerHTML = compactCardMarkup(card);
     bindCardPreview(item, card);
@@ -2492,7 +2514,7 @@ function renderHand(hand, view, lockedForCpu) {
     article.dataset.handIndex = String(handIndex);
     article.dataset.cardId = cardId;
     article.dataset.cardType = card.type;
-    article.className = `card-shell ${card.type} ${selectedKey === key ? "selected" : ""} ${fxClassFor(key)} ${lockedForCpu || isHandCardDisabled(card, handOwner, view) ? "disabled-card" : ""}`;
+    article.className = `card-shell ${card.type} ${card.special ? "special-card" : ""} ${selectedKey === key ? "selected" : ""} ${fxClassFor(key)} ${lockedForCpu || isHandCardDisabled(card, handOwner, view) ? "disabled-card" : ""}`;
     article.innerHTML = cardMarkup(card);
     bindCardPreview(article, card);
     bindHandCardDrag(article, card, handIndex, view, lockedForCpu);
@@ -2581,7 +2603,7 @@ function renderDetail() {
     detailData.list.forEach((cardId, index) => {
       const card = CARD_DEFINITIONS[cardId];
       const item = document.createElement("button");
-      item.className = `mini-card ${card.type}`;
+      item.className = `mini-card ${card.type} ${card.special ? "special-card" : ""}`;
       item.type = "button";
       item.innerHTML = compactCardMarkup(card);
       bindCardPreview(item, card);
@@ -2618,14 +2640,14 @@ function renderDetail() {
   }
   elements.detailContent.innerHTML = cardUiMode === "modern"
     ? `
-      <div class="detail-card ${card.type} modern-detail-card">
+      <div class="detail-card ${card.type} ${card.special ? "special-card" : ""} modern-detail-card">
         <p class="eyebrow">${zone}</p>
         ${modernCardMarkup(card, { unit, item: unit?.item, large: true })}
         <div class="detail-actions" id="detailActions"></div>
       </div>
     `
     : `
-      <div class="detail-card ${card.type}">
+      <div class="detail-card ${card.type} ${card.special ? "special-card" : ""}">
         <p class="eyebrow">${zone}</p>
         ${typeBadge(card.type)}
         <h2>${card.name}</h2>
@@ -2683,6 +2705,10 @@ function detailSignature(key, data) {
     const cards = (data.entries || data.cards || []).map((entry) => typeof entry === "string" ? entry : `${entry.value}:${entry.cardId}`).join(",");
     return `${key}:${data.source}:${data.count}:${cards}`;
   }
+  if (data.source === "pendingUltraSearch") {
+    const choices = (data.choices || []).map((entry) => `${entry.value}:${entry.cardId}`).join(",");
+    return `${key}:${data.source}:${choices}`;
+  }
   if (data.source === "pendingDoubleCheck") {
     const opponentId = view.activePlayer === 0 ? 1 : 0;
     return `${key}:${data.source}:${data.count}:${view.players[opponentId].hand.join(",")}:${view.players[opponentId].handCount}`;
@@ -2700,7 +2726,8 @@ function isPendingDetailSource(source) {
     "pendingDiscardSelection",
     "pendingDiscardTake",
     "pendingPileDrawSelection",
-    "pendingPileSearch"
+    "pendingPileSearch",
+    "pendingUltraSearch"
   ].includes(source);
 }
 
@@ -2766,6 +2793,16 @@ function renderPendingPileSearch() {
   renderDetail();
 }
 
+function renderPendingUltraSearch() {
+  const view = getView();
+  const pending = view.pendingUltraSearch;
+  if (!pending || pending.playerId !== getSelfId() || isCpuTurn()) return;
+  selectedKey = "pending:ultraSearch";
+  detailKey = "pending:ultraSearch";
+  detailData = { source: "pendingUltraSearch", zone: "ウルトラサーチ", choices: pending.choices || [], card: CARD_DEFINITIONS.ultraSearch };
+  renderDetail();
+}
+
 function renderDetailActions(container, data) {
   if (!container) return;
   const view = getView();
@@ -2815,6 +2852,11 @@ function renderDetailActions(container, data) {
 
   if (data.source === "pendingPileSearch") {
     renderPileSearchControls(container, data);
+    return;
+  }
+
+  if (data.source === "pendingUltraSearch") {
+    renderUltraSearchControls(container, data);
     return;
   }
 
@@ -2938,6 +2980,32 @@ function renderDetailActions(container, data) {
             if (!onlineMode) render();
           }));
         });
+      }
+      if (CARD_DEFINITIONS[unit.cardId].effectKey === "gainSpecialInsteadAttack") {
+        container.append(createSmallButton("スペシャルカードを加える", disabled || !unit.canAct, () => {
+          runGameAction("unitAbility", { ability: "gainSpecial", unitId: unit.id }, () => engine.useUnitAbility(game, game.activePlayer, { ability: "gainSpecial", unitId: unit.id }), showDrawnCards);
+          showFloat("スペシャルカード獲得！", "action");
+          clearSelection();
+          if (!onlineMode) render();
+        }));
+      }
+      if (CARD_DEFINITIONS[unit.cardId].effectKey === "returnEnemyToHand") {
+        const opponentId = view.activePlayer === 0 ? 1 : 0;
+        view.players[opponentId].field.forEach((target) => {
+          container.append(createSmallButton(`${CARD_DEFINITIONS[target.cardId].name}を手札へ戻す`, disabled || !unit.canAct, () => {
+            runGameAction("unitAbility", { ability: "returnEnemyToHand", unitId: unit.id, targetUnitId: target.id }, () => engine.useUnitAbility(game, game.activePlayer, { ability: "returnEnemyToHand", unitId: unit.id, targetUnitId: target.id }));
+            clearSelection();
+            if (!onlineMode) render();
+          }));
+        });
+      }
+      if (CARD_DEFINITIONS[unit.cardId].effectKey === "noItemTriplePower") {
+        container.append(createSmallButton("自分のパワーを3倍", disabled || !unit.canAct, () => {
+          runGameAction("unitAbility", { ability: "tripleOwnPower", unitId: unit.id }, () => engine.useUnitAbility(game, game.activePlayer, { ability: "tripleOwnPower", unitId: unit.id }));
+          addFx(`field:${view.activePlayer}:${unit.id}`, "fx-stat-up");
+          clearSelection();
+          if (!onlineMode) render();
+        }));
       }
       const opponentId = view.activePlayer === 0 ? 1 : 0;
       const defenders = filterAttackTargets(view.players[opponentId].field, unit);
@@ -3095,13 +3163,13 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
   const active = view.players[view.activePlayer];
   const opponent = view.players[view.activePlayer === 0 ? 1 : 0];
 
-  if (["drawTwoGainAction", "drawPileDiscardTwo", "searchTwoFromPile", "drawOneBuffOwnField", "healLifeThree", "damageMinusOneUntilNextTurn"].includes(card.effectKey)) {
+  if (["drawTwoGainAction", "drawPileDiscardTwo", "searchTwoFromPile", "drawOneBuffOwnField", "healLifeThree", "damageMinusOneUntilNextTurn", "comeback"].includes(card.effectKey)) {
     controls.pile = appendPileChoicePicker(form, "山札", view.piles);
   }
   if (["discardUnit"].includes(card.effectKey)) {
     controls.target = appendTargetChoicePicker(form, "対象", unitTargetOptions(view));
   }
-  if (card.effectKey === "sacrifice") {
+  if (["sacrifice", "specialCharge", "watchdog"].includes(card.effectKey)) {
     controls.target = appendTargetChoicePicker(form, "対象", unitTargetOptions(view, { ownOnly: true }));
   }
   if (card.effectKey === "discardAnyGainActions") {
@@ -3214,6 +3282,28 @@ function renderPileSearchControls(container, data) {
   form.append(createSmallButton("手札に加える", choices.length === 0, () => {
     const pileIndexes = picker.getSelectedValues();
     runGameAction("pileSearch", { pileIndexes }, () => engine.resolvePendingPileSearch(game, game.activePlayer, pileIndexes), showDrawnCards);
+    clearSelection();
+    if (!onlineMode) render();
+  }));
+  container.append(form);
+}
+
+function renderUltraSearchControls(container, data) {
+  const form = document.createElement("div");
+  form.className = "action-form";
+  const note = document.createElement("p");
+  note.className = "empty-note";
+  note.textContent = "山札、捨札、相手手札から手札に加えるカードを1枚選んでください。";
+  form.append(note);
+  const choices = (data.choices || []).map((entry) => [
+    entry.value,
+    `${entry.source}: ${CARD_DEFINITIONS[entry.cardId]?.name || ""}`,
+    entry.cardId,
+  ]);
+  const picker = appendClickMultiPicker(form, "カードを選ぶ", choices, 1);
+  form.append(createSmallButton("手札に加える", choices.length === 0, () => {
+    const [choiceValue] = picker.getSelectedValues();
+    runGameAction("ultraSearch", { choiceValue }, () => engine.resolvePendingUltraSearch(game, game.activePlayer, choiceValue), showDrawnCards);
     clearSelection();
     if (!onlineMode) render();
   }));
@@ -3371,6 +3461,7 @@ function modernCardMarkup(card, options = {}) {
   const classes = [
     "game-card",
     card.type,
+    card.special ? "special-card" : "",
     options.large ? "large" : "",
     options.compact ? "compact" : "",
     options.mini ? "mini" : "",
@@ -3393,7 +3484,7 @@ function modernCardMarkup(card, options = {}) {
 
 function deckTopCardMarkup(card) {
   return `
-    <div class="deck-top-card ${card.type}" aria-label="${card.name}">
+    <div class="deck-top-card ${card.type} ${card.special ? "special-card" : ""}" aria-label="${card.name}">
       <div class="deck-top-name">${card.name}</div>
       <div class="card-art" aria-hidden="true"></div>
     </div>
@@ -3673,7 +3764,7 @@ function appendPileChoicePicker(form, label, piles) {
     const button = document.createElement("button");
     button.type = "button";
     button.value = pile.id;
-    button.className = `deck-card pile-choice-card ${topCard ? topCard.type : "empty"}`;
+    button.className = `deck-card pile-choice-card ${topCard ? topCard.type : "empty"} ${topCard?.special ? "special-card" : ""}`;
     button.disabled = pile.count <= 0;
     button.innerHTML = `
       <div class="deck-thumb ${topCard ? topCard.type : ""}">${topCard ? typeBadge(topCard.type) : ""}</div>
@@ -3762,7 +3853,7 @@ function appendClickMultiPicker(form, label, options, maxCount) {
     button.type = "button";
     button.value = value;
     if (cardId && CARD_DEFINITIONS[cardId]) {
-      button.className = `choice-card ${CARD_DEFINITIONS[cardId].type}`;
+      button.className = `choice-card ${CARD_DEFINITIONS[cardId].type} ${CARD_DEFINITIONS[cardId].special ? "special-card" : ""}`;
       button.innerHTML = compactCardMarkup(CARD_DEFINITIONS[cardId], { hideType: true });
     } else {
       button.textContent = text;
@@ -5092,6 +5183,12 @@ async function runCpuActions() {
           .map((entry) => entry.index) || [];
       await cpuStep("CPU 下準備", () => engine.resolvePendingPileSearch(game, 1, indexes), "draw");
     }
+    if (game.pendingUltraSearch?.playerId === 1) {
+      const choiceValue = chooseCpuUltraSearchValue(game.pendingUltraSearch.choices);
+      if (choiceValue) {
+        await cpuStep("CPU ウルトラサーチ", () => engine.resolvePendingUltraSearch(game, 1, choiceValue), "select");
+      }
+    }
     if (game.pendingPileDrawSelection?.playerId === 1) {
       const pileIds = chooseCpuPileDrawIds(game.pendingPileDrawSelection.count);
       await cpuStep("CPU 構えるドロー", () => engine.resolvePendingPileDrawSelection(game, 1, pileIds), "draw");
@@ -5140,6 +5237,12 @@ async function resolveCpuPendingChoices() {
   if (game.pendingPileSearch?.playerId === 1) {
     const indexes = chooseHardCpuPileSearchIndexes();
     await cpuStep("CPU サーチ", () => engine.resolvePendingPileSearch(game, 1, indexes), "draw");
+  }
+  if (game.pendingUltraSearch?.playerId === 1) {
+    const choiceValue = chooseCpuUltraSearchValue(game.pendingUltraSearch.choices);
+    if (choiceValue) {
+      await cpuStep("CPU ウルトラサーチ", () => engine.resolvePendingUltraSearch(game, 1, choiceValue), "select");
+    }
   }
   if (game.pendingPileDrawSelection?.playerId === 1) {
     const pileIds = chooseCpuPileDrawIds(game.pendingPileDrawSelection.count);
@@ -5395,6 +5498,12 @@ function chooseHardCpuPileSearchIndexes() {
     .map((entry) => entry.index);
 }
 
+function chooseCpuUltraSearchValue(choices = []) {
+  return choices
+    .map((choice) => ({ ...choice, score: hardCardIdScore(choice.cardId) + (choice.zone === "opponentHand" ? 35 : 0) }))
+    .sort((a, b) => b.score - a.score)[0]?.value || null;
+}
+
 function chooseRestockDiscardIndexes(actionHandIndex) {
   return game.players[1].hand
     .map((cardId, index) => ({ cardId, index, score: hardCardIdScore(cardId) + keepComboBonus(cardId) }))
@@ -5502,6 +5611,12 @@ function resolveSimulatedCpuPending(simulated) {
         .slice(0, pending.count)
         .map((entry) => entry.index);
     engine.resolvePendingPileSearch(simulated, 1, indexes);
+  }
+  if (simulated.pendingUltraSearch?.playerId === 1) {
+    const choiceValue = (simulated.pendingUltraSearch.choices || [])
+      .map((choice) => ({ ...choice, score: hardCardIdScore(choice.cardId) + (choice.zone === "opponentHand" ? 35 : 0) }))
+      .sort((a, b) => b.score - a.score)[0]?.value;
+    if (choiceValue) engine.resolvePendingUltraSearch(simulated, 1, choiceValue);
   }
   if (simulated.pendingPileDrawSelection?.playerId === 1) {
     const count = simulated.pendingPileDrawSelection.count;
@@ -5697,7 +5812,15 @@ function hardCardScore(card) {
       auroraVeil: 240,
       acrobat: 230,
       excavation: 220,
-      protectivePads: 210,
+      wish: 260,
+      thunderShock: 390,
+      specialCharge: 370,
+      comeback: 350,
+      ultraSearch: 340,
+      beGood: 300,
+      curse: 250,
+      watchdog: 230,
+      copyPaste: 220,
       readyStance: 210,
       mysticGuard: 190,
       restock: 170,
@@ -5731,6 +5854,15 @@ function hardUnitCardScore(card) {
     doubleOwnPower: 190,
     ignoreWallLifeAttack: 260,
     sleepTargetNextTurn: 190,
+    gainSpecialInsteadAttack: 120,
+    discardLeftmostOnLifeHit: 230,
+    returnEnemyToHand: 240,
+    turnStartHpDownPowerUp: 230,
+    damageAllEnemiesOnSummonActionGain: 260,
+    healLifeWhenLowOnce: 200,
+    returnToHandOnDeath: 180,
+    noItemTriplePower: 210,
+    punishCardGain: 260,
   };
   return 100 + (card.hp || 0) * 45 + (card.power || 0) * 70 + (effectBonus[card.effectKey] || 0);
 }

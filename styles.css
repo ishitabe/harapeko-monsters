@@ -571,6 +571,21 @@ p {
   box-shadow: 0 0 0 2px rgba(242, 189, 92, 0.32), 0 0 28px rgba(242, 189, 92, 0.28);
 }
 
+.special-card,
+.card-list-entry.special-card,
+.choice-card.special-card,
+.deck-card.special-card,
+.mini-card.special-card,
+.detail-card.special-card,
+.game-card.special-card,
+.deck-top-card.special-card {
+  border-color: rgba(255, 214, 92, 0.95) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 235, 160, 0.45) inset,
+    0 0 18px rgba(255, 198, 58, 0.45),
+    0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
 .field-slot.unit,
 .card-shell.unit,
 .deck-card.unit,
