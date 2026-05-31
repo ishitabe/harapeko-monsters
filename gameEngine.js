@@ -239,10 +239,11 @@
     const result = resolveActionCard(game, playerId, card, payload);
     if (!result.ok) return result;
 
-    game.lastMessage = shouldReplay
+    const actionMessage = shouldReplay
       ? `${player.name}が${card.name}を使用しました。早業でもう一度使えます。`
       : `${player.name}が${card.name}を使用しました。`;
-    addLog(game, game.lastMessage);
+    if (!result.preserveLastMessage) game.lastMessage = actionMessage;
+    addLog(game, actionMessage);
     checkWinner(game);
     rebalanceDecksIfNeeded(game);
     return ok(game, {
@@ -360,7 +361,9 @@
       if (!targetCardId) return fail(game, "相手の手札からカードを選んでください。");
       opponent.hand.splice(opponentHandIndex, 1);
       if (!addCardToHand(game, playerId, targetCardId)) game.discard.push(targetCardId);
-      return ok(game, { gainedCards: [targetCardId] });
+      game.lastMessage = `二重チェックで${game.players[opponentId].name}の手札から「${cards[targetCardId].name}」を奪いました。`;
+      addLog(game, game.lastMessage);
+      return ok(game, { gainedCards: [targetCardId], preserveLastMessage: true });
     }
 
     if (card.effectKey === "dealTwoToUnitOrLife") {
@@ -986,7 +989,7 @@
     const hasYveltal = game.players[opponentId].field.some((unit) => cards[unit.cardId]?.effectKey === "damageOnOpponentCardGain");
     if (!hasYveltal) return;
     const damage = dealLifeDamage(game, playerId, 1, opponentId, "effect");
-    if (damage > 0 && !options.silent) addLog(game, `イベルタルの効果で${game.players[playerId].name}のライフに${damage}ダメージ。`);
+    if (damage > 0) addLog(game, `イベルタルの効果発動。${game.players[playerId].name}がカードを1枚手札に加えたため、ライフに${damage}ダメージ。`);
     checkWinner(game);
   }
 
@@ -1246,10 +1249,11 @@
     const unit = createUnit(cardId, game.turn);
     let onSummonEffect = "none";
 
-    if (card.effectKey === "returnEnemyToHand" && game.players[playerId].life <= 10) {
-      unit.maxHp = Math.max(1, unit.maxHp - 4);
-      unit.hp = Math.min(unit.hp, unit.maxHp);
-      onSummonEffect = "lowLifeHpDown";
+    if (card.effectKey === "returnEnemyToHand" && game.players[playerId].life >= 10) {
+      unit.maxHp += 4;
+      unit.hp += 4;
+      onSummonEffect = "highLifeHpUp";
+      addLog(game, `${card.name}の効果発動。自分のライフが10以上のため、最大HP+4。`);
     }
 
     applyEnterFieldRuleModifiers(game, playerId, unit);
@@ -1277,6 +1281,12 @@
         onSummonEffect = "damageOnSummon";
         addLog(game, `${card.name}の召喚時効果で${cards[target.cardId].name}に1ダメージ。`);
       }
+    }
+    if (card.effectKey === "returnToHandOnDeath") {
+      player.actions += 1;
+      onSummonEffect = "gainActionOnSummon";
+      game.lastMessage = `${card.name}の召喚時効果で${player.name}のアクション権+1。`;
+      addLog(game, game.lastMessage);
     }
     if (card.effectKey === "summonShockGainActions") {
       const beforeIds = new Set(game.players[opponentId].field.map((target) => target.id));
@@ -1315,11 +1325,15 @@
     let visiblePower = unit.item && cards[unit.item.cardId].effectKey === "powerEqualsHp" && (ownerId === viewerId || unit.item.revealed)
       ? unit.hp
       : getEffectivePower(game, unit, null, "status", { silent: true });
+    if (hiddenPowerItem) {
+      const hiddenBonus = getItemPowerBonus(unit);
+      visiblePower = Math.max(0, unit.power - hiddenBonus);
+    }
     return {
       ...unit,
       hp: hiddenHpItem ? Math.min(unit.hp, unit.baseHp) : unit.hp,
       maxHp: hiddenHpItem ? unit.baseHp : unit.maxHp,
-      power: hiddenPowerItem ? cards[unit.cardId].power : visiblePower,
+      power: visiblePower,
       item: unit.item ? {
         hasItem: true,
         revealed: unit.item.revealed,
@@ -1496,14 +1510,15 @@
   function revealItem(game, unit, message) {
     if (!unit.item) return;
     const itemName = cards[unit.item.cardId].name;
+    const unitName = cards[unit.cardId]?.name || "モンスター";
     const serial = `${game.turn}:${game.log.length}:${unit.id}:${unit.item.cardId}`;
     if (unit.item.revealed) {
-      game.lastMessage = `${itemName}: ${message}`;
+      game.lastMessage = `${unitName}の「${itemName}」が発動。${message}`;
       addLog(game, game.lastMessage);
       return;
     }
     unit.item.revealed = true;
-    game.lastMessage = `${itemName}を公開。${message}`;
+    game.lastMessage = `${unitName}の持ち物「${itemName}」を公開。${message}`;
     addLog(game, game.lastMessage);
     game.lastRevealedItem = {
       cardId: unit.item.cardId,
@@ -1660,7 +1675,10 @@
       if (!addCardToHand(game, playerId, targetCardId)) game.discard.push(targetCardId);
     });
     game.pendingOpponentHandCheck = null;
-    game.lastMessage = `二重チェックで相手の手札からカードを${gained.length}枚手札に加えました。`;
+    const gainedNames = gained.map((cardId) => `「${cards[cardId].name}」`).join("、");
+    game.lastMessage = gained.length > 0
+      ? `二重チェックで${game.players[pending.opponentId].name}の手札から${gainedNames}を奪いました。`
+      : "二重チェックで奪えるカードがありませんでした。";
     addLog(game, game.lastMessage);
     return ok(game, { gainedCards: gained });
   }

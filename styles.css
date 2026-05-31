@@ -1569,12 +1569,18 @@ body.card-dragging * {
     linear-gradient(180deg, rgba(54, 37, 32, 0.98), rgba(22, 25, 34, 0.98));
 }
 
-.click-picker .choice-card.action,
-.click-picker .choice-card.item {
+.click-picker .choice-card.action {
   border-color: rgba(114, 214, 107, 0.64);
   background:
     radial-gradient(circle at 18% 10%, rgba(114, 214, 107, 0.2), transparent 44%),
     linear-gradient(180deg, rgba(25, 51, 34, 0.98), rgba(16, 27, 26, 0.98));
+}
+
+.click-picker .choice-card.item {
+  border-color: rgba(100, 171, 255, 0.72);
+  background:
+    radial-gradient(circle at 18% 10%, rgba(100, 171, 255, 0.24), transparent 44%),
+    linear-gradient(180deg, rgba(23, 45, 72, 0.98), rgba(15, 25, 42, 0.98));
 }
 
 .click-picker .choice-card .card-name {

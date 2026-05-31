@@ -81,7 +81,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=121");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=123");
 }
 
 let game = engine.createGame();
@@ -260,6 +260,27 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.23",
+    title: "カード効果と公開ログを調整",
+    items: [
+      "イベルタルの効果を、手札に加えたカード1枚ごとにライフ1ダメージが発生するようにしました。",
+      "ミュウに召喚時アクション権+1の効果を追加しました。",
+      "二重チェックで奪ったカード名を、画面メッセージとログに表示するようにしました。"
+    ]
+  },
+  {
+    version: "v1.22",
+    title: "カード説明と表示まわりを修正",
+    items: [
+      "カード説明文を最新の内容に更新しました。",
+      "アクロバットや二重チェックなどのカード選択で、持ち物カードが青系で表示されるようにしました。",
+      "ターン開始時の「○○のターン」を、山札を引く前に表示するようにしました。",
+      "ルギアをHP2/パワー1に変更し、自分のライフが10以上なら最大HP+4される効果に変更しました。",
+      "未公開の持ち物を持つモンスターのパワー表示で、元から上がっていたパワーまで消えないようにしました。",
+      "持ち物公開やモンスター効果のログを、何が起きたか分かりやすい内容に調整しました。"
+    ]
+  },
   {
     version: "v1.21",
     title: "スペシャルカードと願い事を追加",
@@ -3964,7 +3985,7 @@ function renderBattleEvents(view) {
   }
   showStatChangeEvents(view);
   if (turnChanged) {
-    setTimeout(() => showTurnBanner(`${view.players[view.activePlayer].name}のターン`), 1450);
+    showTurnBanner(`${view.players[view.activePlayer].name}のターン`);
   }
 }
 
