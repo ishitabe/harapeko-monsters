@@ -81,7 +81,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=123");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=124");
 }
 
 let game = engine.createGame();
@@ -260,6 +260,16 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.24",
+    title: "チャレンジを3種類追加",
+    items: [
+      "ワンターンキルを追加しました。自分のターン開始時に相手ライフが12へ戻るため、一気に倒し切るチャレンジです。",
+      "ディープバトルを追加しました。お互いライフ24で始まる長期戦チャレンジです。",
+      "スペシャル使いを追加しました。CPUのターン開始時にスペシャルカードが1枚手札に加わります。",
+      "追加したチャレンジは今日のチャレンジ候補とフリーチャレンジ一覧の両方に入っています。"
+    ]
+  },
   {
     version: "v1.23",
     title: "カード効果と公開ログを調整",
@@ -1632,6 +1642,18 @@ function applyChallengeRuleModifiers(gameState, challenge) {
   const cpuLife = Number(modifiers.cpuLife ?? challenge?.cpuLife);
   if (Number.isFinite(playerLife) && playerLife > 0) gameState.players[0].life = playerLife;
   if (Number.isFinite(cpuLife) && cpuLife > 0) gameState.players[1].life = cpuLife;
+  if (gameState.activePlayer === 0 && Number.isFinite(Number(modifiers.resetOpponentLifeOnPlayerTurnStart))) {
+    const targetLife = Math.max(0, Number(modifiers.resetOpponentLifeOnPlayerTurnStart));
+    gameState.players[1].life = targetLife;
+    gameState.lastMessage = `ワンターンキル！相手のライフが${targetLife}になった`;
+    gameState.log.unshift(gameState.lastMessage);
+    gameState.log = gameState.log.slice(0, 32);
+  }
+  if (typeof modifiers.startLog === "string" && modifiers.startLog.trim()) {
+    gameState.lastMessage = modifiers.startLog;
+    gameState.log.unshift(modifiers.startLog);
+    gameState.log = gameState.log.slice(0, 32);
+  }
 }
 
 function loadLoginBonusState() {

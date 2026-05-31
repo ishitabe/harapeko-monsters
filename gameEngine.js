@@ -952,7 +952,31 @@
     player.field.forEach((unit) => {
       unit.canAct = (unit.summonedTurn < game.turn || game.ruleModifiers?.noSummonSickness) && !(unit.sleepUntilTurn > game.turn);
     });
+    applyTurnStartRuleModifiers(game, playerId);
     applyTurnStartEffects(game, playerId);
+  }
+
+  function applyTurnStartRuleModifiers(game, playerId) {
+    const modifiers = game.ruleModifiers || {};
+    if (playerId === 0 && Number.isFinite(Number(modifiers.resetOpponentLifeOnPlayerTurnStart))) {
+      const targetLife = Math.max(0, Number(modifiers.resetOpponentLifeOnPlayerTurnStart));
+      const opponentId = opponentOf(playerId);
+      game.players[opponentId].life = targetLife;
+      addLog(game, `ワンターンキル！相手のライフが${targetLife}になった`);
+    }
+
+    if (playerId === 1 && modifiers.cpuTurnStartSpecialAction) {
+      const availableSpecials = specialCardPool.filter((cardId) => cards[cardId]);
+      if (availableSpecials.length === 0) return;
+      const cardId = availableSpecials[Math.floor(Math.random() * availableSpecials.length)];
+      const player = game.players[playerId];
+      player.hand.push(cardId);
+      triggerCardAddedEffects(game, playerId, cardId, { ignoreHandLimit: true, specialGenerated: true });
+      const message = `${player.name}は${cards[cardId].name}を手に入れた！`;
+      game.lastMessage = message;
+      addLog(game, message);
+      checkWinner(game);
+    }
   }
 
   function drawCard(game, playerId, pileId, options = {}) {
