@@ -81,7 +81,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=125");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=126");
 }
 
 let game = engine.createGame();
@@ -260,6 +260,17 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.26",
+    title: "超強いCPUを追加",
+    items: [
+      "CPU戦に「超強い」を追加しました。強いCPUの判断をベースに、より勝ち筋と盤面価値を重く見る難易度です。",
+      "超強いCPUは、コートチェンジ、二重チェック、発掘、ザ・サーチなどの重要カードをより高く評価します。",
+      "願い事は相手モンスターを倒せる見込みがある時に使いやすくし、バトルドラムは攻撃できるモンスターが複数いる場面を重視するようにしました。",
+      "ミミッキュ、サンダー、ガオガエン、カバルドン、ピカチュウなどの攻撃代わりの効果を、無駄撃ちしにくいよう調整しました。",
+      "持ち物の装備先評価を調整し、ライフパワー、拘りスカーフ、ブーメラン、気合いのタスキなどをより相性のよいモンスターに持たせやすくしました。"
+    ]
+  },
   {
     version: "v1.25",
     title: "CPU（強い）の判断を調整",
@@ -997,6 +1008,7 @@ const elements = {
   cpuStreakNote: document.querySelector("#cpuStreakNote"),
   cpuNormalButton: document.querySelector("#cpuNormalButton"),
   cpuHardButton: document.querySelector("#cpuHardButton"),
+  cpuUltraButton: document.querySelector("#cpuUltraButton"),
   cpuBackButton: document.querySelector("#cpuBackButton"),
   titleRules: document.querySelector("#titleRules"),
   rulesPageLabel: document.querySelector("#rulesPageLabel"),
@@ -1376,7 +1388,7 @@ function restoreCpuBattleIfNeeded() {
   if (!saved) return false;
   suppressCpuBattleSave = true;
   game = saved.gameState;
-  cpuDifficulty = saved.cpuDifficulty === "hard" ? "hard" : "normal";
+  cpuDifficulty = ["hard", "ultra"].includes(saved.cpuDifficulty) ? saved.cpuDifficulty : "normal";
   cpuEnabled = true;
   cpuThinking = false;
   onlineMode = false;
@@ -1589,7 +1601,8 @@ function updateHapiCoinDisplay() {
 
 function cpuProfile(difficulty) {
   const avatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
-  return { name: difficulty === "hard" ? "CPU（強い）" : "CPU（普通）", avatar };
+  const name = difficulty === "ultra" ? "CPU\uFF08\u8D85\u5F37\u3044\uFF09" : difficulty === "hard" ? "CPU\uFF08\u5F37\u3044\uFF09" : "CPU\uFF08\u666E\u901A\uFF09";
+  return { name, avatar };
 }
 
 function todayKey() {
@@ -1624,6 +1637,14 @@ function challengeRewardAmount(challenge) {
 
 function normalizeCpuDifficulty(difficulty) {
   return difficulty === "strong" ? "hard" : difficulty || "hard";
+}
+
+function isHardLikeCpu() {
+  return cpuDifficulty === "hard" || cpuDifficulty === "ultra";
+}
+
+function isUltraCpu() {
+  return cpuDifficulty === "ultra";
 }
 
 function challengeById(challengeId) {
@@ -4386,6 +4407,7 @@ elements.titleChallenge?.addEventListener("click", (event) => {
 });
 elements.cpuNormalButton?.addEventListener("click", () => startCpuGame("normal"));
 elements.cpuHardButton?.addEventListener("click", () => startCpuGame("hard"));
+elements.cpuUltraButton?.addEventListener("click", () => startCpuGame("ultra"));
 elements.cpuBackButton?.addEventListener("click", () => {
   titleCpuOpen = false;
   titleBattleOpen = true;
@@ -5036,7 +5058,7 @@ function scheduleCpuTurn() {
 
 async function runCpuTurn() {
   if (game.winner !== null || game.activePlayer !== 1) return;
-  if (cpuDifficulty === "hard") {
+  if (isHardLikeCpu()) {
     await runHardCpuTurn();
     return;
   }
@@ -5118,7 +5140,7 @@ async function runHardCpuTurn() {
 async function runCpuOpeningDraw() {
   const view = engine.getPublicState(game, 0);
   if (view.players[1].hasDrawnThisTurn) return;
-  const pile = cpuDifficulty === "hard"
+  const pile = isHardLikeCpu()
     ? chooseBestCpuPile()
     : [...game.piles].filter((candidate) => candidate.deck.length > 0).sort((a, b) => b.deck.length - a.deck.length)[0];
   if (pile) {
@@ -5153,7 +5175,7 @@ async function runCpuEquipItems() {
   let equipped = true;
   while (equipped) {
     equipped = false;
-    const choice = cpuDifficulty === "hard" ? chooseHardCpuItemEquip() : chooseCpuItemEquip();
+    const choice = isHardLikeCpu() ? chooseHardCpuItemEquip() : chooseCpuItemEquip();
     if (!choice) return;
     const result = await cpuStep("CPU 装備", () => {
       addFx(`field:1:${choice.unit.id}`, "fx-item");
@@ -5210,7 +5232,12 @@ function scoreItemOnUnit(itemId, unit) {
   if (card.effectKey === "ignorePowerIncreases" && ["lightBall", "choiceBand", "lifePower", "contraryMask"].includes(itemId)) return -1000;
   if (card.effectKey === "attackAllEnemies" && itemId === "boomerang") return -1000;
   if (willLikelyDieNextTurn(unit) && ["lightBall", "lifePower", "choiceBand", "assaultVest"].includes(itemId)) return -420;
-  if (itemId === "choiceScarf") return unit.canAct ? 40 : 420 + hardUnitCardScore(card) + immediateAttackValue(unit) * 0.45;
+  if (itemId === "choiceScarf") {
+    if (unit.canAct && !isUltraCpu()) return 40;
+    const aceBonus = ["kyogre", "calyrexShadow", "calyrexIce", "zacian", "urshifu", "calyrexIce"].includes(unit.cardId) ? 260 : 0;
+    const reAttackBonus = unit.canAct ? 120 : 420;
+    return reAttackBonus + aceBonus + hardUnitCardScore(card) + immediateAttackValue(unit) * (isUltraCpu() ? 0.75 : 0.45);
+  }
   if (itemId === "lifePower") {
     const currentDamage = estimateLifeDamageForCpu(cpuEffectivePower(unit, null, "lifeAttack", 1), 0);
     const lifePowerDamage = estimateLifeDamageForCpu(Math.max(unit.hp, unit.power), 0);
@@ -5232,13 +5259,15 @@ function scoreItemOnUnit(itemId, unit) {
     + (card.effectKey === "healLifeOnTurnEnd" ? 90 : 0)
     + base * 0.12;
   if (itemId === "focusSash") return (unit.maxHp <= 2 ? 340 : 180)
-    + (unit.power >= 3 ? 120 : 0)
-    + (card.effectKey === "attackPowerPlusThree" ? 130 : 0);
+    + (unit.power >= 3 ? (isUltraCpu() ? 260 : 120) : 0)
+    + (card.effectKey === "attackPowerPlusThree" ? 130 : 0)
+    + (isUltraCpu() && unit.canAct && willLikelyDieNextTurn(unit) ? 260 : 0);
   if (itemId === "destinyCloak") return (unit.hp <= 2 ? 290 : 170)
     + (card.effectKey === "mustBeAttacked" ? 240 : 0)
-    + (unit.power <= 1 ? 50 : 0);
-  if (itemId === "boomerang") return unit.power >= 2
-    ? 300 + game.players[0].field.length * 90
+    + (unit.power <= 1 ? 50 : 0)
+    + (isUltraCpu() && unit.canAct && !willLikelyDieNextTurn(unit) ? 120 : 0);
+  if (itemId === "boomerang") return unit.power >= (isUltraCpu() ? 3 : 2)
+    ? 300 + game.players[0].field.length * (isUltraCpu() ? 150 : 90) + (unit.canAct ? 180 : 0)
     : 50;
   if (itemId === "contraryMask") return game.players[0].field.some((enemy) => CARD_DEFINITIONS[enemy.cardId]?.effectKey === "enemyPowerMinusOneOnSummon") ? 160 : 90;
   return 80;
@@ -5313,7 +5342,7 @@ async function executeHardCpuChoice(choice) {
 async function resolveCpuPendingChoices() {
   if (game.pendingOpponentHandCheck?.playerId === 1) {
     const indexes = game.players[0].hand
-      .map((cardId, index) => ({ index, score: hardCardIdScore(cardId) }))
+      .map((cardId, index) => ({ index, score: hardCardIdScore(cardId) + (isUltraCpu() && cardId === "courtChange" ? 1500 : 0) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, game.pendingOpponentHandCheck.count || 1)
       .map((entry) => entry.index);
@@ -5357,16 +5386,18 @@ function hardSummonChoices() {
     .filter((entry) => entry.card.type === "unit")
     .filter((entry) => !(entry.cardId === "tyranitar" && player.life <= 4))
     .map((entry) => {
-      let score = 120 + hardUnitCardScore(entry.card);
+      let score = 120 + hardUnitCardScore(entry.card) + ultraCardBonus(entry.cardId);
       if (player.field.length === 0) score += 220;
       if (player.field.length <= 2) score += 210;
+      if (isUltraCpu() && player.field.length <= 2) score += 160;
       if (entry.cardId === "tyranitar" && player.life <= 6) score -= 420;
       if (tyranitarInField && ["girafarig", "farigiraf", "calyrexShadow", "mew", "pikachu"].includes(entry.cardId)) score -= 720;
       if (entry.cardId === "tyranitar" && player.field.some((unit) => ["girafarig", "farigiraf", "calyrexShadow", "mew", "pikachu"].includes(unit.cardId))) score -= 560;
       if (entry.cardId === "quagsire") score += quagsireSummonAdjustment();
       if (entry.cardId === "pikachu" && player.hand.includes("lightBall")) score += 520;
+      if (isUltraCpu() && entry.cardId === "pikachu" && !player.hand.includes("lightBall")) score += 260;
       score += bestItemComboBonusForUnit(entry.cardId);
-      if (entry.card.effectKey === "mustBeAttacked") score += game.players[0].field.length * 85;
+      if (entry.card.effectKey === "mustBeAttacked") score += game.players[0].field.length * (isUltraCpu() && game.players[0].field.length >= 2 ? 170 : 85);
       if (entry.card.effectKey === "ignoreWallLifeAttack" && game.players[0].field.length >= 3) score += 300;
       if (entry.card.effectKey === "powerPlusIfLifeTen" && player.life >= 10) score += 260;
       if (entry.card.effectKey === "healLifeOnTurnEnd" && player.life <= 10) score += 150;
@@ -5415,6 +5446,38 @@ function strongestPowerIncrease(field) {
   }, 0);
 }
 
+function cpuReadyAttackers() {
+  return game.players[1].field.filter((unit) => unit.canAct);
+}
+
+function canCpuKillTargetWithReadyAttackers(target) {
+  if (!target) return false;
+  const hp = effectiveDefenderHpForAttack(null, target);
+  const total = cpuReadyAttackers()
+    .filter((unit) => filterAttackTargets(game.players[0].field, unit).some((candidate) => candidate.id === target.id))
+    .reduce((sum, unit) => sum + estimateUnitDamageForCpu(cpuEffectivePower(unit, target, "attack", 1), 0), 0);
+  return total >= hp;
+}
+
+function bestCpuReadyKillValue() {
+  return game.players[0].field.reduce((best, target) => {
+    if (!canCpuKillTargetWithReadyAttackers(target)) return best;
+    return Math.max(best, unitThreat(target) + priorityTargetBonus(target));
+  }, 0);
+}
+
+function canCpuUseWishProfitably() {
+  if (game.players[1].field.some((unit) => unit.canAct && filterAttackTargets(game.players[0].field, unit)
+    .some((target) => effectiveDefenderHpForAttack(unit, target) <= estimateUnitDamageForCpu(cpuEffectivePower(unit, target, "attack", 1), 0)))) {
+    return true;
+  }
+  return bestCpuReadyKillValue() >= 520;
+}
+
+function isUltraPowerBuffWasteful() {
+  return isUltraCpu() && hasCpuOwnQuagsireActive();
+}
+
 function hardActionCandidates(handIndex, cardId) {
   const player = game.players[1];
   const opponent = game.players[0];
@@ -5425,6 +5488,7 @@ function hardActionCandidates(handIndex, cardId) {
   const strongestEnemy = [...opponent.field].sort((a, b) => unitThreat(b) - unitThreat(a))[0];
   const bestOwn = [...player.field].sort((a, b) => unitThreat(b) - unitThreat(a))[0];
   const bestPile = chooseBestCpuPile();
+  const bestSearchPile = chooseBestCpuSearchPile();
   const enemyProtected = opponent.mysticGuardUntilTurn > game.turn;
   const ownQuagsireActive = hasCpuOwnQuagsireActive();
   const shouldSummonBeforeBuff = player.field.length < engine.getPublicState(game, 0).maxFieldSize
@@ -5481,10 +5545,10 @@ function hardActionCandidates(handIndex, cardId) {
       break;
     }
     case "redCard":
-      if (opponent.hand.length >= 4) add(230 + opponent.hand.length * 45);
+      if (opponent.hand.length >= (isUltraCpu() ? 2 : 4)) add((isUltraCpu() ? 620 : 230) + opponent.hand.length * 70);
       break;
     case "discardOpponentHand":
-      if (opponent.hand.length > 0 && player.hand.length <= 8) add(260 + Math.min(2, opponent.hand.length) * 120);
+      if (opponent.hand.length > 0 && player.hand.length <= 8) add((isUltraCpu() ? 720 : 260) + Math.min(2, opponent.hand.length) * 150);
       break;
     case "healLifeThree":
       if (player.life <= 8 || isCpuInLethalDanger()) add(170 + (12 - player.life) * 65, {}, "defend");
@@ -5498,6 +5562,11 @@ function hardActionCandidates(handIndex, cardId) {
     case "noCounterThisTurn":
       if (player.field.some((unit) => unit.canAct) && opponent.field.length > 0) add(260 + opponent.field.length * 45);
       break;
+    case "wish":
+      if (canCpuUseWishProfitably()) {
+        add((isUltraCpu() ? 680 : 300) + bestCpuReadyKillValue() * 0.35, {}, "value");
+      }
+      break;
     case "buffHpByEnemyCount":
       if (player.field.length > 0 && opponent.field.length > 0) add((shouldSummonBeforeBuff ? -120 : 130) + player.field.length * opponent.field.length * 75, {}, "defend");
       break;
@@ -5506,6 +5575,11 @@ function hardActionCandidates(handIndex, cardId) {
       if (player.field.length > 0 && bestPile) {
         const buffedLifeDamage = totalPossibleLifeDamage(2);
         const lethalBonus = canCpuAttackLifeNow() && opponent.life <= buffedLifeDamage ? 9000 : 0;
+        if (isUltraCpu()) {
+          const readyAttackers = player.field.filter((unit) => unit.canAct).length;
+          const topValue = pileTopScore(bestPile);
+          if (readyAttackers < 2 && lethalBonus <= 0 && topValue < 520) break;
+        }
         add((shouldSummonBeforeBuff ? -100 : 260) + player.field.length * 120 + pileTopScore(bestPile) * 0.2 + lethalBonus, { pileId: bestPile.id }, lethalBonus > 0 ? "lethal" : "value");
       }
       break;
@@ -5513,7 +5587,7 @@ function hardActionCandidates(handIndex, cardId) {
       if (bestPile && drawRoomAfterPlaying() >= 2) add(280 + pileTopScore(bestPile) * 0.3, { pileId: bestPile.id });
       break;
     case "searchTwoFromPile":
-      if (bestPile && drawRoomAfterPlaying() >= 3) add(360 + bestKnownPileScore(bestPile, 3) * 0.25, { pileId: bestPile.id });
+      if (bestSearchPile && drawRoomAfterPlaying() >= 3) add((isUltraCpu() ? 620 : 360) + bestKnownPileScore(bestSearchPile, 3) * 0.25, { pileId: bestSearchPile.id });
       break;
     case "searchOneFromEachPile":
       if (drawRoomAfterPlaying() >= 1 && game.piles.some((pile) => pile.deck.length > 0)) add(420);
@@ -5548,7 +5622,7 @@ function hardActionCandidates(handIndex, cardId) {
     }
     case "stealOpponentItems": {
       const itemCount = opponent.field.filter((unit) => unit.item).length;
-      if (itemCount > 0) add(250 + itemCount * 180);
+      if (itemCount > 0 || isUltraCpu()) add((isUltraCpu() ? 540 : 250) + itemCount * 220);
       break;
     }
     case "swapUnits":
@@ -5559,7 +5633,10 @@ function hardActionCandidates(handIndex, cardId) {
         const countSwing = opponent.field.length - player.field.length;
         const bestSwing = strongestEnemy ? unitThreat(strongestEnemy) - (bestOwn ? unitThreat(bestOwn) : 0) : 0;
         const score = (enemyValue - ownValue) * 0.45 + countSwing * 180 + bestSwing * 0.35;
-        if (score > 420 && player.field.length <= opponent.field.length) add(120 + score, {}, "value");
+        if (isUltraCpu()) {
+          const ultraScore = 850 + (enemyValue - ownValue) * 0.65 + countSwing * 260 + bestSwing * 0.55;
+          if (enemyValue > ownValue + 120 || opponent.field.length >= player.field.length || strongestEnemy) add(ultraScore, {}, "court-change");
+        } else if (score > 420 && player.field.length <= opponent.field.length) add(120 + score, {}, "value");
       }
       break;
     default:
@@ -5572,6 +5649,20 @@ function chooseBestCpuPile() {
   return [...game.piles]
     .filter((pile) => pile.deck.length > 0)
     .sort((a, b) => pileTopScore(b) - pileTopScore(a))[0] || null;
+}
+
+function chooseBestCpuSearchPile() {
+  if (!isUltraCpu()) return chooseBestCpuPile();
+  return [...game.piles]
+    .filter((pile) => pile.deck.length > 0)
+    .map((pile) => ({
+      pile,
+      score: bestKnownPileScore(pile, 3)
+        + (pile.deck.includes("courtChange") ? 1800 : 0)
+        + (pile.deck.includes("redCard") ? 520 : 0)
+        + (pile.deck.includes("choiceScarf") ? 420 : 0),
+    }))
+    .sort((a, b) => b.score - a.score)[0]?.pile || chooseBestCpuPile();
 }
 
 function pileTopScore(pile) {
@@ -5592,7 +5683,7 @@ function bestDiscardUnitIndex() {
 
 function bestDiscardCardIndex() {
   return game.discard
-    .map((cardId, index) => ({ index, cardId, score: hardCardIdScore(cardId) }))
+    .map((cardId, index) => ({ index, cardId, score: hardCardIdScore(cardId) + (isUltraCpu() && cardId === "courtChange" ? 1200 : 0) }))
     .sort((a, b) => b.score - a.score)[0] || null;
 }
 
@@ -5609,7 +5700,7 @@ function chooseHardCpuPileSearchIndexes() {
   if (!pending) return [];
   if (pending.allPiles) {
     return game.piles.flatMap((pile) => pile.deck
-      .map((cardId, index) => ({ value: `${pile.id}:${index}`, score: hardCardIdScore(cardId) }))
+      .map((cardId, index) => ({ value: `${pile.id}:${index}`, score: hardCardIdScore(cardId) + (isUltraCpu() && cardId === "courtChange" ? 1400 : 0) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 1)
       .map((entry) => entry.value));
@@ -5617,7 +5708,7 @@ function chooseHardCpuPileSearchIndexes() {
   const pile = game.piles.find((candidate) => candidate.id === pending.pileId);
   if (!pile) return [];
   return pile.deck
-    .map((cardId, index) => ({ index, score: hardCardIdScore(cardId) }))
+    .map((cardId, index) => ({ index, score: hardCardIdScore(cardId) + (isUltraCpu() && cardId === "courtChange" ? 1400 : 0) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, pending.count)
     .map((entry) => entry.index);
@@ -5625,7 +5716,7 @@ function chooseHardCpuPileSearchIndexes() {
 
 function chooseCpuUltraSearchValue(choices = []) {
   return choices
-    .map((choice) => ({ ...choice, score: hardCardIdScore(choice.cardId) + (choice.zone === "opponentHand" ? 35 : 0) }))
+    .map((choice) => ({ ...choice, score: hardCardIdScore(choice.cardId) + (choice.zone === "opponentHand" ? 35 : 0) + (isUltraCpu() && choice.cardId === "courtChange" ? 1500 : 0) }))
     .sort((a, b) => b.score - a.score)[0]?.value || null;
 }
 
@@ -5814,6 +5905,9 @@ function keepComboBonus(cardId) {
   if (cardId === "pikachu" && player.hand.includes("lightBall")) return 650;
   if (cardId === "choiceScarf" && player.hand.some((id) => CARD_DEFINITIONS[id]?.type === "unit")) return 180;
   if (cardId === "boomerang" && player.field.some((unit) => unit.power >= 3)) return 160;
+  if (isUltraCpu() && cardId === "courtChange") return 1400;
+  if (isUltraCpu() && ["doubleCheck", "excavation", "theSearch", "redCard", "choiceScarf"].includes(cardId)) return 520;
+  if (isUltraCpu() && ["robbery", "wish"].includes(cardId)) return 420;
   return 0;
 }
 
@@ -5825,6 +5919,11 @@ function chooseWeightedCpuChoice(choices) {
   const sorted = choices.filter((choice) => Number.isFinite(choice.score)).sort((a, b) => b.score - a.score);
   if (sorted.length === 0) return null;
   if (sorted[0].score >= 10000) return sorted[0];
+  if (isUltraCpu() && sorted[0].score >= 240) {
+    const top = sorted.slice(0, 3);
+    const close = top.filter((choice) => sorted[0].score - choice.score <= 120);
+    return close[Math.floor(Math.random() * close.length)] || sorted[0];
+  }
   const top = sorted.slice(0, 3);
   const min = Math.min(...top.map((choice) => choice.score));
   const weights = top.map((choice, index) => Math.max(1, choice.score - min + 30 - index * 5));
@@ -5970,7 +6069,7 @@ function hardCardScore(card) {
       destinyCloak: 210,
       contraryMask: 120,
     };
-    return values[card.id] || 170;
+    return (values[card.id] || 170) + ultraCardBonus(card.id);
   }
   if (card.type === "action") {
     const values = {
@@ -6006,9 +6105,33 @@ function hardCardScore(card) {
       storm: 140,
       robbery: 130,
     };
-    return values[card.id] || 180;
+    return (values[card.id] || 180) + ultraCardBonus(card.id);
   }
   return 0;
+}
+
+function ultraCardBonus(cardId) {
+  if (!isUltraCpu()) return 0;
+  const bonuses = {
+    courtChange: 1600,
+    redCard: 760,
+    choiceScarf: 720,
+    doubleCheck: 680,
+    excavation: 640,
+    theSearch: 620,
+    robbery: 560,
+    wish: 520,
+    snorlax: 430,
+    stoneThrow: 420,
+    tyranitar: 390,
+    lifePower: 370,
+    rillaboom: 350,
+    battleDrum: 330,
+    kyogre: 300,
+    quagsire: 260,
+    zacian: 250,
+  };
+  return bonuses[cardId] || 0;
 }
 
 function hardUnitCardScore(card) {
@@ -6162,8 +6285,9 @@ function chooseHardCpuUnitAbility() {
   player.field.filter((unit) => unit.canAct).forEach((unit) => {
     const card = CARD_DEFINITIONS[unit.cardId];
     if (card.effectKey === "attackOrGainLife" && player.life <= 9 && !canCpuLethalByAttacksNow()) {
-      const healScore = isCpuInLethalDanger() ? 540 + (12 - player.life) * 70 : 120 + (9 - player.life) * 35;
-      if (player.life <= 7 || isCpuInLethalDanger()) {
+      const kyogrePlan = isUltraCpu() && player.life < 10 && (player.field.some((ally) => ally.cardId === "kyogre") || player.hand.includes("kyogre"));
+      const healScore = isCpuInLethalDanger() ? 540 + (12 - player.life) * 70 : 120 + (9 - player.life) * 35 + (kyogrePlan ? 380 : 0);
+      if (player.life <= 7 || isCpuInLethalDanger() || kyogrePlan) {
         choices.push({ kind: "gainLife", unitId: unit.id, score: healScore, label: "CPU ライフ回復", sound: "heal" });
       }
     }
@@ -6187,13 +6311,15 @@ function chooseHardCpuUnitAbility() {
     }
     if (card.effectKey === "sleepTargetNextTurn") {
       opponent.field.forEach((target) => {
+        if (isUltraCpu() && canCpuKillTargetWithReadyAttackers(target)) return;
         if (target.canAct || dangerScore(target) >= 420) {
-          choices.push({ unitId: unit.id, targetId: target.id, score: 230 + dangerScore(target) * 0.35, label: "CPU 召喚酔い", payload: { ability: "sleepTargetNextTurn", unitId: unit.id, targetUnitId: target.id }, fx: "fx-item" });
+          choices.push({ unitId: unit.id, targetId: target.id, score: 230 + dangerScore(target) * (isUltraCpu() ? 0.55 : 0.35), label: "CPU 召喚酔い", payload: { ability: "sleepTargetNextTurn", unitId: unit.id, targetUnitId: target.id }, fx: "fx-item" });
         }
       });
     }
     if (card.effectKey === "damageOnSummonZeroPowerAndReturn") {
       opponent.field.forEach((target) => {
+        if (isUltraCpu() && (target.power <= 2 || canCpuKillTargetWithReadyAttackers(target))) return;
         if (target.power >= 2) {
           choices.push({
             unitId: unit.id,
