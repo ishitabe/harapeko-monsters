@@ -3608,6 +3608,16 @@ body.title-cpu-active .title-content > h1 {
   box-shadow: inset 0 0 40px rgba(103, 183, 255, 0.06);
 }
 
+.card-list-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.card-list-tabs.sub-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .update-list-body {
   display: grid;
   gap: 16px;

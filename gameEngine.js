@@ -670,6 +670,7 @@
 
   function buildUltraSearchChoices(game, playerId) {
     const opponentId = opponentOf(playerId);
+    if (!game.specialDeck || game.specialDeck.length === 0) game.specialDeck = shuffle([...specialCardPool]);
     return [
       ...game.piles.flatMap((pile) => pile.deck.map((cardId, index) => ({
         value: `pile:${pile.id}:${index}`,
@@ -684,6 +685,11 @@
       ...game.players[opponentId].hand.map((cardId, index) => ({
         value: `opponentHand:${index}`,
         source: "相手手札",
+        cardId,
+      })),
+      ...(game.specialDeck || []).map((cardId, index) => ({
+        value: `special:${index}`,
+        source: "スペシャルカード",
         cardId,
       })),
     ];
@@ -710,6 +716,11 @@
       const index = Number(a);
       cardId = opponent.hand[index];
       if (cardId) opponent.hand.splice(index, 1);
+    } else if (source === "special") {
+      const index = Number(a);
+      if (!game.specialDeck || game.specialDeck.length === 0) game.specialDeck = shuffle([...specialCardPool]);
+      cardId = game.specialDeck[index];
+      if (cardId) game.specialDeck.splice(index, 1);
     }
     if (!cardId) return fail(game, "加えるカードが見つかりません。");
     if (!addCardToHand(game, playerId, cardId)) game.discard.push(cardId);
@@ -1119,6 +1130,10 @@
 
   function applyDamage(game, ownerId, unit, amount, context = {}) {
     amount = reduceDamageForPlayer(game, ownerId, amount);
+    if (cards[unit.cardId]?.effectKey === "damageMinusIfLifeTen" && game.players[ownerId].life >= 10 && amount > 0) {
+      amount = Math.max(0, amount - 1);
+      addLog(game, `${cards[unit.cardId].name}の効果で受けるダメージを1減らしました。`);
+    }
     if (amount <= 0) {
       context.actualDamage = 0;
       return false;
@@ -1225,7 +1240,9 @@
     if (card.effectKey === "returnToHandOnDeath") {
       const added = addCardToHand(game, ownerId, unit.cardId);
       if (!added) game.discard.push(unit.cardId);
+      const special = drawSpecialCard(game, ownerId, card.name);
       addLog(game, `${card.name}は倒れたあと手札に戻りました。`);
+      if (special?.added) addLog(game, `${card.name}の効果でスペシャルカードを手札に加えました。`);
       return;
     }
     game.discard.push(unit.cardId);
@@ -1272,13 +1289,6 @@
     const card = cards[cardId];
     const unit = createUnit(cardId, game.turn);
     let onSummonEffect = "none";
-
-    if (card.effectKey === "returnEnemyToHand" && game.players[playerId].life >= 10) {
-      unit.maxHp += 4;
-      unit.hp += 4;
-      onSummonEffect = "highLifeHpUp";
-      addLog(game, `${card.name}の効果発動。自分のライフが10以上のため、最大HP+4。`);
-    }
 
     applyEnterFieldRuleModifiers(game, playerId, unit);
 

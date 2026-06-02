@@ -19,7 +19,7 @@
         "相手ライフ12",
         "回復などは通常通り"
       ],
-      rewardCoins: 200,
+      rewardCoins: 300,
       cpuName: "サドンデス君",
       cpuIcon: "gollem",
       cpuDifficulty: "strong",

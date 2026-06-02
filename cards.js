@@ -54,11 +54,11 @@ const CARD_DEFINITIONS = {
   restock: { id: "restock", name: "補充", type: "action", effectKey: "discardAnyGainActions", text: "手札を好きな枚数捨てる。捨てた数+1だけアクション権を増やす。" },
 
   hoOh: { id: "hoOh", name: "ホウオウ", type: "unit", hp: 4, power: 3, effectKey: "discardLeftHandOnLifeAttack", text: "このモンスターが相手ライフを攻撃した時、相手の手札から一番左のカードを捨札に送る。", special: true },
-  lugia: { id: "lugia", name: "ルギア", type: "unit", hp: 2, power: 1, effectKey: "returnEnemyToHand", text: "自分のライフが10以上なら最大HP+4。攻撃の代わりに相手モンスター1体を相手の手札に戻せる。", special: true },
+  lugia: { id: "lugia", name: "ルギア", type: "unit", hp: 6, power: 1, effectKey: "damageMinusIfLifeTen", text: "自分のライフが10以上なら、受けるダメージを-1する。", special: true },
   koraidon: { id: "koraidon", name: "コライドン", type: "unit", hp: 4, power: 4, effectKey: "turnStartHpDownPowerUp", text: "ターン開始時、最大HP-1、パワー+2。", special: true },
   miraidon: { id: "miraidon", name: "ミライドン", type: "unit", hp: 2, power: 2, effectKey: "summonShockGainActions", text: "召喚時、相手の場全体に1ダメージ。その時倒した相手モンスターの数だけ自分のアクション権+1。", special: true },
   zygarde: { id: "zygarde", name: "ジガルデ", type: "unit", hp: 5, power: 2, effectKey: "healLifeOnceWhenLowHp", text: "このモンスターのHPが3以下になった時、一度だけ自分のライフを+7する。", special: true },
-  mew: { id: "mew", name: "ミュウ", type: "unit", hp: 1, power: 1, effectKey: "returnToHandOnDeath", text: "召喚時、アクション権+1。このモンスターが倒れた時、自分の手札に戻る。", special: true },
+  mew: { id: "mew", name: "ミュウ", type: "unit", hp: 1, power: 1, effectKey: "returnToHandOnDeath", text: "召喚時、アクション権+1。このモンスターが倒れた時、自分の手札に戻り、手札にスペシャルカードを加える。", special: true },
   xerneas: { id: "xerneas", name: "ゼルネアス", type: "unit", hp: 4, power: 2, effectKey: "noItemTriplePower", text: "このモンスターは持ち物を装備できない。攻撃の代わりに自分のパワーを3倍にできる。", special: true },
   yveltal: { id: "yveltal", name: "イベルタル", type: "unit", hp: 3, power: 4, effectKey: "damageOnOpponentCardGain", text: "このモンスターが場にいる時、相手は手札に加えたカード1枚につきライフに1ダメージ受ける。", special: true },
   specialCharge: { id: "specialCharge", name: "特攻指令", type: "action", effectKey: "specialCharge", text: "自分の場のモンスター1体を選び、そのパワー分のダメージを相手の場全体とライフに与え、そのモンスターを捨札に送る。", special: true },
@@ -68,7 +68,7 @@ const CARD_DEFINITIONS = {
   watchdog: { id: "watchdog", name: "番犬化", type: "action", effectKey: "watchdog", text: "自分の場のモンスター1体を選び「相手はこのモンスターしか攻撃できない。」を付与する。", special: true },
   comeback: { id: "comeback", name: "起死回生", type: "action", effectKey: "comeback", text: "山札を1つ選び3枚ドロー。自分のライフが6以下なら、追加で2枚ドローしライフを4回復する。", special: true },
   copyPaste: { id: "copyPaste", name: "コピーペースト", type: "action", effectKey: "doubleNextAction", text: "このターン、次に使うアクションは2回効果を発動する。", special: true },
-  ultraSearch: { id: "ultraSearch", name: "ウルトラサーチ", type: "action", effectKey: "ultraSearch", text: "山札、捨札、相手手札すべての中から1枚カードを選び自分の手札に加える。", special: true },
+  ultraSearch: { id: "ultraSearch", name: "ウルトラサーチ", type: "action", effectKey: "ultraSearch", text: "山札、捨札、相手手札、スペシャルカードの中から1枚選び自分の手札に加える。", special: true },
 };
 
 const SPECIAL_CARD_POOL = Object.keys(CARD_DEFINITIONS).filter((cardId) => CARD_DEFINITIONS[cardId].special);

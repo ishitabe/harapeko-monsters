@@ -81,7 +81,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=128");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=129");
 }
 
 let game = engine.createGame();
@@ -113,6 +113,8 @@ let cardUiMode = localStorage.getItem(`${APP_INTERNAL_ID}-card-ui-mode`) || "cla
 let profileEditorOpen = false;
 let cpuDifficulty = "normal";
 let rulesPageIndex = 0;
+let cardListPoolTab = "normal";
+let cardListTypeTab = "unit";
 let selectedKey = null;
 let detailKey = null;
 let detailData = null;
@@ -170,7 +172,7 @@ if (CHALLENGE_LIST.length === 0) {
     name: "サドンデス",
     description: "ライフ1で勝ち抜け！",
     rules: ["自分ライフ1", "相手ライフ12", "回復などは通常通り"],
-    rewardCoins: 200,
+    rewardCoins: 300,
     cpuName: "サドンデス君",
     cpuIcon: "gollem",
     cpuDifficulty: "strong",
@@ -257,9 +259,30 @@ const RULE_PAGES = [
       "持ち物は効果が発動して公開された時、中央にカードが表示されます。",
       "対戦中のカード一覧はオプションから確認できます。カード一覧を見てもゲーム状態は変わりません。"
     ]
+  },
+  {
+    title: "スペシャルカード",
+    lead: "一部の効果で手札に加わる、特別に強力なカードです。",
+    items: [
+      "スペシャルカードは通常の山札には入りません。",
+      "ピカチュウの能力、願い事、強奪などでスペシャルカードを手札に加えられます。",
+      "スペシャルカードを使ったり倒されたりした後は、通常カードと同じように捨札へ行きます。",
+      "ウルトラサーチでは、山札・捨札・相手手札に加えて、スペシャルカードからも1枚選べます。"
+    ]
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.29",
+    title: "カードとガイドを更新",
+    items: [
+      "超強いCPUの勝利報酬を20ハピコインにしました。",
+      "サドンデスの報酬を300ハピコインにしました。",
+      "カード一覧を通常カードとスペシャルカードで切り替えられるようにしました。",
+      "ガイドにスペシャルカードの説明ページを追加しました。",
+      "ルギア、ミュウ、ウルトラサーチの効果を調整しました。"
+    ]
+  },
   {
     version: "v1.28",
     title: "CPUを調整",
@@ -1264,6 +1287,7 @@ function recordDailyHapiCoins(amount) {
 }
 
 function calculateCpuVictoryCoins(difficulty, streakAfterWin) {
+  if (difficulty === "ultra") return 20;
   return difficulty === "hard" ? 10 * Math.max(1, Number(streakAfterWin) || 1) : 10;
 }
 
@@ -2129,6 +2153,76 @@ function renderRules() {
 }
 
 function renderCardList() {
+  if (!elements.titleCards || !titleCardsOpen) return;
+  const cardListTypeLabels = { unit: "モンスター", item: "持ち物", action: "アクション" };
+  const cardListPoolLabels = { normal: "通常カード", special: "スペシャルカード" };
+  const cardListCardsByPool = {
+    normal: Object.values(CARD_DEFINITIONS).filter((card) => card && !card.special),
+    special: Object.values(CARD_DEFINITIONS).filter((card) => card && card.special),
+  };
+  const cardListCardsByType = { unit: [], item: [], action: [] };
+  cardListCardsByPool[cardListPoolTab].forEach((card) => {
+    if (cardListCardsByType[card.type]) cardListCardsByType[card.type].push(card);
+  });
+  if (!cardListCardsByType[cardListTypeTab]) cardListTypeTab = "unit";
+  const cardListTotal = cardListCardsByPool[cardListPoolTab].length;
+  elements.cardListSummary.textContent = `${cardListPoolLabels[cardListPoolTab]} ${cardListTotal}枚 / モンスター${cardListCardsByType.unit.length}枚 / 持ち物${cardListCardsByType.item.length}枚 / アクション${cardListCardsByType.action.length}枚（通常${cardListCardsByPool.normal.length}枚 / スペシャル${cardListCardsByPool.special.length}枚）`;
+  elements.cardListBody.replaceChildren();
+
+  const makeTabs = (entries, className) => {
+    const wrap = document.createElement("div");
+    wrap.className = className;
+    entries.forEach(({ key, label, active, onClick }) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `record-tab ${active ? "active" : ""}`;
+      button.dataset.cardListTab = key;
+      button.textContent = label;
+      button.addEventListener("click", onClick);
+      wrap.append(button);
+    });
+    return wrap;
+  };
+
+  elements.cardListBody.append(makeTabs([
+    { key: "normal", label: `通常カード ${cardListCardsByPool.normal.length}枚`, active: cardListPoolTab === "normal", onClick: () => { cardListPoolTab = "normal"; renderCardList(); } },
+    { key: "special", label: `スペシャルカード ${cardListCardsByPool.special.length}枚`, active: cardListPoolTab === "special", onClick: () => { cardListPoolTab = "special"; renderCardList(); } },
+  ], "card-list-tabs"));
+
+  elements.cardListBody.append(makeTabs(["unit", "item", "action"].map((type) => ({
+    key: type,
+    label: `${cardListTypeLabels[type]} ${cardListCardsByType[type].length}枚`,
+    active: cardListTypeTab === type,
+    onClick: () => { cardListTypeTab = type; renderCardList(); },
+  })), "card-list-tabs sub-tabs"));
+
+  const section = document.createElement("section");
+  section.className = `card-list-section ${cardListTypeTab}`;
+  const heading = document.createElement("h3");
+  heading.textContent = `${cardListPoolLabels[cardListPoolTab]} / ${cardListTypeLabels[cardListTypeTab]} ${cardListCardsByType[cardListTypeTab].length}枚`;
+  section.append(heading);
+
+  const grid = document.createElement("div");
+  grid.className = "card-list-grid";
+  cardListCardsByType[cardListTypeTab].forEach((card) => {
+    const article = document.createElement("article");
+    article.className = `card-list-entry ${card.type} ${card.special ? "special-card" : ""}`;
+    const stats = card.type === "unit" ? `<div class="card-list-stats"><span>HP ${card.hp}</span><span>PW ${card.power}</span></div>` : "";
+    article.innerHTML = cardUiMode === "modern"
+      ? modernCardMarkup(card, { mini: true })
+      : `
+        <div class="card-list-entry-head">
+          <span class="card-type ${card.type}">${cardListTypeLabels[card.type]}</span>
+          <strong>${card.name}</strong>
+        </div>
+        ${stats}
+        <p>${card.text}</p>
+      `;
+    grid.append(article);
+  });
+  section.append(grid);
+  elements.cardListBody.append(section);
+  return;
   if (!elements.titleCards || !titleCardsOpen) return;
   const typeLabels = { unit: "モンスター", item: "持ち物", action: "アクション" };
   const cardsByType = { unit: [], item: [], action: [] };
