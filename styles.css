@@ -3666,19 +3666,33 @@ body.title-cpu-active .title-content > h1 {
 
 .card-list-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
 .card-list-entry {
   display: grid;
   gap: 8px;
-  min-height: 118px;
-  padding: 12px;
+  min-height: 150px;
+  padding: 9px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: linear-gradient(180deg, #273242, #171f2a);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.card-list-entry.mini-card {
+  min-height: 150px;
+  align-content: start;
+}
+
+.card-list-entry.mini-card .card-name {
+  font-size: 1rem;
+}
+
+.card-list-entry.mini-card small {
+  font-size: 0.76rem;
+  line-height: 1.35;
 }
 
 .card-list-entry.unit {
@@ -4869,11 +4883,25 @@ body.title-cpu-active .title-content > h1 {
   }
 
   .card-list-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .card-list-entry {
-    min-height: 0;
+    min-height: 128px;
+    padding: 7px;
+  }
+
+  .card-list-entry.mini-card {
+    min-height: 128px;
+  }
+
+  .card-list-entry.mini-card .card-name {
+    font-size: 0.78rem;
+  }
+
+  .card-list-entry.mini-card small {
+    font-size: 0.58rem;
+    line-height: 1.22;
   }
 
   .rules-lead {

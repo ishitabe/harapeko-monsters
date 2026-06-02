@@ -81,7 +81,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=129");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=130");
 }
 
 let game = engine.createGame();
@@ -272,6 +272,14 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.30",
+    title: "カード一覧を見やすく調整",
+    items: [
+      "カード一覧を3枚ずつ並ぶカード表示にしました。",
+      "ゴリラの説明テキストを、効果が分かりやすい表現に調整しました。"
+    ]
+  },
   {
     version: "v1.29",
     title: "カードとガイドを更新",
@@ -2166,7 +2174,8 @@ function renderCardList() {
   });
   if (!cardListCardsByType[cardListTypeTab]) cardListTypeTab = "unit";
   const cardListTotal = cardListCardsByPool[cardListPoolTab].length;
-  elements.cardListSummary.textContent = `${cardListPoolLabels[cardListPoolTab]} ${cardListTotal}枚 / モンスター${cardListCardsByType.unit.length}枚 / 持ち物${cardListCardsByType.item.length}枚 / アクション${cardListCardsByType.action.length}枚（通常${cardListCardsByPool.normal.length}枚 / スペシャル${cardListCardsByPool.special.length}枚）`;
+  elements.cardListSummary.textContent = "";
+  elements.cardListSummary.classList.add("hidden");
   elements.cardListBody.replaceChildren();
 
   const makeTabs = (entries, className) => {
@@ -2206,18 +2215,10 @@ function renderCardList() {
   grid.className = "card-list-grid";
   cardListCardsByType[cardListTypeTab].forEach((card) => {
     const article = document.createElement("article");
-    article.className = `card-list-entry ${card.type} ${card.special ? "special-card" : ""}`;
-    const stats = card.type === "unit" ? `<div class="card-list-stats"><span>HP ${card.hp}</span><span>PW ${card.power}</span></div>` : "";
+    article.className = `card-list-entry mini-card ${card.type} ${card.special ? "special-card" : ""}`;
     article.innerHTML = cardUiMode === "modern"
       ? modernCardMarkup(card, { mini: true })
-      : `
-        <div class="card-list-entry-head">
-          <span class="card-type ${card.type}">${cardListTypeLabels[card.type]}</span>
-          <strong>${card.name}</strong>
-        </div>
-        ${stats}
-        <p>${card.text}</p>
-      `;
+      : compactCardMarkup(card);
     grid.append(article);
   });
   section.append(grid);

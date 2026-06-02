@@ -4,7 +4,7 @@ const CARD_DEFINITIONS = {
   calyrexShadow: { id: "calyrexShadow", name: "黒バド", type: "unit", hp: 1, power: 4, effectKey: "takeDiscardOnLifeAttack", text: "相手のライフを攻撃するたびに捨札から1枚好きなカードを手札に加える。" },
   zapdos: { id: "zapdos", name: "サンダー", type: "unit", hp: 3, power: 3, effectKey: "attackOrGainLife", text: "攻撃の代わりに自分のライフを+3できる。" },
   tyranitar: { id: "tyranitar", name: "バンギラス", type: "unit", hp: 5, power: 1, effectKey: "damageAllOthersTurnEnd", text: "ターン終了時、自分以外の全体に1ダメージ。ライフにもダメージを与える。" },
-  rillaboom: { id: "rillaboom", name: "ゴリラ", type: "unit", hp: 3, power: 2, effectKey: "useTargetPowerAsHpNoSummonSick", text: "このモンスターは召喚酔いしない。モンスター攻撃時、相手はパワーをHPとして扱う。" },
+  rillaboom: { id: "rillaboom", name: "ゴリラ", type: "unit", hp: 3, power: 2, effectKey: "useTargetPowerAsHpNoSummonSick", text: "このモンスターは召喚酔いしない。攻撃時、相手のパワーが自分のパワー以下なとき相手は倒れる。" },
   quagsire: { id: "quagsire", name: "ヌオー", type: "unit", hp: 3, power: 1, effectKey: "ignorePowerIncreases", text: "場にいる間、場全体の攻撃ダメージはカード本来のパワーになる。持ち物による上昇も含む。" },
   snorlax: { id: "snorlax", name: "カビゴン", type: "unit", hp: 5, power: 0, effectKey: "mustBeAttacked", text: "召喚時、相手の場のモンスターの数だけパワーを増やす。相手はこのモンスターしか攻撃できない。" },
   pikachu: { id: "pikachu", name: "ピカチュウ", type: "unit", hp: 1, power: 1, effectKey: "gainSpecialInsteadAttack", text: "攻撃の代わりにスペシャルカードを1枚手札に加えられる。" },
