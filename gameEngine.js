@@ -18,6 +18,7 @@
       pendingQuickReplay: null,
       pendingOpponentHandCheck: null,
       pendingDiscardSelection: null,
+      pendingGiveSelection: null,
       pendingDiscardTake: null,
       pendingPileDrawSelection: null,
       pendingPileSearch: null,
@@ -55,6 +56,7 @@
       specialOnKillUntilTurn: 0,
       actionLockedUntilTurn: 0,
       noDrawUntilTurn: 0,
+      usedFinancier: false,
       avatar: "",
     };
   }
@@ -76,6 +78,7 @@
       pendingQuickReplay: game.pendingQuickReplay,
       pendingOpponentHandCheck: game.pendingOpponentHandCheck,
       pendingDiscardSelection: game.pendingDiscardSelection,
+      pendingGiveSelection: game.pendingGiveSelection,
       pendingDiscardTake: game.pendingDiscardTake,
       pendingPileDrawSelection: game.pendingPileDrawSelection,
       pendingPileSearch: game.pendingPileSearch && game.pendingPileSearch.playerId === viewerId
@@ -508,12 +511,79 @@
     if (card.effectKey === "thunderShock") {
       opponent.field.forEach((unit) => {
         if (isProtectedFromOpponentEffects(game, opponentId, playerId)) return;
-        applyDamage(game, opponentId, unit, 2, { source: card.name });
+        applyDamage(game, opponentId, unit, 1, { source: card.name });
+        unit.sleepUntilTurn = Math.max(unit.sleepUntilTurn || 0, game.turn + 2);
       });
-      dealLifeDamage(game, opponentId, 2, playerId, "action");
+      dealLifeDamage(game, opponentId, 1, playerId, "action");
       discardDeadUnits(game, playerId);
       checkWinner(game);
       return ok(game);
+    }
+
+    if (card.effectKey === "unfairTrade") {
+      const opponentProtected = isProtectedFromOpponentEffects(game, opponentId, playerId);
+      if (!opponentProtected) {
+        opponent.field.forEach((unit) => {
+          unit.maxHp = Math.max(0, unit.maxHp - 2);
+          unit.hp = Math.min(unit.hp, unit.maxHp);
+          lowerPower(game, opponentId, unit, 2, playerId);
+        });
+      }
+      player.field.forEach((unit) => {
+        unit.maxHp = Math.max(0, unit.maxHp - 1);
+        unit.hp = Math.min(unit.hp, unit.maxHp);
+        lowerPower(game, playerId, unit, 1, playerId);
+      });
+      const drawResults = [];
+      game.piles.forEach((pile) => {
+        for (let index = 0; index < 2; index += 1) {
+          const drawn = drawCard(game, playerId, pile.id, { silent: true });
+          if (drawn) drawResults.push(drawn);
+        }
+      });
+      logTopDrawResults(game, card.name, drawResults);
+      discardDeadUnits(game, playerId);
+      const giveCount = Math.min(2, player.hand.length);
+      if (giveCount > 0) game.pendingGiveSelection = { playerId, count: giveCount, source: card.id };
+      return ok(game, {
+        drawnCards: drawResults.filter((drawn) => drawn.added).map((drawn) => drawn.cardId),
+        discardedDrawCards: drawResults.filter((drawn) => !drawn.added).map((drawn) => drawn.cardId),
+      });
+    }
+
+    if (card.effectKey === "financier") {
+      if (player.usedFinancier) return fail(game, "フィナンシェは同じバトル中、一人一度しか使えません。");
+      player.usedFinancier = true;
+      player.life += 10;
+      game.lastMessage = `${player.name}はフィナンシェでライフを+10しました。`;
+      addLog(game, game.lastMessage);
+      return ok(game);
+    }
+
+    if (card.effectKey === "suddenScout") {
+      if (player.field.length >= maxFieldSize) return fail(game, "自分の場がいっぱいです。");
+      if (isProtectedFromOpponentEffects(game, opponentId, playerId)) return fail(game, "相手は神秘の守りで守られています。");
+      const located = findUnitById(game, payload.unitId);
+      if (!located || located.ownerId !== opponentId) return fail(game, "スカウトする相手モンスターを選んでください。");
+      if (getEffectivePower(game, located.unit, null, "status", { silent: true }) > 3) return fail(game, "パワー3以下のモンスターしか選べません。");
+      const opponentIndex = opponent.field.findIndex((unit) => unit.id === located.unit.id);
+      if (opponentIndex === -1) return fail(game, "スカウト対象が見つかりません。");
+      opponent.field.splice(opponentIndex, 1);
+      located.unit.canAct = true;
+      located.unit.summonedTurn = game.turn - 1;
+      player.field.push(located.unit);
+      game.lastMessage = `${player.name}はいきなりスカウトで${cards[located.unit.cardId].name}を場に加えました。`;
+      addLog(game, game.lastMessage);
+      return ok(game);
+    }
+
+    if (card.effectKey === "presentSpecial") {
+      const gained = [];
+      for (let index = 0; index < 3; index += 1) {
+        const special = drawSpecialCard(game, playerId, card.name);
+        if (special?.added) gained.push(special.cardId);
+      }
+      return ok(game, { gainedCards: gained });
     }
 
     if (card.effectKey === "curseNoDraw") {
@@ -916,6 +986,7 @@
     if (game.pendingQuickReplay?.playerId === playerId) game.pendingQuickReplay = null;
     if (game.pendingOpponentHandCheck?.playerId === playerId) game.pendingOpponentHandCheck = null;
     if (game.pendingDiscardSelection?.playerId === playerId) game.pendingDiscardSelection = null;
+    if (game.pendingGiveSelection?.playerId === playerId) game.pendingGiveSelection = null;
     if (game.pendingDiscardTake?.playerId === playerId) game.pendingDiscardTake = null;
     if (game.pendingPileDrawSelection?.playerId === playerId) game.pendingPileDrawSelection = null;
     if (game.pendingPileSearch?.playerId === playerId) game.pendingPileSearch = null;
@@ -945,6 +1016,7 @@
     game.pendingQuickReplay = null;
     game.pendingOpponentHandCheck = null;
     game.pendingDiscardSelection = null;
+    game.pendingGiveSelection = null;
     game.pendingDiscardTake = null;
     game.pendingPileDrawSelection = null;
     game.pendingPileSearch = null;
@@ -1731,6 +1803,32 @@
     return ok(game);
   }
 
+  function resolvePendingGiveSelection(game, playerId, handIndexes) {
+    const pending = game.pendingGiveSelection;
+    if (!pending || pending.playerId !== playerId) return fail(game, "渡すカードの選択待ちではありません。");
+    const player = game.players[playerId];
+    const opponentId = opponentOf(playerId);
+    const opponent = game.players[opponentId];
+    const requiredCount = Math.min(pending.count, player.hand.length);
+    const indexes = player.hand.length <= requiredCount
+      ? player.hand.map((_, index) => index)
+      : normalizeIndexes(handIndexes).slice(0, requiredCount);
+    if (indexes.length < requiredCount) return fail(game, `渡すカードを${requiredCount}枚選んでください。`);
+    const given = [];
+    [...new Set(indexes)].sort((a, b) => b - a).forEach((index) => {
+      const cardId = player.hand[index];
+      if (!cardId) return;
+      player.hand.splice(index, 1);
+      opponent.hand.push(cardId);
+      given.push(cardId);
+    });
+    game.pendingGiveSelection = null;
+    const names = given.map((cardId) => `「${cards[cardId]?.name || cardId}」`).join("、");
+    game.lastMessage = `${player.name}は${names}を${opponent.name}に渡しました。`;
+    addLog(game, game.lastMessage);
+    return ok(game, { givenCards: given });
+  }
+
   function resolvePendingDiscardTake(game, playerId, discardIndex) {
     const pending = game.pendingDiscardTake;
     if (!pending || pending.playerId !== playerId) return fail(game, "捨札からカードを加える効果の処理待ちではありません。");
@@ -1801,6 +1899,7 @@
     game.pendingQuickReplay = null;
     game.pendingOpponentHandCheck = null;
     game.pendingDiscardSelection = null;
+    game.pendingGiveSelection = null;
     game.pendingDiscardTake = null;
     game.pendingPileDrawSelection = null;
     game.pendingPileSearch = null;
@@ -1887,6 +1986,7 @@
     addToDiscard,
     resolvePendingOpponentHandCheck,
     resolvePendingDiscardSelection,
+    resolvePendingGiveSelection,
     resolvePendingDiscardTake,
     resolvePendingPileDrawSelection,
     resolvePendingPileSearch,

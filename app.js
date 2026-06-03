@@ -24,7 +24,8 @@ const STORAGE_KEYS = {
   currentCpuBattle: `${APP_INTERNAL_ID}-current-cpu-battle`,
   challengeRewards: `${APP_INTERNAL_ID}-challenge-rewards`,
   loginBonus: `${APP_INTERNAL_ID}-login-bonus`,
-  dailyStats: `${APP_INTERNAL_ID}-daily-stats`
+  dailyStats: `${APP_INTERNAL_ID}-daily-stats`,
+  guidePanel: `${APP_INTERNAL_ID}-guide-panel`
 };
 const LEGACY_STORAGE_KEYS = {
   player: ["hara" + "pekoPlayerProfile"],
@@ -81,7 +82,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=130");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=131");
 }
 
 let game = engine.createGame();
@@ -115,6 +116,7 @@ let cpuDifficulty = "normal";
 let rulesPageIndex = 0;
 let cardListPoolTab = "normal";
 let cardListTypeTab = "unit";
+let lastGuidePanel = readStorage("guidePanel", "rules") === "cards" ? "cards" : "rules";
 let selectedKey = null;
 let detailKey = null;
 let detailData = null;
@@ -272,6 +274,17 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.31",
+    title: "スペシャルカードを更新",
+    items: [
+      "スペシャルカードから、いい子にしてな、呪い、番犬化、コピーペーストを削除しました。",
+      "スペシャルカードに、不公平、フィナンシェ、いきなりスカウト、プレゼントを追加しました。",
+      "サンダーショックを、相手ライフと相手の場全体に1ダメージを与え、受けたモンスターを次ターン行動できなくする効果に変更しました。",
+      "カード一覧の表示範囲を広げ、ガイドでは最後に見たルール/カード一覧のタブを開くようにしました。",
+      "超強いCPUを調整しました。"
+    ]
+  },
   {
     version: "v1.30",
     title: "カード一覧を見やすく調整",
@@ -1884,6 +1897,7 @@ function render() {
   renderPendingDoubleCheck();
   renderPendingQuickReplay();
   renderPendingDiscardSelection();
+  renderPendingGiveSelection();
   renderPendingDiscardTake();
   renderPendingPileDrawSelection();
   renderPendingPileSearch();
@@ -1912,6 +1926,7 @@ function createOnlinePlaceholderView() {
     pendingQuickReplay: null,
     pendingOpponentHandCheck: null,
     pendingDiscardSelection: null,
+    pendingGiveSelection: null,
     pendingDiscardTake: null,
     pendingPileDrawSelection: null,
     pendingPileSearch: null,
@@ -2165,8 +2180,8 @@ function renderCardList() {
   const cardListTypeLabels = { unit: "モンスター", item: "持ち物", action: "アクション" };
   const cardListPoolLabels = { normal: "通常カード", special: "スペシャルカード" };
   const cardListCardsByPool = {
-    normal: Object.values(CARD_DEFINITIONS).filter((card) => card && !card.special),
-    special: Object.values(CARD_DEFINITIONS).filter((card) => card && card.special),
+    normal: Object.values(CARD_DEFINITIONS).filter((card) => card && !card.special && !card.removed),
+    special: Object.values(CARD_DEFINITIONS).filter((card) => card && card.special && !card.removed),
   };
   const cardListCardsByType = { unit: [], item: [], action: [] };
   cardListCardsByPool[cardListPoolTab].forEach((card) => {
@@ -2879,6 +2894,9 @@ function detailSignature(key, data) {
   if (data.source === "pendingDiscardSelection") {
     return `${key}:${data.source}:${data.count}:${view.players[getSelfId()].hand.join(",")}`;
   }
+  if (data.source === "pendingGiveSelection") {
+    return `${key}:${data.source}:${data.count}:${view.players[getSelfId()].hand.join(",")}`;
+  }
   if (data.source === "pendingDiscardTake") {
     return `${key}:${data.source}:${view.discard.join(",")}`;
   }
@@ -2909,6 +2927,7 @@ function isPendingDetailSource(source) {
     "pendingDoubleCheck",
     "pendingQuickReplay",
     "pendingDiscardSelection",
+    "pendingGiveSelection",
     "pendingDiscardTake",
     "pendingPileDrawSelection",
     "pendingPileSearch",
@@ -2945,6 +2964,16 @@ function renderPendingDiscardSelection() {
   detailKey = "pending:discardSelection";
   const card = pending.source === "preparation" ? CARD_DEFINITIONS.preparation : CARD_DEFINITIONS.acrobat;
   detailData = { source: "pendingDiscardSelection", zone: card.name, count: pending.count, card };
+  renderDetail();
+}
+
+function renderPendingGiveSelection() {
+  const view = getView();
+  const pending = view.pendingGiveSelection;
+  if (!pending || pending.playerId !== getSelfId() || isCpuTurn()) return;
+  selectedKey = "pending:giveSelection";
+  detailKey = "pending:giveSelection";
+  detailData = { source: "pendingGiveSelection", zone: CARD_DEFINITIONS.unfair?.name || "不公平", count: pending.count, card: CARD_DEFINITIONS.unfair };
   renderDetail();
 }
 
@@ -3022,6 +3051,11 @@ function renderDetailActions(container, data) {
 
   if (data.source === "pendingDiscardSelection") {
     renderDiscardSelectionControls(container, data.count, view);
+    return;
+  }
+
+  if (data.source === "pendingGiveSelection") {
+    renderGiveSelectionControls(container, data.count, view);
     return;
   }
 
@@ -3354,6 +3388,10 @@ function createActionInputs(form, card, view, actionHandIndex = null) {
   if (["discardUnit"].includes(card.effectKey)) {
     controls.target = appendTargetChoicePicker(form, "対象", unitTargetOptions(view));
   }
+  if (card.effectKey === "suddenScout") {
+    controls.target = appendTargetChoicePicker(form, "スカウト対象", unitTargetOptions(view, { opponentOnly: true })
+      .filter((option) => option.unit && Number(option.unit.power) <= 3));
+  }
   if (["sacrifice", "specialCharge", "watchdog"].includes(card.effectKey)) {
     controls.target = appendTargetChoicePicker(form, "対象", unitTargetOptions(view, { ownOnly: true }));
   }
@@ -3407,6 +3445,35 @@ function renderDiscardSelectionControls(container, count, view) {
   form.append(createSmallButton(`${count}枚捨てる`, hand.length < count, () => {
     const handIndexes = picker.getSelectedValues();
     runGameAction("discardSelection", { handIndexes }, () => engine.resolvePendingDiscardSelection(game, game.activePlayer, handIndexes));
+    clearSelection();
+    if (!onlineMode) render();
+  }));
+  container.append(form);
+}
+
+function renderGiveSelectionControls(container, count, view) {
+  const form = document.createElement("div");
+  form.className = "action-form";
+  const note = document.createElement("p");
+  note.className = "empty-note";
+  note.textContent = `不公平の効果です。相手に渡す手札を${count}枚選んでください。`;
+  form.append(note);
+  const hand = view.players[getSelfId()].hand;
+  if (hand.length <= count) {
+    form.append(createSmallButton("手札をすべて渡す", false, () => {
+      const handIndexes = hand.map((_, index) => String(index));
+      runGameAction("giveSelection", { handIndexes }, () => engine.resolvePendingGiveSelection(game, game.activePlayer, handIndexes));
+      clearSelection();
+      if (!onlineMode) render();
+    }));
+    container.append(form);
+    return;
+  }
+  const choices = hand.map((cardId, index) => [String(index), CARD_DEFINITIONS[cardId].name, cardId]);
+  const picker = appendClickMultiPicker(form, "渡す手札", choices, count);
+  form.append(createSmallButton(`${count}枚渡す`, hand.length < count, () => {
+    const handIndexes = picker.getSelectedValues();
+    runGameAction("giveSelection", { handIndexes }, () => engine.resolvePendingGiveSelection(game, game.activePlayer, handIndexes));
     clearSelection();
     if (!onlineMode) render();
   }));
@@ -4077,7 +4144,7 @@ function getAllUnits(view) {
 
 function unitTargetOptions(view, options = {}) {
   const opponentId = view.activePlayer === 0 ? 1 : 0;
-  const ownerOrder = options.ownOnly ? [view.activePlayer] : [opponentId, view.activePlayer];
+  const ownerOrder = options.ownOnly ? [view.activePlayer] : options.opponentOnly ? [opponentId] : [opponentId, view.activePlayer];
   const targets = [];
   if (options.includeLife) {
     targets.push({
@@ -4355,9 +4422,10 @@ function openTitleTab(tab) {
     titleBattleOpen = true;
     titleReturnTarget = "battle";
   } else if (tab === "guide") {
-    titleRulesOpen = true;
+    titleRulesOpen = lastGuidePanel !== "cards";
+    titleCardsOpen = lastGuidePanel === "cards";
     titleReturnTarget = "guide";
-    rulesPageIndex = 0;
+    if (titleRulesOpen) rulesPageIndex = 0;
   } else if (tab === "records") {
     titleRecordsOpen = true;
     titleReturnTarget = "records";
@@ -4547,6 +4615,8 @@ elements.closeProfileButton?.addEventListener("click", () => {
   returnToPreviousTitlePanel();
 });
 elements.showRulesButton?.addEventListener("click", () => {
+  lastGuidePanel = "rules";
+  writeStorage("guidePanel", "rules");
   profileEditorOpen = false;
   titleTab = "guide";
   titleRulesOpen = true;
@@ -4562,6 +4632,8 @@ elements.showRulesButton?.addEventListener("click", () => {
   render();
 });
 elements.showCardsButton?.addEventListener("click", () => {
+  lastGuidePanel = "cards";
+  writeStorage("guidePanel", "cards");
   profileEditorOpen = false;
   titleTab = "guide";
   titleCardsFromBattle = false;
@@ -4577,6 +4649,8 @@ elements.showCardsButton?.addEventListener("click", () => {
   render();
 });
 function openGuideRules() {
+  lastGuidePanel = "rules";
+  writeStorage("guidePanel", "rules");
   profileEditorOpen = false;
   titleTab = "guide";
   titleRulesOpen = true;
@@ -4593,6 +4667,8 @@ function openGuideRules() {
 }
 
 function openGuideCards() {
+  lastGuidePanel = "cards";
+  writeStorage("guidePanel", "cards");
   profileEditorOpen = false;
   titleTab = "guide";
   titleCardsFromBattle = false;
@@ -5427,6 +5503,14 @@ async function runCpuActions() {
       const indexes = game.players[1].hand.map((_, index) => index).slice(0, game.pendingDiscardSelection.count);
       await cpuStep("CPU 捨てる", () => engine.resolvePendingDiscardSelection(game, 1, indexes), "select");
     }
+    if (game.pendingGiveSelection?.playerId === 1) {
+      const indexes = game.players[1].hand
+        .map((cardId, index) => ({ index, score: cardScore(CARD_DEFINITIONS[cardId]) }))
+        .sort((a, b) => a.score - b.score)
+        .slice(0, game.pendingGiveSelection.count)
+        .map((entry) => entry.index);
+      await cpuStep("CPU 渡す", () => engine.resolvePendingGiveSelection(game, 1, indexes), "select");
+    }
     if (game.pendingPileSearch?.playerId === 1) {
       const indexes = game.pendingPileSearch.allPiles
         ? game.piles.flatMap((pile) => pile.deck
@@ -5500,6 +5584,10 @@ async function resolveCpuPendingChoices() {
     const indexes = chooseHardCpuDiscardIndexes(game.pendingDiscardSelection.count);
     await cpuStep("CPU 捨てる", () => engine.resolvePendingDiscardSelection(game, 1, indexes), "select");
   }
+  if (game.pendingGiveSelection?.playerId === 1) {
+    const indexes = chooseHardCpuDiscardIndexes(game.pendingGiveSelection.count);
+    await cpuStep("CPU 渡す", () => engine.resolvePendingGiveSelection(game, 1, indexes), "select");
+  }
   if (game.pendingPileSearch?.playerId === 1) {
     const indexes = chooseHardCpuPileSearchIndexes();
     await cpuStep("CPU サーチ", () => engine.resolvePendingPileSearch(game, 1, indexes), "draw");
@@ -5545,6 +5633,8 @@ function hardSummonChoices() {
       if (entry.cardId === "tyranitar" && player.life <= 6) score -= 420;
       if (tyranitarInField && ["girafarig", "farigiraf", "calyrexShadow", "mew", "pikachu"].includes(entry.cardId)) score -= 720;
       if (entry.cardId === "tyranitar" && player.field.some((unit) => ["girafarig", "farigiraf", "calyrexShadow", "mew", "pikachu"].includes(unit.cardId))) score -= 560;
+      if (isUltraCpu() && entry.cardId === "zacian" && player.field.some((unit) => unit.cardId === "quagsire")) score -= 780;
+      if (isUltraCpu() && entry.cardId === "quagsire" && player.field.some((unit) => unit.cardId === "zacian")) score -= 780;
       if (entry.cardId === "quagsire") score += quagsireSummonAdjustment();
       if (entry.cardId === "pikachu" && player.hand.includes("lightBall")) score += 520;
       if (isUltraCpu() && entry.cardId === "pikachu" && !player.hand.includes("lightBall")) score += 260;
@@ -5677,10 +5767,11 @@ function hardActionCandidates(handIndex, cardId) {
     }
     case "thunderShock": {
       if (enemyProtected) break;
-      const lifeDamage = estimateLifeDamageForCpu(2, 0, "action");
-      const kills = opponent.field.filter((unit) => effectiveDefenderHpForAttack(null, unit) <= estimateUnitDamageForCpu(2, 0, "action")).length;
+      const lifeDamage = estimateLifeDamageForCpu(1, 0, "action");
+      const kills = opponent.field.filter((unit) => effectiveDefenderHpForAttack(null, unit) <= estimateUnitDamageForCpu(1, 0, "action")).length;
+      const sleepers = opponent.field.filter((unit) => unit.canAct).length;
       if (lifeDamage >= opponent.life) add(53000, {}, "lethal");
-      else if (kills > 0 || opponent.life <= 5) add(260 + kills * 430 + lifeDamage * 85, {}, kills > 0 ? "remove" : "value");
+      else if (kills > 0 || sleepers > 0 || opponent.life <= 5) add(230 + kills * 430 + sleepers * 120 + lifeDamage * 85, {}, kills > 0 ? "remove" : "value");
       break;
     }
     case "specialCharge": {
@@ -5698,6 +5789,28 @@ function hardActionCandidates(handIndex, cardId) {
     }
     case "redCard":
       if (opponent.hand.length >= 4) add((isUltraCpu() ? 620 : 230) + opponent.hand.length * 70, {}, "value", "setup");
+      break;
+    case "presentSpecial":
+      if (player.hand.length <= 7) add(isUltraCpu() ? 820 : 420, {}, "value", "setup");
+      break;
+    case "financier":
+      if (!player.usedFinancier && (player.life <= 8 || isCpuInLethalDanger())) add(520 + (12 - player.life) * 90, {}, "defend");
+      else if (!player.usedFinancier && player.life <= 12) add(230, {}, "value");
+      break;
+    case "unfairTrade": {
+      if (enemyProtected) break;
+      const enemyValue = opponent.field.reduce((sum, unit) => sum + unitThreat(unit), 0);
+      const ownValue = player.field.reduce((sum, unit) => sum + unitThreat(unit), 0);
+      const drawRoom = drawRoomAfterPlaying();
+      if (opponent.field.length > 0 || drawRoom >= 4) add(360 + Math.max(0, enemyValue - ownValue * 0.55) + drawRoom * 45, {}, "value", "setup");
+      break;
+    }
+    case "suddenScout":
+      if (!enemyProtected && player.field.length < engine.getPublicState(game, 0).maxFieldSize) {
+        opponent.field
+          .filter((unit) => Number(unit.power) <= 3)
+          .forEach((unit) => add(420 + unitThreat(unit) + priorityTargetBonus(unit), { unitId: unit.id }, "remove"));
+      }
       break;
     case "discardOpponentHand":
       if (opponent.hand.length > 0 && player.hand.length <= 8) add((isUltraCpu() ? 720 : 260) + Math.min(2, opponent.hand.length) * 150, {}, "value", "setup");
@@ -5723,16 +5836,16 @@ function hardActionCandidates(handIndex, cardId) {
       if (player.field.length > 0 && opponent.field.length > 0) add((shouldSummonBeforeBuff ? -120 : 130) + player.field.length * opponent.field.length * 75, {}, "defend");
       break;
     case "drawOneBuffOwnField":
-      if (ownQuagsireActive) break;
       if (player.field.length > 0 && bestPile) {
         const buffedLifeDamage = totalPossibleLifeDamage(2);
         const lethalBonus = canCpuAttackLifeNow() && opponent.life <= buffedLifeDamage ? 9000 : 0;
+        const topValue = pileTopScore(bestPile);
+        if (ownQuagsireActive && lethalBonus <= 0 && (!isUltraCpu() || topValue < 720)) break;
         if (isUltraCpu()) {
           const readyAttackers = player.field.filter((unit) => unit.canAct).length;
-          const topValue = pileTopScore(bestPile);
           if (readyAttackers < 2 && lethalBonus <= 0 && topValue < 520) break;
         }
-        add((shouldSummonBeforeBuff ? -100 : 260) + player.field.length * 120 + pileTopScore(bestPile) * 0.2 + lethalBonus, { pileId: bestPile.id }, lethalBonus > 0 ? "lethal" : "value", "boardBuff");
+        add((shouldSummonBeforeBuff ? -100 : 260) + player.field.length * 120 + topValue * 0.2 + lethalBonus - (ownQuagsireActive ? 460 : 0), { pileId: bestPile.id }, lethalBonus > 0 ? "lethal" : "value", "boardBuff");
       }
       break;
     case "drawTwoGainAction":
@@ -5964,6 +6077,14 @@ function resolveSimulatedCpuPending(simulated) {
       .slice(0, simulated.pendingDiscardSelection.count)
       .map((entry) => entry.index);
     engine.resolvePendingDiscardSelection(simulated, 1, indexes);
+  }
+  if (simulated.pendingGiveSelection?.playerId === 1) {
+    const indexes = simulated.players[1].hand
+      .map((cardId, index) => ({ index, score: hardCardIdScore(cardId) }))
+      .sort((a, b) => a.score - b.score)
+      .slice(0, simulated.pendingGiveSelection.count)
+      .map((entry) => entry.index);
+    engine.resolvePendingGiveSelection(simulated, 1, indexes);
   }
   if (simulated.pendingPileSearch?.playerId === 1) {
     const pending = simulated.pendingPileSearch;

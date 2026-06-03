@@ -3597,7 +3597,7 @@ body.title-cpu-active .title-content > h1 {
 .card-list-body {
   display: grid;
   gap: 20px;
-  max-height: min(56vh, 560px);
+  max-height: min(70vh, 760px);
   overflow: auto;
   padding: 20px;
   border: 1px solid rgba(103, 183, 255, 0.2);
@@ -3606,6 +3606,10 @@ body.title-cpu-active .title-content > h1 {
     linear-gradient(145deg, rgba(16, 28, 42, 0.86), rgba(8, 13, 20, 0.9)),
     repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 8px);
   box-shadow: inset 0 0 40px rgba(103, 183, 255, 0.06);
+}
+
+.title-cards > h2 {
+  display: none;
 }
 
 .card-list-tabs {
@@ -4850,7 +4854,7 @@ body.title-cpu-active .title-content > h1 {
   }
 
   .card-list-body {
-    max-height: 58dvh;
+    max-height: calc(100dvh - 220px);
     padding: 14px;
   }
 

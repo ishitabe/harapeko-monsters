@@ -526,6 +526,8 @@ function applyAction(game, playerId, payload) {
       return engine.resolvePendingOpponentHandCheck(game, playerId, payload.opponentHandIndex);
     case "discardSelection":
       return engine.resolvePendingDiscardSelection(game, playerId, payload.handIndexes);
+    case "giveSelection":
+      return engine.resolvePendingGiveSelection(game, playerId, payload.handIndexes);
     case "discardTake":
       return engine.resolvePendingDiscardTake(game, playerId, payload.discardIndex);
     case "pileDrawSelection":
@@ -558,6 +560,7 @@ function pendingInfo(game) {
     ["quickReplay", game.pendingQuickReplay, "quickReplay"],
     ["doubleCheck", game.pendingOpponentHandCheck, "doubleCheck"],
     ["discardSelection", game.pendingDiscardSelection, "discardSelection"],
+    ["giveSelection", game.pendingGiveSelection, "giveSelection"],
     ["discardTake", game.pendingDiscardTake, "discardTake"],
     ["pileDrawSelection", game.pendingPileDrawSelection, "pileDrawSelection"],
     ["pileSearch", game.pendingPileSearch, "pileSearch"],
