@@ -62,17 +62,21 @@ const CARD_DEFINITIONS = {
   xerneas: { id: "xerneas", name: "ゼルネアス", type: "unit", hp: 4, power: 2, effectKey: "noItemTriplePower", text: "このモンスターは持ち物を装備できない。攻撃の代わりに自分のパワーを3倍にできる。", special: true },
   yveltal: { id: "yveltal", name: "イベルタル", type: "unit", hp: 3, power: 4, effectKey: "damageOnOpponentCardGain", text: "このモンスターが場にいる時、相手は手札に加えたカード1枚につきライフに1ダメージ受ける。", special: true },
   specialCharge: { id: "specialCharge", name: "特攻指令", type: "action", effectKey: "specialCharge", text: "自分の場のモンスター1体を選び、そのパワー分のダメージを相手の場全体とライフに与え、そのモンスターを捨札に送る。", special: true },
-  beGood: { id: "beGood", name: "いい子にしてな", type: "action", effectKey: "actionLockNextTurn", text: "相手は次のターン、アクションカードを使えない。", special: true },
-  thunderShock: { id: "thunderShock", name: "サンダーショック", type: "action", effectKey: "thunderShock", text: "相手の場全体と相手ライフに2ダメージ与える。", special: true },
-  curse: { id: "curse", name: "呪い", type: "action", effectKey: "curseNoDraw", text: "相手の手札が5枚以上ある場合、相手は2ターンの間カードをドローできない。", special: true },
-  watchdog: { id: "watchdog", name: "番犬化", type: "action", effectKey: "watchdog", text: "自分の場のモンスター1体を選び「相手はこのモンスターしか攻撃できない。」を付与する。", special: true },
+  beGood: { id: "beGood", name: "いい子にしてな", type: "action", effectKey: "actionLockNextTurn", text: "相手は次のターン、アクションカードを使えない。", special: true, removed: true },
+  thunderShock: { id: "thunderShock", name: "サンダーショック", type: "action", effectKey: "thunderShock", text: "相手のライフと場全体に1ダメージ。これを受けた相手モンスターは次ターン行動できない。", special: true },
+curse: { id: "curse", name: "呪い", type: "action", effectKey: "curseNoDraw", text: "相手の手札が5枚以上ある場合、相手は2ターンの間カードをドローできない。", special: true, removed: true },
+  watchdog: { id: "watchdog", name: "番犬化", type: "action", effectKey: "watchdog", text: "自分の場のモンスター1体を選び「相手はこのモンスターしか攻撃できない。」を付与する。", special: true, removed: true },
   comeback: { id: "comeback", name: "起死回生", type: "action", effectKey: "comeback", text: "山札を1つ選び3枚ドロー。自分のライフが6以下なら、追加で2枚ドローしライフを4回復する。", special: true },
-  copyPaste: { id: "copyPaste", name: "コピーペースト", type: "action", effectKey: "doubleNextAction", text: "このターン、次に使うアクションは2回効果を発動する。", special: true },
+  copyPaste: { id: "copyPaste", name: "コピーペースト", type: "action", effectKey: "doubleNextAction", text: "このターン、次に使うアクションは2回効果を発動する。", special: true, removed: true },
   ultraSearch: { id: "ultraSearch", name: "ウルトラサーチ", type: "action", effectKey: "ultraSearch", text: "山札、捨札、相手手札、スペシャルカードの中から1枚選び自分の手札に加える。", special: true },
+  unfair: { id: "unfair", name: "不公平", type: "action", effectKey: "unfairTrade", text: "相手の場全体にHPとパワー-2。自分の場全体にHPとパワー-1。各山札から2枚ずつドローした後、手札から2枚選び相手に渡す。", special: true },
+  financier: { id: "financier", name: "フィナンシェ", type: "action", effectKey: "financier", text: "ライフを+10する。同じバトル中、一人一度しか使えない。", special: true },
+  suddenScout: { id: "suddenScout", name: "いきなりスカウト", type: "action", effectKey: "suddenScout", text: "相手の場のパワー3以下のモンスターを1匹選択し、自分の場に加える。そのモンスターは召喚酔いしない。", special: true },
+  present: { id: "present", name: "プレゼント", type: "action", effectKey: "presentSpecial", text: "スペシャルカードを3枚手札に加える。", special: true },
 };
 
-const SPECIAL_CARD_POOL = Object.keys(CARD_DEFINITIONS).filter((cardId) => CARD_DEFINITIONS[cardId].special);
-const CARD_POOL = Object.keys(CARD_DEFINITIONS).filter((cardId) => !CARD_DEFINITIONS[cardId].special);
+const SPECIAL_CARD_POOL = Object.keys(CARD_DEFINITIONS).filter((cardId) => CARD_DEFINITIONS[cardId].special && !CARD_DEFINITIONS[cardId].removed);
+const CARD_POOL = Object.keys(CARD_DEFINITIONS).filter((cardId) => !CARD_DEFINITIONS[cardId].special && !CARD_DEFINITIONS[cardId].removed);
 const PILE_DEFINITIONS = [
   { id: "pileA", name: "山札A" },
   { id: "pileB", name: "山札B" },
