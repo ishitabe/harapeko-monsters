@@ -82,7 +82,7 @@ function applyAppIdentity() {
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute("content", APP_SHORT_NAME);
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=131");
+  if (manifestLink) manifestLink.setAttribute("href", "manifest.json?v=132");
 }
 
 let game = engine.createGame();
@@ -274,6 +274,13 @@ const RULE_PAGES = [
   }
 ];
 const UPDATE_HISTORY = [
+  {
+    version: "v1.32",
+    title: "CPUを調整",
+    items: [
+      "超強いCPUのカビゴンとヌオーの召喚判断を調整しました。"
+    ]
+  },
   {
     version: "v1.31",
     title: "スペシャルカードを更新",
@@ -5619,6 +5626,10 @@ function hardSummonChoices() {
   const tyranitarInField = player.field.some((unit) => unit.cardId === "tyranitar");
   const anyTyranitarInField = game.players.some((candidate) => candidate.field.some((unit) => unit.cardId === "tyranitar"));
   const ownHpOneInField = player.field.some((unit) => unit.hp <= 1 || unit.maxHp <= 1 || CARD_DEFINITIONS[unit.cardId]?.hp <= 1);
+  const opponentFieldCount = game.players[0].field.length;
+  const opponentHasUrshifu = game.players[0].field.some((unit) => CARD_DEFINITIONS[unit.cardId]?.effectKey === "ignoreWallLifeAttack");
+  const ownQuagsireInField = player.field.some((unit) => unit.cardId === "quagsire");
+  const ownSnorlaxInField = player.field.some((unit) => unit.cardId === "snorlax");
   return player.hand
     .map((cardId, handIndex) => ({ cardId, handIndex, card: CARD_DEFINITIONS[cardId] }))
     .filter((entry) => entry.card.type === "unit")
@@ -5635,17 +5646,24 @@ function hardSummonChoices() {
       if (entry.cardId === "tyranitar" && player.field.some((unit) => ["girafarig", "farigiraf", "calyrexShadow", "mew", "pikachu"].includes(unit.cardId))) score -= 560;
       if (isUltraCpu() && entry.cardId === "zacian" && player.field.some((unit) => unit.cardId === "quagsire")) score -= 780;
       if (isUltraCpu() && entry.cardId === "quagsire" && player.field.some((unit) => unit.cardId === "zacian")) score -= 780;
+      if (isUltraCpu() && entry.cardId === "snorlax" && ownQuagsireInField) score -= 980;
+      if (isUltraCpu() && entry.cardId === "quagsire" && ownSnorlaxInField) score -= 900;
+      if (isUltraCpu() && entry.cardId === "snorlax") {
+        if (opponentFieldCount >= 2) score += opponentFieldCount >= 3 ? 760 : 560;
+        if (opponentFieldCount <= 1) score -= opponentFieldCount === 0 ? 460 : 140;
+        if (opponentHasUrshifu) score -= 520;
+      }
       if (entry.cardId === "quagsire") score += quagsireSummonAdjustment();
       if (entry.cardId === "pikachu" && player.hand.includes("lightBall")) score += 520;
       if (isUltraCpu() && entry.cardId === "pikachu" && !player.hand.includes("lightBall")) score += 260;
       score += bestItemComboBonusForUnit(entry.cardId);
-      if (entry.card.effectKey === "mustBeAttacked") score += game.players[0].field.length * (isUltraCpu() && game.players[0].field.length >= 2 ? 170 : 85);
-      if (entry.card.effectKey === "ignoreWallLifeAttack" && game.players[0].field.length >= 3) score += 300;
+      if (entry.card.effectKey === "mustBeAttacked") score += opponentFieldCount * (isUltraCpu() && opponentFieldCount >= 2 ? 170 : 85);
+      if (entry.card.effectKey === "ignoreWallLifeAttack" && opponentFieldCount >= 3) score += 300;
       if (entry.card.effectKey === "powerPlusIfLifeTen" && player.life >= 10) score += 260;
       if (entry.card.effectKey === "healLifeOnTurnEnd" && player.life <= 10) score += 150;
-      if (entry.card.effectKey === "attackAllEnemies" && game.players[0].field.length >= 2) score += 280;
+      if (entry.card.effectKey === "attackAllEnemies" && opponentFieldCount >= 2) score += 280;
       if (entry.card.effectKey === "allyMonsterAttackPowerPlusTwo" && player.field.some((unit) => unit.canAct)) score += 240;
-      if (entry.card.effectKey === "enemyPowerMinusOneOnSummon" && game.players[0].field.length >= 2) score += 220;
+      if (entry.card.effectKey === "enemyPowerMinusOneOnSummon" && opponentFieldCount >= 2) score += 220;
       if (entry.card.effectKey === "damageOnSummonZeroPowerAndReturn" && game.players[0].field.some((unit) => unit.hp <= 1 || unit.power >= 3)) score += 220;
       return { type: "summon", handIndex: entry.handIndex, score, reason: player.field.length <= 2 ? "summon" : "value" };
     });
